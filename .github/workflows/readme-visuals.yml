@@ -1,0 +1,43 @@
+{
+  "name": "Update Mi Step README visuals",
+  "on": {
+    "push": {
+      "branches": [
+        "main"
+      ],
+      "paths": [
+        ".github/readme-payload.json"
+      ]
+    }
+  },
+  "permissions": {
+    "contents": "write"
+  },
+  "concurrency": {
+    "group": "mistep-readme-documentation",
+    "cancel-in-progress": false
+  },
+  "jobs": {
+    "update-docs": {
+      "if": "github.repository == 'JIUSIS/MiStep' && github.ref == 'refs/heads/main'",
+      "runs-on": "ubuntu-latest",
+      "timeout-minutes": 5,
+      "steps": [
+        {
+          "name": "Check out approved documentation payload",
+          "uses": "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "with": {
+            "persist-credentials": false
+          }
+        },
+        {
+          "name": "Verify and commit the five approved documentation files",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          },
+          "run": "python3 - <<'PY'\nimport base64,hashlib,json,os,re,urllib.request\nfrom pathlib import Path\nREPO='JIUSIS/MiStep'\nALLOW={'README.md','docs/\u4f7f\u7528\u8bf4\u660e.md','docs/assets/mistep-banner.png','docs/assets/mistep-emblem.png','docs/assets/workspace-layout.svg'}\nassert os.environ['GITHUB_REPOSITORY']==REPO and os.environ['GITHUB_REF']=='refs/heads/main'\nHEAD=os.environ['GITHUB_SHA']\nTOKEN=os.environ['GH_TOKEN']\nassert re.fullmatch('[0-9a-f]{40}',HEAD)\ndef api(method,endpoint,payload=None):\n data=None if payload is None else json.dumps(payload,ensure_ascii=True).encode()\n req=urllib.request.Request('https://api.github.com/repos/'+REPO+endpoint,data=data,method=method,headers={'Authorization':'Bearer '+TOKEN,'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2026-03-10','Content-Type':'application/json','User-Agent':'MiStep-approved-readme-update'})\n with urllib.request.urlopen(req,timeout=45) as response:return json.load(response)\ndef gitsha(b):return hashlib.sha1(b'blob '+str(len(b)).encode()+b'\\0'+b).hexdigest()\nassert api('GET','')['private'] is True\nassert api('GET','/git/ref/heads/main')['object']['sha']==HEAD\nmanifest=json.loads(Path('.github/readme-payload.json').read_text(encoding='utf-8'))\nassert manifest['repository']==REPO\nrows=manifest['files']\nassert len(rows)==len(ALLOW) and {r['path'] for r in rows}==ALLOW\nverified=[]\nfor row in rows:\n assert isinstance(row['bytes'],int) and 0<row['bytes']<4000000\n assert re.fullmatch('[0-9a-f]{64}',row['sha256']) and re.fullmatch('[0-9a-f]{40}',row['gitSha'])\n if row['path'].endswith('.png'):\n  assert 'text' not in row and 0<len(row['parts'])<=64\n  parts=[]\n  for sha in row['parts']:\n   assert re.fullmatch('[0-9a-f]{40}',sha)\n   blob=api('GET','/git/blobs/'+sha)\n   assert blob['sha']==sha and blob['encoding']=='base64'\n   part=base64.b64decode(blob['content'])\n   assert 0<len(part)<=49152 and gitsha(part)==sha\n   parts.append(part)\n  b=b''.join(parts)\n  assert b.startswith(b'\\x89PNG\\r\\n\\x1a\\n')\n else:\n  assert 'parts' not in row and isinstance(row['text'],str)\n  b=row['text'].encode('utf-8')\n assert len(b)==row['bytes'] and hashlib.sha256(b).hexdigest()==row['sha256'] and gitsha(b)==row['gitSha']\n verified.append((row,b))\n# Every approved file has passed complete-content validation before write operations.\nentries=[]\nfor row,b in verified:\n blob=api('POST','/git/blobs',dict(encoding='base64',content=base64.b64encode(b).decode()))\n assert blob['sha']==row['gitSha']\n entries.append(dict(path=row['path'],mode='100644',type='blob',sha=blob['sha']))\nbase=api('GET','/git/commits/'+HEAD)['tree']['sha']\ntree=api('POST','/git/trees',dict(base_tree=base,tree=entries))['sha']\ndef files(sha):\n value=api('GET','/git/trees/'+sha+'?recursive=1');assert not value['truncated']\n return {e['path']:e['sha'] for e in value['tree'] if e['type']=='blob'}\nbefore,after=files(base),files(tree)\nassert {p for p in set(before)|set(after) if before.get(p)!=after.get(p)}==ALLOW\nassert api('GET','/git/ref/heads/main')['object']['sha']==HEAD\ncommit=api('POST','/git/commits',dict(message='Redesign Mi Step README with author story, branded visuals and detailed feature guide',tree=tree,parents=[HEAD]))['sha']\nupdated=api('PATCH','/git/refs/heads/main',dict(sha=commit,force=False))\nassert updated['object']['sha']==commit\nassert api('GET','')['private'] is True\nresult=dict(commit=commit,tree=tree,private=True,files=[dict(path=row['path'],bytes=row['bytes'],sha256=row['sha256'],gitSha=row['gitSha']) for row,b in verified])\nprint('DOCS_UPDATED '+json.dumps(result,ensure_ascii=True))\nwith open(os.environ['GITHUB_STEP_SUMMARY'],'a',encoding='utf-8') as summary:\n summary.write('Approved Mi Step documentation and images committed: `'+commit+'`. Five complete-file hashes verified; repository remains private.\\n')\n\nPY"
+        }
+      ]
+    }
+  }
+}
