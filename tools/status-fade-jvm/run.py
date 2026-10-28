@@ -5,7 +5,7 @@ import subprocess
 import sys
 
 root = Path(__file__).resolve().parents[2]
-src = root / 'module/src/main/java/com/jianguo/mistep'
+src = Path(sys.argv[2]) if len(sys.argv) > 2 else root / 'module/src/main/java/com/jianguo/mistep'
 out = Path(sys.argv[1])
 out.mkdir(parents=True, exist_ok=True)
 files = {
@@ -22,6 +22,10 @@ files = {
  public static ValueAnimator latest(){return all.get(all.size()-1);}
 }''',
 'android/os/Looper.java': 'package android.os;public class Looper {static final Looper main=new Looper();public static Looper myLooper(){return main;}}',
+'android/os/Message.java': 'package android.os;public class Message {public int what,arg1,arg2;public Object obj;}',
+'de/robv/android/xposed/XC_MethodHook.java': 'package de.robv.android.xposed;public class XC_MethodHook {public static class MethodHookParam {public Object[] args;} protected void beforeHookedMethod(MethodHookParam p) throws Throwable {}}',
+'de/robv/android/xposed/XposedHelpers.java': 'package de.robv.android.xposed;public class XposedHelpers {public static Object findAndHookMethod(String n,ClassLoader c,String m,Object...a){return null;}}',
+'de/robv/android/xposed/XposedBridge.java': 'package de.robv.android.xposed;public class XposedBridge {public static void log(String s){}}',
 'android/os/Handler.java': 'package android.os;import java.util.*;public class Handler {public List<Runnable>delayed=new ArrayList<>();public Looper getLooper(){return Looper.myLooper();}public boolean post(Runnable r){r.run();return true;}public void postDelayed(Runnable r,long d){delayed.add(r);}public void removeCallbacks(Runnable r){delayed.remove(r);}}',
 'android/view/animation/LinearInterpolator.java': 'package android.view.animation;public class LinearInterpolator {}',
 'android/view/Display.java': 'package android.view;public class Display {public static final int DEFAULT_DISPLAY=0;public int id;public int getDisplayId(){return id;}}',
@@ -38,8 +42,9 @@ files = {
 import android.animation.*;import android.view.*;import android.view.inspector.*;import android.os.*;import java.util.*;
 public class StatusFadeRegression {
  static int checks;static void check(boolean b,String why){checks++;if(!b)throw new AssertionError(why);}static boolean near(float a,float b){return Math.abs(a-b)<.00001;}
+ static void nativeState(int display,int window,int state){try{var m=MiStepStatusBar.class.getDeclaredMethod("nativeWindowStateChanged",int.class,int.class,int.class);m.setAccessible(true);m.invoke(null,display,window,state);}catch(NoSuchMethodException old201){/* Replay the real old restoration behavior. */}catch(Exception e){throw new RuntimeException(e);}}
  public static void main(String[]args){
-  Handler handler=new Handler();List<String>errors=new ArrayList<>();MiStepStatusBar bar=new MiStepStatusBar(handler,message->{if(!message.startsWith("live status fade "))errors.add(message);});View view=new View();WindowInspector.views.add(view);Object originalParams=view.params;
+  Handler handler=new Handler();List<String>errors=new ArrayList<>();MiStepStatusBar bar=new MiStepStatusBar(handler,message->{if(!message.startsWith("live status fade ")&&!message.startsWith("native status "))errors.add(message);});View view=new View();WindowInspector.views.add(view);Object originalParams=view.params;
   View foreign=new View();foreign.params.type=2038;View otherDisplay=new View();otherDisplay.display.id=2;WindowInspector.views.add(foreign);WindowInspector.views.add(otherDisplay);
   Object one=new Object(),two=new Object();int[]started={0};bar.hideFor(one,()->{});
   check(near(view.alpha,.63f),"hide begins from the live alpha instead of snapping to zero");
@@ -58,6 +63,16 @@ public class StatusFadeRegression {
   View during=new View();during.alpha=.2f;WindowInspector.views.add(during);WindowInspector.notifyViews();check(during.alpha==0,"root rebuilt after admission stays hidden throughout the live swap");bar.restore();check(near(view.alpha,.63f)&&near(late.alpha,.4f)&&near(during.alpha,.2f),"late roots still restore their own OEM alpha");
   WindowInspector.views=new ArrayList<>(List.of(view));bar.hideFor(one,()->{});bar.runAfterHiddenFrame(one,()->started[0]++);view.attached=false;ValueAnimator.latest().end();check(started[0]==3,"detached status root does not strand swap admission");bar.restore();view.attached=true;
   WindowInspector.views=new ArrayList<>(List.of(foreign));bar.hideFor(one,()->{});bar.runAfterHiddenFrame(one,()->started[0]++);check(started[0]==4,"no attached status window requires no invented bitmap or animation");bar.restore();
+  WindowInspector.views=new ArrayList<>(List.of(view));nativeState(0,1,0);bar.hideFor(one,()->{});ValueAnimator.latest().end();nativeState(0,1,2);int animators=ValueAnimator.all.size();bar.finish(one);
+  check(view.alpha==0&&ValueAnimator.all.size()==animators&&!bar.owns(one),"immersive main must not fade the hidden native bar back into its hide animation");
+  check(handler.delayed.isEmpty(),"native hidden drawing does not retain a swap deadline or input cooldown");
+  nativeState(2,1,0);nativeState(0,2,0);check(view.alpha==0,"other display and navigation bar visibility cannot reveal the main status bar");
+  View nativeRebuilt=new View();nativeRebuilt.alpha=.41f;WindowInspector.views.add(nativeRebuilt);WindowInspector.notifyViews();check(nativeRebuilt.alpha==0,"a rebuilt root stays hidden during the native hide handoff");
+  nativeState(0,1,0);for(var a:new ArrayList<>(ValueAnimator.all))if(!a.cancelled&&!a.ended)a.end();check(near(view.alpha,.63f)&&near(nativeRebuilt.alpha,.41f),"native status show restores exact OEM alpha for original and rebuilt roots");WindowInspector.views=new ArrayList<>(List.of(view));
+  bar.hideFor(one,()->{});ValueAnimator.latest().end();bar.finish(one);ValueAnimator lateReveal=ValueAnimator.latest();lateReveal.step(.2f);nativeState(0,1,2);check(view.alpha==0,"native hide arriving during reveal immediately suppresses that stale reveal");lateReveal.end();check(view.alpha==0,"late cancelled reveal cannot expose a hidden native bar");
+  bar.hideFor(two,()->{});nativeState(0,1,0);check(view.alpha==0,"native show during next swap cannot bypass its hidden frame ownership");bar.finish(two);ValueAnimator.latest().end();check(near(view.alpha,.63f),"replacement swap preserves original alpha across native-hidden drawing");
+  bar.hideFor(one,()->{});ValueAnimator.latest().end();nativeState(0,1,2);bar.finish(one);bar.restore();check(near(view.alpha,.63f),"exit restores a native-hidden deferred alpha immediately");nativeState(0,1,0);check(near(view.alpha,.63f),"late native show after exit leaves the restored bar unchanged");
+  bar.hideFor(one,()->{});ValueAnimator.latest().end();nativeState(0,1,2);for(var timeout:new ArrayList<>(handler.delayed))timeout.run();check(!bar.owns(one)&&view.alpha==0,"watchdog ends a timed out swap while native drawing stays hidden");nativeState(0,1,0);ValueAnimator.latest().end();check(near(view.alpha,.63f),"native show must restore alpha even when the lease ended through watchdog cleanup");
   check(WindowInspector.listeners.isEmpty()&&handler.delayed.isEmpty()&&errors.isEmpty(),"all listeners and watchdogs released without errors");
   System.out.println("actual live status fade checks="+checks+" passed");
  }

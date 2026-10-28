@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 import ast, subprocess, sys
 ROOT=Path(__file__).resolve().parents[2]
-OUT=Path(sys.argv[1]) if len(sys.argv)>1 else ROOT / 'build/tests/system-ui-rotation-jvm'
+OUT=Path(sys.argv[1]) if len(sys.argv)>1 else ROOT/'build/tests/system-ui-rotation-jvm'
 JDK=Path(os.environ["MISTEP_JAVA_BIN"])
 tree=ast.parse((ROOT/'tools/live-swap-jvm/run.py').read_text(encoding='utf-8-sig'))
 files=next(ast.literal_eval(n.value) for n in tree.body if isinstance(n,ast.Assign) and any(isinstance(t,ast.Name) and t.id=='FILES' for t in n.targets))

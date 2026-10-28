@@ -13,3 +13,4 @@ final class VisibilityRepair {
     }
     synchronized void reset() { scene = Long.MIN_VALUE; foreground = null; }
 }
+

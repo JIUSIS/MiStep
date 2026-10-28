@@ -132,6 +132,40 @@ int main() {
     check(std::fabs(corrected.m[3] * 100 + corrected.m[6] - 2508 / zoom.scale) < .002f,
             "raw display transform is applied before inverse zoom");
 
+    // Same fixed-rotation window input contract for every app/IME. Moving-popup
+    // origins never enter raw; raw directions and distances follow local axes.
+    for (int rotation : {0,1,2,3}) for(float ox : {0.f,273.f})
+    for(float origin : {-1900.f,0.f,1400.f}) {
+        const mistep::Zoom state{.7471545f,622.f,ox,1080,2460,0};
+        auto window=identity(); const float k=1.f/state.scale;
+        if(rotation==0){ window.m[0]=k;window.m[4]=k; }
+        if(rotation==1){ window.m[0]=0;window.m[1]=-k;window.m[3]=k;window.m[4]=0; }
+        if(rotation==2){ window.m[0]=-k;window.m[4]=-k; }
+        if(rotation==3){ window.m[0]=0;window.m[1]=k;window.m[3]=-k;window.m[4]=0; }
+        window.m[6]=origin;window.m[7]=-origin;
+        mistep::Transform mapped;
+        check(mistep::corrected_raw(state,window,raw,mapped),"fixed rotation raw composed");
+        auto aliased_raw=raw;
+        check(mistep::corrected_raw(state,window,aliased_raw,aliased_raw)
+                && std::memcmp(&aliased_raw,&mapped,sizeof(mapped))==0,
+                "aliased raw input preserves fixed rotation");
+        auto aliased_local=window;
+        check(mistep::corrected_raw(state,aliased_local,raw,aliased_local)
+                && std::memcmp(&aliased_local,&mapped,sizeof(mapped))==0,
+                "aliased local input preserves fixed rotation");
+        for(float x : {20.f,500.f,1060.f}) for(float y : {50.f,1300.f,2400.f}) {
+            float px=x*state.scale+ox,py=y*state.scale+state.offset_y;
+            float expected_x=rotation==0 ? x : rotation==1 ? y : rotation==2 ? 1080-x : 2460-y;
+            float expected_y=rotation==0 ? y : rotation==1 ? 1080-x : rotation==2 ? 2460-y : x;
+            check(std::fabs(mapped.m[0]*px+mapped.m[3]*py+mapped.m[6]-expected_x)<.003f,"absolute raw X follows fixed window");
+            check(std::fabs(mapped.m[1]*px+mapped.m[4]*py+mapped.m[7]-expected_y)<.003f,"absolute raw Y follows fixed window");
+        }
+        write(entry,0x1c,window); write(entry,0x44,raw);
+        for(int result : {0,-11,-32}){publish_result=result;run(state,entry,true);}
+    }
+    auto mirror=local;mirror.m[0]=-mirror.m[0];
+    check(!mistep::corrected_raw({zoom.scale,622,0,1080,2460,0},mirror,raw,corrected),"mirrored unsupported input skipped");
+
     void* libui = dlopen("/system/lib64/libui.so", RTLD_NOW);
     check(libui != nullptr, "real target libui opened in isolated process");
     using Set = void (*)(void*, float, float, float, float);

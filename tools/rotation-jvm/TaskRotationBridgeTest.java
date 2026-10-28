@@ -22,6 +22,8 @@ public class TaskRotationBridgeTest {
     }
     static class Task {
         int mode = 1;
+        Activity top;
+        Activity topRunningActivity() { return top; }
         int getWindowingMode() { return mode; }
         boolean isForceTranslucent() { return mode == 6; }
     }
@@ -32,7 +34,7 @@ public class TaskRotationBridgeTest {
         Task task = new Task();
         Configuration configuration = new Configuration();
         Display mDisplayContent;
-        Activity(int request) { this.request = request; }
+        Activity(int request) { this.request = request; task.top = this; }
         boolean isActivityTypeHome() { return home; }
         boolean inMultiWindowMode() { return task.mode == 6 || task.mode == 5; }
         int getOverrideOrientation() { return request; }
@@ -147,6 +149,7 @@ public class TaskRotationBridgeTest {
         check(fullscreenVideo.rotation == 3 && fullscreenVideo.starts == 1,
                 "portrait workspace configuration does not erase a side task's fullscreen direction");
         Activity replacement = new Activity(-1); replacement.task = fullscreenVideo.task;
+        replacement.task.top = replacement;
         apply(display, replacement);
         check(replacement.rotation == 3, "rotation state follows the task across activity replacement");
         replacement.task.mode = 5;
@@ -167,6 +170,39 @@ public class TaskRotationBridgeTest {
         apply(display, manualVideo);
         check(!manualVideo.transformed, "a stale side configuration cannot restore an exited fullscreen direction");
         call("endFixedMainRotationLocked", new Class[]{Object.class}, display);
+
+        // Real 200 trace: a landscape video and two portrait back-stack activities
+        // share one task. Mode1/6 configuration callbacks visit every activity.
+        call("beginFixedMainRotationLocked", new Class[]{Object.class}, display);
+        field("sZoomed").set(null, true);
+        Activity video = new Activity(11); display.top = video;
+        video.mDisplayContent = display;
+        check(Boolean.TRUE.equals(apply(display, video)), "video owns main rotation");
+        Object state = ((Map<?,?>) field("sTaskWindowStates").get(null)).get(video.task);
+        int remembered = ((TaskWindowState) state).preferredRememberedRotation();
+        int starts = video.starts;
+        Activity page = new Activity(1); page.task = video.task; page.mDisplayContent = display;
+        Activity root = new Activity(1); root.task = video.task; root.mDisplayContent = display;
+        for (int mode : new int[]{6, 1}) {
+            video.task.mode = mode;
+            apply(display, video);
+            for (Activity background : new Activity[]{page, root}) {
+                check(Boolean.FALSE.equals(apply(display, background)), "background callback ignored");
+                call("beforeApplicationOrientationRequest", new Class[]{Object.class, int.class}, background, 1);
+                check(video.transformed && video.finishes == 0 && video.starts == starts,
+                        "back-stack callback must not cancel or recreate foreground rotation");
+                check(((TaskWindowState) state).preferredRememberedRotation() == remembered,
+                        "background portrait cannot overwrite task direction");
+            }
+        }
+        check(field("sMiStepFixedRotationApp").get(null) == video,
+                "promoted video retains the same main owner");
+        video.task.top = page; display.top = page;
+        apply(display, page);
+        check(!video.transformed && video.finishes == 1 && owned().isEmpty(),
+                "a real foreground portrait change still releases the former video");
+        call("endFixedMainRotationLocked", new Class[]{Object.class}, display);
+        field("sZoomed").set(null, false);
 
         call("beginFixedMainRotationLocked", new Class[]{Object.class}, display);
         Activity nativeToken = new Activity(0); nativeToken.transformed = true;

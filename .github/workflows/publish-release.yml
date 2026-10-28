@@ -1,0 +1,48 @@
+{
+  "name": "Publish Mi Step 1.0.0",
+  "on": {
+    "push": {
+      "branches": [
+        "main"
+      ],
+      "paths": [
+        ".github/releases/v1.0.0.json"
+      ]
+    },
+    "workflow_dispatch": {}
+  },
+  "permissions": {
+    "contents": "write"
+  },
+  "concurrency": {
+    "group": "mistep-release-1.0.0",
+    "cancel-in-progress": false
+  },
+  "jobs": {
+    "publish": {
+      "if": "github.repository == 'JIUSIS/MiStep' && github.ref == 'refs/heads/main'",
+      "runs-on": "ubuntu-latest",
+      "timeout-minutes": 5,
+      "steps": [
+        {
+          "name": "Check out approved source commit",
+          "uses": "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "with": {
+            "persist-credentials": false
+          }
+        },
+        {
+          "name": "Verify release publisher safeguards",
+          "run": "python3 -m unittest discover -s .github/tests -p \"test_*.py\""
+        },
+        {
+          "name": "Verify signed artifacts and publish private release",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          },
+          "run": "python3 .github/publish_release.py .github/releases/v1.0.0.json"
+        }
+      ]
+    }
+  }
+}

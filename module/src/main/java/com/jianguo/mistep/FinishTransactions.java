@@ -29,3 +29,4 @@ final class FinishTransactions<T> {
     synchronized void forget(Object transaction) { pending.remove(transaction); }
     synchronized int size() { return pending.size(); }
 }
+

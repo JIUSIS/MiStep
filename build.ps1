@@ -36,7 +36,7 @@ $ns = 'http://schemas.android.com/apk/res/android'
 if ($manifest.manifest.GetAttribute('versionName',$ns) -ne $version.name -or
     $manifest.manifest.GetAttribute('versionCode',$ns) -ne [string]$version.code) { throw 'Version metadata mismatch.' }
 $entry = Get-Content -LiteralPath (Join-Path $src 'java\com\jianguo\mistep\HostEntry.java') -Raw
-if ([regex]::Matches($entry,[regex]::Escape($version.runtimeMarker)).Count -ne 2) { throw 'Runtime markers mismatch.' }
+if ([regex]::Matches($entry,[regex]::Escape($version.runtimeMarker)).Count -ne 3) { throw 'Runtime markers mismatch.' }
 New-Item -ItemType Directory -Force -Path $out,$dist,(Join-Path $out 'classes'),(Join-Path $out 'native'),(Join-Path $out 'dex') | Out-Null
 $env:JAVA_HOME = $JavaHome
 $env:MISTEP_JAVA_BIN = $javaBin
@@ -84,7 +84,7 @@ if (-not $Unsigned) {
 & (Join-Path $bt 'zipalign.exe') -c -P 16 4 $apk
 if ($LASTEXITCODE -ne 0) { throw 'Final APK alignment failed.' }
 $packaging = & (Join-Path $root 'tools\assert_module_apk.ps1') -Apk $apk -RequireNative
-$identity = [ordered]@{version=$version.name; versionCode=$version.code;runtimeMarker=$version.runtimeMarker;sha256=(Get-FileHash -LiteralPath $apk -Algorithm SHA256).Hash.ToLowerInvariant();bytes=(Get-Item -LiteralPath $apk).Length;nativeSha256=(Get-FileHash -LiteralPath $native -Algorithm SHA256).Hash.ToLowerInvariant();javaSourceCount=$sources.Count;build='Full Java and native source build; no development class cache';startupPackaging=$packaging.startupPackaging;nativePackaging=$packaging.nativePackaging;deviceValidation='Release build not installed; behavior baseline is development 2.9.193.'}
+$identity = [ordered]@{version=$version.name; versionCode=$version.code;runtimeMarker=$version.runtimeMarker;sha256=(Get-FileHash -LiteralPath $apk -Algorithm SHA256).Hash.ToLowerInvariant();bytes=(Get-Item -LiteralPath $apk).Length;nativeSha256=(Get-FileHash -LiteralPath $native -Algorithm SHA256).Hash.ToLowerInvariant();javaSourceCount=$sources.Count;build='Full Java and native source build; no development class cache';startupPackaging=$packaging.startupPackaging;nativePackaging=$packaging.nativePackaging;deviceValidation='Release build not installed; behavior baseline is development 2.9.204; user confirmed the development baseline fixes; release packaging validated separately.'}
 $identity | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $dist 'build-info.json') -Encoding utf8
 "$($identity.sha256)  $([IO.Path]::GetFileName($apk))" | Set-Content -LiteralPath (Join-Path $dist 'SHA256SUMS.txt') -Encoding ascii
 Write-Output "Built Mi Step $($version.name), versionCode=$($version.code), SHA256=$($identity.sha256)"

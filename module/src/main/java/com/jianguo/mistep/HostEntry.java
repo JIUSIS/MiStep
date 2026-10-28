@@ -105,6 +105,7 @@ public class HostEntry implements IXposedHookLoadPackage {
             MiStepNativeMedia.install(cl);
             MiStepIslandMonitorInput.install(cl, () -> sContext);
             MiStepStatusBarSampling.install(cl);
+            MiStepStatusBar.install(cl);
             MiStepPanelInput.install(cl);
             MiStepMainUiConfiguration.install(cl);
             MiStepNotificationLaunch.install(cl, () -> sContext);
@@ -129,7 +130,7 @@ public class HostEntry implements IXposedHookLoadPackage {
      * by the keyboard itself.
      */
     private static void hookMiTypeAutoFloating(ClassLoader cl) {
-        log("=== attached to com.xiaomi.type build=2.9.141 no-auto-floating ===");
+        log("=== attached to com.xiaomi.type build=1.0.0 release ===");
         try {
             Class<?> service = XposedHelpers.findClass("com.mi.ime.MiInputMethodService", cl);
             XposedHelpers.findAndHookMethod(service, "handleSpacePressureAutoFloating",
@@ -1065,6 +1066,9 @@ public class HostEntry implements IXposedHookLoadPackage {
     }
 
     private static final MiStepSystemUiRotation sMainSystemUiRotation = new MiStepSystemUiRotation();
+    private static final MiStepStatusBarClip sMainStatusBarClip = new MiStepStatusBarClip();
+    private static final MiStepImeProcessConfiguration sMainImeProcessConfiguration =
+            new MiStepImeProcessConfiguration();
     private static Object sPublishedMainUiState;
     private boolean systemUiRotationFailureLogged;
 
@@ -1075,6 +1079,8 @@ public class HostEntry implements IXposedHookLoadPackage {
             if (app != null && !sTaskRotations.containsKey(app)) app = null;
             publishMainUiConfiguration(app);
             sMainSystemUiRotation.update(window, sDisplayContent, app, HostEntry::log);
+            sMainStatusBarClip.update(window, sDisplayContent, HostEntry::log);
+            sMainImeProcessConfiguration.update(window, sDisplayContent, app, HostEntry::log);
         } catch (Throwable error) {
             if (!systemUiRotationFailureLogged) {
                 systemUiRotationFailureLogged = true;
@@ -1103,6 +1109,7 @@ public class HostEntry implements IXposedHookLoadPackage {
 
     private void installMainSystemUiRotation(ClassLoader cl) {
         try {
+            sMainImeProcessConfiguration.install(cl);
             Class<?> organizer = XposedHelpers.findClass("com.android.server.wm.WindowOrganizerController", cl);
             XposedBridge.hookAllMethods(organizer, "applyTaskChanges", new XC_MethodHook() {
                 @Override protected void beforeHookedMethod(MethodHookParam p) {
@@ -1514,6 +1521,7 @@ public class HostEntry implements IXposedHookLoadPackage {
             Object task = XposedHelpers.callMethod(activity, "getTask");
             if (task == null || Integer.valueOf(5).equals(
                     XposedHelpers.callMethod(task, "getWindowingMode"))) return;
+            if (XposedHelpers.callMethod(task, "topRunningActivity") != activity) return;
             TaskWindowState state = sTaskWindowStates.get(task);
             if (state != null) state.forgetRememberedRotation();
         } catch (Throwable error) {
@@ -1541,6 +1549,13 @@ public class HostEntry implements IXposedHookLoadPackage {
                 captureTaskWindowState(display, activity, source + " native-freeform");
                 releaseTaskRotationLocked(activity, "returned to native freeform owner");
                 return null;
+            }
+            // Role changes reconfigure the whole back stack. Only its running top
+            // activity can define this task's direction or replace the main owner.
+            // A portrait page underneath a landscape video must not cancel that
+            // video's token transform while mode1/mode6 is being exchanged.
+            if (task != null && XposedHelpers.callMethod(task, "topRunningActivity") != activity) {
+                return Boolean.FALSE;
             }
             if (home || (multiWindow && !sideTask)) {
                 // A promoted token keeps its local transform in the side slot. Do not
@@ -2336,14 +2351,17 @@ public class HostEntry implements IXposedHookLoadPackage {
     }
 
     private void endFixedMainRotationLocked(Object display) {
+        sMainImeProcessConfiguration.clear(HostEntry::log);
         sMainSystemUiRotation.clear(HostEntry::log);
         publishMainUiConfiguration(null);
         if (!sFullscreenRotationActive) {
+            sMainStatusBarClip.clear(HostEntry::log);
             releaseAllTaskRotationsLocked("inactive cleanup");
             return;
         }
         releaseAllTaskRotationsLocked("host exit");
         sFullscreenRotationActive = false;
+        sMainStatusBarClip.clear(HostEntry::log);
         recomputeDisplayOrientationLocked(display, "exit Mi Step");
     }
 
@@ -2453,7 +2471,10 @@ public class HostEntry implements IXposedHookLoadPackage {
         }
         MiStepRecentsInput.geometryChanged(XposedHelpers.callMethod(dc, "getPendingTransaction"),
                 scale, offsetY, offsetX);
-        NativeRawInputBridge.update(scale, offsetY, offsetX);
+        Rect rawDisplayBounds = (Rect) XposedHelpers.callMethod(dc, "getBounds");
+        int rawDisplayRotation = (Integer) XposedHelpers.callMethod(dc, "getRotation");
+        NativeRawInputBridge.update(scale, offsetY, offsetX,
+                rawDisplayBounds.width(), rawDisplayBounds.height(), rawDisplayRotation);
         applyGestureSurfacesLocked(target, scale, offsetY, offsetX);
 
         // 清掉历史版本遗留的固定 1080x2460 显示裁剪（R2 时代的调试代码）：在 17PM 上会把
@@ -3202,3 +3223,7 @@ public class HostEntry implements IXposedHookLoadPackage {
     @SuppressWarnings("unused")
     private static final Map<String, String> NOTES = new LinkedHashMap<>();
 }
+
+
+
+
