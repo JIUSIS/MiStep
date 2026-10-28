@@ -8,7 +8,7 @@ import sys
 root = Path(__file__).resolve().parents[2]
 out = Path(sys.argv[1]) if len(sys.argv) > 1 else root / 'build/tests/live-finish-jvm'
 out.mkdir(parents=True, exist_ok=True)
-src = root / 'module/src/main/java/com/jianguo/mistep'
+src = root / 'module/src/main/java/com/jiusis/mistep'
 source = (src / 'MiStepLiveSwap64.java').read_text(encoding='utf8')
 start = source.index('        @Override public void finish(Object tx, boolean failed)')
 end = source.index('        @Override public Object finishWindowTransaction()', start)
@@ -19,7 +19,7 @@ files = next(ast.literal_eval(n.value) for n in fixture.body
 helper = out / 'de/robv/android/xposed/XposedHelpers.java'
 helper.parent.mkdir(parents=True, exist_ok=True)
 helper.write_text(files['de/robv/android/xposed/XposedHelpers.java'], encoding='utf8')
-wrapper = r'''package com.jianguo.mistep;
+wrapper = r'''package com.jiusis.mistep;
 import java.util.*;
 import de.robv.android.xposed.XposedHelpers;
 public class LiveFinishRegression {
@@ -57,10 +57,10 @@ public class LiveFinishRegression {
   System.out.println("actual Shell finish ordering checks="+checks+" passed");
  }
 }'''.replace('METHOD', method)
-target = out / 'com/jianguo/mistep/LiveFinishRegression.java'
+target = out / 'com/jiusis/mistep/LiveFinishRegression.java'
 target.parent.mkdir(parents=True, exist_ok=True)
 target.write_text(wrapper, encoding='utf8')
 jdk = Path(os.environ["MISTEP_JAVA_BIN"])
 subprocess.run([str(jdk / 'javac.exe'), '-encoding', 'UTF-8', '--release', '17', '-d', str(out),
                 str(src / 'LiveSwapZoom.java'), str(helper), str(target)], check=True)
-subprocess.run([str(jdk / 'java.exe'), '-cp', str(out), 'com.jianguo.mistep.LiveFinishRegression'], check=True)
+subprocess.run([str(jdk / 'java.exe'), '-cp', str(out), 'com.jiusis.mistep.LiveFinishRegression'], check=True)

@@ -2,7 +2,7 @@ import os
 """Compile and execute extracted production Home completion, retirement and compaction methods."""
 from pathlib import Path
 import subprocess,sys
-root=Path(__file__).resolve().parents[2];src=root/'module/src/main/java/com/jianguo/mistep'
+root=Path(__file__).resolve().parents[2];src=root/'module/src/main/java/com/jiusis/mistep'
 out=Path(sys.argv[1]) if len(sys.argv)>1 else root/'build/tests/standalone'
 out.mkdir(parents=True,exist_ok=True)
 def method(t,s):
@@ -16,7 +16,7 @@ host=(src/'MiStepHost.java').read_text(encoding='utf-8-sig')
 parts=['    private void completeHomePromotion(', '    private void clearSlot(', '    private void compactCells()', '    private static final class CellMovePlan', '    private void syncSlotWindowState(', '    private void onTaskIdKnown(', '    private void queueSidePromotion(', '    private void retrySidePromotion(', '    private void beginExternalPromotion(', '    private boolean externalPromotionCurrent(', '    private void afterExternalTransitionIdle(']
 methods='\n'.join(method(host,s) for s in parts)+'\n'+method(host,'    private static final class PendingSidePromotion')
 body=r"""
-package com.jianguo.mistep;
+package com.jiusis.mistep;
 import java.util.*;
 public class HomeCompactRegression {
  static int checks;static void check(boolean v,String why){checks++;if(!v)throw new AssertionError(why);}
@@ -121,4 +121,4 @@ public class HomeCompactRegression {
 f=out/'HomeCompactRegression.java';f.write_text(body,encoding='utf8')
 jdk=Path(os.environ["MISTEP_JAVA_BIN"])
 subprocess.run([str(jdk/'javac.exe'),'-encoding','UTF-8','--release','17','-d',str(out),str(src/'SlotPositions.java'),str(src/'SidePromotionPolicy.java'),str(f)],check=True)
-subprocess.run([str(jdk/'java.exe'),'-cp',str(out),'com.jianguo.mistep.HomeCompactRegression'],check=True)
+subprocess.run([str(jdk/'java.exe'),'-cp',str(out),'com.jiusis.mistep.HomeCompactRegression'],check=True)

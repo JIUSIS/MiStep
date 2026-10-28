@@ -5,7 +5,7 @@ import subprocess
 import sys
 
 root = Path(__file__).resolve().parents[2]
-source = (root / 'module/src/main/java/com/jianguo/mistep/MiStepHost.java').read_text(encoding='utf-8-sig')
+source = (root / 'module/src/main/java/com/jiusis/mistep/MiStepHost.java').read_text(encoding='utf-8-sig')
 out = Path(sys.argv[1]) if len(sys.argv) > 1 else root / 'build/tests/standalone'
 out.mkdir(parents=True, exist_ok=True)
 
@@ -24,7 +24,7 @@ def member(signature):
 
 
 body = r'''
-package com.jianguo.mistep;
+package com.jiusis.mistep;
 public class LiveLayoutRegression {
  static int checks;
  static void check(boolean value,String reason){checks++;if(!value)throw new AssertionError(reason);}
@@ -84,5 +84,5 @@ java = out / 'LiveLayoutRegression.java'
 java.write_text(body, encoding='utf8')
 jdk = Path(os.environ["MISTEP_JAVA_BIN"])
 subprocess.run([str(jdk/'javac.exe'), '-encoding', 'UTF-8', '--release', '17', '-d', str(out),
-               str(root/'module/src/main/java/com/jianguo/mistep/MiStepLayout.java'), str(java)], check=True)
-subprocess.run([str(jdk/'java.exe'), '-cp', str(out), 'com.jianguo.mistep.LiveLayoutRegression'], check=True)
+               str(root/'module/src/main/java/com/jiusis/mistep/MiStepLayout.java'), str(java)], check=True)
+subprocess.run([str(jdk/'java.exe'), '-cp', str(out), 'com.jiusis.mistep.LiveLayoutRegression'], check=True)

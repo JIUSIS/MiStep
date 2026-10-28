@@ -1,4 +1,4 @@
-package com.jianguo.mistep;
+package com.jiusis.mistep;
 public final class VisibilityRepairTest {
     private static int checks;
     private static void check(boolean value, String message) {

@@ -5,7 +5,7 @@ import subprocess
 import sys
 
 root = Path(__file__).resolve().parents[2]
-src = root / 'module/src/main/java/com/jianguo/mistep'
+src = root / 'module/src/main/java/com/jiusis/mistep'
 out = Path(sys.argv[1])
 out.mkdir(parents=True, exist_ok=True)
 files = {
@@ -16,7 +16,7 @@ files = {
 'android/graphics/RectF.java': 'package android.graphics; public class RectF {public RectF(Rect r){} }',
 'android/graphics/Canvas.java': 'package android.graphics; public class Canvas {public Rect source;public int tint,alpha;public void drawBitmap(Bitmap b,Rect r,RectF d,Paint p){source=new Rect(r.left,r.top,r.right,r.bottom);alpha=p.alpha;}public void drawRect(Rect r,Paint p){tint=p.color;} }',
 'android/graphics/drawable/Drawable.java': 'package android.graphics.drawable; import android.graphics.*;public abstract class Drawable {private Rect bounds=new Rect();public int invalidations;public Rect getBounds(){return bounds;}public void setBounds(int a,int b,int c,int d){bounds.set(a,b,c,d);}public void invalidateSelf(){invalidations++;}public abstract void draw(Canvas c);public abstract void setAlpha(int a);public abstract void setColorFilter(ColorFilter f);public abstract int getOpacity(); }',
-'WallpaperCropRegression.java': r'''package com.jianguo.mistep;
+'WallpaperCropRegression.java': r'''package com.jiusis.mistep;
 import android.graphics.*;
 public class WallpaperCropRegression {
  static int checks;static void check(boolean ok,String why){checks++;if(!ok)throw new AssertionError(why);}
@@ -56,4 +56,4 @@ for name, text in files.items():
 jdk = Path(os.environ["MISTEP_JAVA_BIN"])
 subprocess.run([str(jdk/'javac.exe'), '-encoding', 'UTF-8', '--release', '17', '-d', str(out),
                 str(src/'WallpaperCropDrawable.java'), str(src/'MiStepLayout.java'), *paths], check=True)
-subprocess.run([str(jdk/'java.exe'), '-cp', str(out), 'com.jianguo.mistep.WallpaperCropRegression'], check=True)
+subprocess.run([str(jdk/'java.exe'), '-cp', str(out), 'com.jiusis.mistep.WallpaperCropRegression'], check=True)

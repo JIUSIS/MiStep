@@ -4,7 +4,7 @@ from pathlib import Path
 import subprocess, sys
 
 root = Path(__file__).resolve().parents[2]
-src = root / 'module/src/main/java/com/jianguo/mistep'
+src = root / 'module/src/main/java/com/jiusis/mistep'
 out = Path(sys.argv[1]); out.mkdir(parents=True, exist_ok=True)
 files = {
 'android/graphics/Point.java': 'package android.graphics;public class Point{public int x,y;public Point(int a,int b){x=a;y=b;}}',
@@ -42,8 +42,8 @@ public class RegionSamplingHelper{public Object mCallback;public int updates;pub
 'com/miui/systemui/statusbar/core/StatusBarRegionSamplingInteractor$regionSamplingHelper$1.java': '''package com.miui.systemui.statusbar.core;import android.graphics.Rect;
 public class StatusBarRegionSamplingInteractor$regionSamplingHelper$1{public Owner this$0=new Owner();public static class Owner{public Rect samplingBounds=new Rect(0,0,1080,100);}}
 ''',
-'com/jianguo/mistep/MiStepHost.java': '''package com.jianguo.mistep;public class MiStepHost{public static float[]geometry;static float[]activeStatusBarTransform(){return geometry;}}''',
-'com/jianguo/mistep/HandoffRegression.java': r'''package com.jianguo.mistep;
+'com/jiusis/mistep/MiStepHost.java': '''package com.jiusis.mistep;public class MiStepHost{public static float[]geometry;static float[]activeStatusBarTransform(){return geometry;}}''',
+'com/jiusis/mistep/HandoffRegression.java': r'''package com.jiusis.mistep;
 import android.graphics.*;import de.robv.android.xposed.*;import com.android.server.wm.*;
 import com.android.wm.shell.shared.handles.RegionSamplingHelper;
 import com.miui.systemui.statusbar.core.StatusBarRegionSamplingInteractor$regionSamplingHelper$1;
@@ -103,4 +103,4 @@ jdk=Path(os.environ["MISTEP_JAVA_BIN"])
 subprocess.run([str(jdk/'javac.exe'),'-encoding','UTF-8','--release','17','-d',str(out)]+
                [str(out/name) for name in files]+[str(src/name) for name in
                 ['MiStepRecentsInput.java','MiStepStatusBarSampling.java']],check=True)
-subprocess.run([str(jdk/'java.exe'),'-cp',str(out),'com.jianguo.mistep.HandoffRegression'],check=True)
+subprocess.run([str(jdk/'java.exe'),'-cp',str(out),'com.jiusis.mistep.HandoffRegression'],check=True)

@@ -5,7 +5,7 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[2]
-SRC = ROOT / 'module/src/main/java/com/jianguo/mistep'
+SRC = ROOT / 'module/src/main/java/com/jiusis/mistep'
 OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / 'build/tests/standalone'
 OUT.mkdir(parents=True, exist_ok=True)
 JDK = Path(os.environ["MISTEP_JAVA_BIN"])
@@ -41,16 +41,16 @@ public class ShellTaskOrganizer {public interface TaskListener {
  default void onTaskInfoChanged(Object info){}default void attachChildSurfaceToTask(int id,Object builder){}
  default void reparentChildSurfaceToTask(int id,Object surface,Object tx){}
 }}''',
-'com/jianguo/mistep/MiStepLiveSwapSession.java': r'''package com.jianguo.mistep;
+'com/jiusis/mistep/MiStepLiveSwapSession.java': r'''package com.jiusis.mistep;
 final class MiStepLiveSwapSession {static final class Ready {Ready(Object a,Object b,Object p,int x,int y,LiveSwapGeometry.Affine t,LiveSwapGeometry.Affine u,LiveSwapGeometry.Affine v){}}}''',
-'com/jianguo/mistep/LiveTaskSwapDriver.java': r'''package com.jianguo.mistep;
+'com/jiusis/mistep/LiveTaskSwapDriver.java': r'''package com.jiusis.mistep;
 import android.graphics.Rect;
 final class LiveTaskSwapDriver {static final class Home {
  final LiveSwapGeometry.Task app;final int homeId=11,userId=0;final Object homeToken="A",hostRoot=new LivePairRegression.Surface(900);final Rect logical=new Rect(0,0,1200,2608);
  Home(){app=new LiveSwapGeometry.Task(12,"B",1200,2608,new LiveSwapGeometry.Rect(900,600,300,652),new LiveSwapGeometry.Rect(0,600,900,1956));}
 }}''',
-'com/jianguo/mistep/LiveHomeRegression.java': r'''package com.jianguo.mistep;
-import java.util.*;import com.jianguo.mistep.LivePairRegression.*;
+'com/jiusis/mistep/LiveHomeRegression.java': r'''package com.jiusis.mistep;
+import java.util.*;import com.jiusis.mistep.LivePairRegression.*;
 public class LiveHomeRegression {
  static int checks;static void check(boolean b,String m){checks++;if(!b)throw new AssertionError(m);}
  public static class Change {Info task;Surface leash;Change(Info t,Surface l){task=t;leash=l;}public Info getTaskInfo(){return task;}public Surface getLeash(){return leash;}}
@@ -81,7 +81,7 @@ public class LiveHomeRegression {
   System.out.println("actual live Home transition checks="+checks+" passed");
  }
 }''',
-'com/jianguo/mistep/LivePairRegression.java': r'''package com.jianguo.mistep;
+'com/jiusis/mistep/LivePairRegression.java': r'''package com.jiusis.mistep;
 import java.util.*;import android.graphics.Rect;import com.android.wm.shell.ShellTaskOrganizer.TaskListener;
 public class LivePairRegression {
  static int checks;static void check(boolean v,String why){checks++;if(!v)throw new AssertionError(why);}
@@ -126,5 +126,5 @@ for relative, text in FILES.items():
     paths.append(str(path))
 subprocess.run([str(JDK/'javac.exe'),'-encoding','UTF-8','--release','17','-d',str(OUT),
                 str(SRC/'LiveSwapGeometry.java'),str(SRC/'MiStepLiveTaskPair.java'),str(SRC/'MiStepLiveHomeTask.java'),*paths],check=True)
-subprocess.run([str(JDK/'java.exe'),'-cp',str(OUT),'com.jianguo.mistep.LivePairRegression'],check=True)
-subprocess.run([str(JDK/'java.exe'),'-cp',str(OUT),'com.jianguo.mistep.LiveHomeRegression'],check=True)
+subprocess.run([str(JDK/'java.exe'),'-cp',str(OUT),'com.jiusis.mistep.LivePairRegression'],check=True)
+subprocess.run([str(JDK/'java.exe'),'-cp',str(OUT),'com.jiusis.mistep.LiveHomeRegression'],check=True)

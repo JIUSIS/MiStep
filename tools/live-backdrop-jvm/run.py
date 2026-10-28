@@ -8,7 +8,7 @@ import re
 root = Path(__file__).resolve().parents[2]
 out = Path(sys.argv[1])
 out.mkdir(parents=True, exist_ok=True)
-src = root / 'module/src/main/java/com/jianguo/mistep'
+src = root / 'module/src/main/java/com/jiusis/mistep'
 run = (src / 'MiStepLiveSwap64.java').read_text(encoding='utf8')
 background = run[run.index('        void background('):run.index('        @Override public void prepare(')]
 host = (src / 'MiStepHost.java').read_text(encoding='utf8')
@@ -47,8 +47,8 @@ public interface TransactionCommittedListener {void onTransactionCommitted();}
 public static class Transaction {public static Transaction latest;public Runnable committed;public int applies,closes,removes,layer;public float scale;public android.graphics.Rect crop;public List<String>ops=new ArrayList<>();public Transaction(){latest=this;}public Transaction addTransactionCommittedListener(java.util.concurrent.Executor e,TransactionCommittedListener l){committed=()->e.execute(l::onTransactionCommitted);return this;}public Transaction setColor(Object s,float[]rgb){return this;}public Transaction setMatrix(Object s,float a,float b,float c,float d){scale=a;return this;}public Transaction setPosition(Object s,float x,float y){return this;}public Transaction setWindowCrop(Object s,Object r){crop=(android.graphics.Rect)r;return this;}public Transaction setLayer(Object s,int l){layer=l;return this;}public Transaction hide(Object s){ops.add("hide:"+System.identityHashCode(s));return this;}public Transaction show(Object s){ops.add("show:"+System.identityHashCode(s));return this;}public Transaction remove(Object s){removes++;return this;}public void apply(){applies++;}public void close(){closes++;}}
 }''',
 'de/robv/android/xposed/XposedHelpers.java': '''package de.robv.android.xposed;public class XposedHelpers {public static Object callMethod(Object o,String n,Object...a){try{for(var m:o.getClass().getMethods())if(m.getName().equals(n)&&m.getParameterCount()==a.length)return m.invoke(o,a);throw new NoSuchMethodException(n);}catch(Exception e){throw new IllegalStateException(e);}}}''',
-'com/jianguo/mistep/MiStepLiveHomeTask.java': '''package com.jianguo.mistep;class MiStepLiveHomeTask {static boolean valid(Object o){return o!=null;}}''',
-'com/jianguo/mistep/BackdropRegression.java': r'''package com.jianguo.mistep;
+'com/jiusis/mistep/MiStepLiveHomeTask.java': '''package com.jiusis.mistep;class MiStepLiveHomeTask {static boolean valid(Object o){return o!=null;}}''',
+'com/jiusis/mistep/BackdropRegression.java': r'''package com.jiusis.mistep;
 import android.graphics.*;import android.view.*;import java.util.*;import de.robv.android.xposed.XposedHelpers;
 public class BackdropRegression {
 static int checks;static void check(boolean b,String why){checks++;if(!b)throw new AssertionError(why);}
@@ -133,4 +133,4 @@ for name, text in files.items():
 jdk = Path(os.environ["MISTEP_JAVA_BIN"])
 subprocess.run([str(jdk/'javac.exe'), '-encoding', 'UTF-8', '--release', '17', '-d', str(out),
                 str(src/'MiStepLiveBackdrop.java'), str(src/'MiStepLayout.java'), *paths], check=True)
-subprocess.run([str(jdk/'java.exe'), '-cp', str(out), 'com.jianguo.mistep.BackdropRegression'], check=True)
+subprocess.run([str(jdk/'java.exe'), '-cp', str(out), 'com.jiusis.mistep.BackdropRegression'], check=True)

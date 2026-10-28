@@ -1,3 +1,5 @@
+<p align="center"><strong>简体中文</strong> · <a href="README.en.md">English</a></p>
+
 <p align="center">
   <img src="docs/assets/mistep-banner.png" width="100%" alt="Mi Step：适用于澎湃 OS 4 的前台多任务窗口">
 </p>
@@ -141,6 +143,8 @@
 相同机型、不同 ROM 也可能有接口差异；当前适配范围不等于全机型兼容承诺。
 
 ### 启用模块
+
+模块包名统一为 `com.jiusis.mistep`，后续版本继续使用这个包名。已安装旧包名版本时，先退出工作区并在 LSPosed 中停用旧模块，再安装此包、启用新模块并重新选择作用域，最后正常重启；确认正常后可卸载旧模块。旧包名版本无法直接覆盖升级，请避免同时启用两个模块。
 
 1. 从 [1.0.0 发行页](https://github.com/JIUSIS/MiStep/releases/tag/v1.0.0) 下载 `MiStep-1.0.0.apk`，可用同页的 `SHA256SUMS.txt` 核对文件。
 2. 安装后，在 LSPosed 中启用 **Mi Step**，选择模块推荐作用域。

@@ -8,7 +8,7 @@ import subprocess
 import sys
 
 root = Path(__file__).resolve().parents[2]
-src = root / "module/src/main/java/com/jianguo/mistep"
+src = root / "module/src/main/java/com/jiusis/mistep"
 out = Path(sys.argv[1]) if len(sys.argv) > 1 else root / 'build/tests/standalone'
 out.mkdir(parents=True, exist_ok=True)
 jdk = Path(os.environ["MISTEP_JAVA_BIN"])

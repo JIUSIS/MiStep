@@ -35,7 +35,7 @@ if (-not $Unsigned) {
 $ns = 'http://schemas.android.com/apk/res/android'
 if ($manifest.manifest.GetAttribute('versionName',$ns) -ne $version.name -or
     $manifest.manifest.GetAttribute('versionCode',$ns) -ne [string]$version.code) { throw 'Version metadata mismatch.' }
-$entry = Get-Content -LiteralPath (Join-Path $src 'java\com\jianguo\mistep\HostEntry.java') -Raw
+$entry = Get-Content -LiteralPath (Join-Path $src 'java\com\jiusis\mistep\HostEntry.java') -Raw
 if ([regex]::Matches($entry,[regex]::Escape($version.runtimeMarker)).Count -ne 3) { throw 'Runtime markers mismatch.' }
 New-Item -ItemType Directory -Force -Path $out,$dist,(Join-Path $out 'classes'),(Join-Path $out 'native'),(Join-Path $out 'dex') | Out-Null
 $env:JAVA_HOME = $JavaHome
@@ -57,6 +57,12 @@ if ($LASTEXITCODE -ne 0) { throw 'Native selftest source compilation failed.' }
 & (Join-Path $bt 'aapt2.exe') compile --dir 'module\src\main\res' -o 'build\resources.zip'
 if ($LASTEXITCODE -ne 0) { throw 'Resource compilation failed.' }
 $base = Join-Path $out 'base.apk'
+$assetStage = Join-Path $out 'assets'
+$legalStage = Join-Path $assetStage 'mistep\licenses'
+New-Item -ItemType Directory -Force -Path $assetStage,$legalStage | Out-Null
+Copy-Item -LiteralPath (Join-Path $root 'LICENSE'),(Join-Path $root 'THIRD_PARTY_NOTICES.md') -Destination $legalStage -Force
+Copy-Item -Path (Join-Path $root 'libs\licenses\*') -Destination $legalStage -Force
+"Mi Step $($version.name)`nPackage: com.jiusis.mistep`nSource: https://github.com/JIUSIS/MiStep`nLicense: LicenseRef-MiStep-NC-SA-1.0`nChinese LICENSE text controls. Third-party licenses remain unchanged.`n" | Set-Content -LiteralPath (Join-Path $legalStage 'SOURCE.txt') -Encoding utf8
 & (Join-Path $bt 'aapt2.exe') link -o 'build\base.apk' -I $android --manifest 'module\src\main\AndroidManifest.xml' -A 'module\src\main\assets' --min-sdk-version 24 --target-sdk-version 37 'build\resources.zip'
 if ($LASTEXITCODE -ne 0) { throw 'Resource linking failed.' }
 $jar = Join-Path $out 'classes.jar'
@@ -70,7 +76,7 @@ Copy-Item -LiteralPath (Join-Path $out 'dex\classes.dex') -Destination $stage -F
 Copy-Item -LiteralPath $native -Destination (Join-Path $stage 'lib\arm64-v8a\libmistep_raw.so') -Force
 $packed = Join-Path $out 'packed.apk'
 Copy-Item -LiteralPath $base -Destination $packed -Force
-& (Join-Path $javaBin 'jar.exe') --update --file $packed --no-compress -C $stage classes.dex -C $stage lib\arm64-v8a\libmistep_raw.so
+& (Join-Path $javaBin 'jar.exe') --update --file $packed --no-compress -C $stage classes.dex -C $stage lib\arm64-v8a\libmistep_raw.so -C $out assets/mistep/licenses
 if ($LASTEXITCODE -ne 0) { throw 'APK packaging failed.' }
 if ($Unsigned) { $apk = Join-Path $dist "MiStep-$($version.name)-unsigned.apk" }
 & (Join-Path $bt 'zipalign.exe') -f -P 16 4 $packed $apk
@@ -84,7 +90,7 @@ if (-not $Unsigned) {
 & (Join-Path $bt 'zipalign.exe') -c -P 16 4 $apk
 if ($LASTEXITCODE -ne 0) { throw 'Final APK alignment failed.' }
 $packaging = & (Join-Path $root 'tools\assert_module_apk.ps1') -Apk $apk -RequireNative
-$identity = [ordered]@{version=$version.name; versionCode=$version.code;runtimeMarker=$version.runtimeMarker;sha256=(Get-FileHash -LiteralPath $apk -Algorithm SHA256).Hash.ToLowerInvariant();bytes=(Get-Item -LiteralPath $apk).Length;nativeSha256=(Get-FileHash -LiteralPath $native -Algorithm SHA256).Hash.ToLowerInvariant();javaSourceCount=$sources.Count;build='Full Java and native source build; no development class cache';startupPackaging=$packaging.startupPackaging;nativePackaging=$packaging.nativePackaging;deviceValidation='Release build not installed; behavior baseline is development 2.9.204; user confirmed the development baseline fixes; release packaging validated separately.'}
+$identity = [ordered]@{applicationId='com.jiusis.mistep';version=$version.name; versionCode=$version.code;runtimeMarker=$version.runtimeMarker;sha256=(Get-FileHash -LiteralPath $apk -Algorithm SHA256).Hash.ToLowerInvariant();bytes=(Get-Item -LiteralPath $apk).Length;nativeSha256=(Get-FileHash -LiteralPath $native -Algorithm SHA256).Hash.ToLowerInvariant();javaSourceCount=$sources.Count;build='Full Java and native source build; no development class cache';startupPackaging=$packaging.startupPackaging;nativePackaging=$packaging.nativePackaging;deviceValidation='This rebuilt package has not been installed; behavior baseline and its prior device evidence are recorded separately in the release notes.'}
 $identity | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $dist 'build-info.json') -Encoding utf8
 "$($identity.sha256)  $([IO.Path]::GetFileName($apk))" | Set-Content -LiteralPath (Join-Path $dist 'SHA256SUMS.txt') -Encoding ascii
 Write-Output "Built Mi Step $($version.name), versionCode=$($version.code), SHA256=$($identity.sha256)"

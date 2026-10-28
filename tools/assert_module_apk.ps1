@@ -12,7 +12,7 @@ try {
     }
     $reader = [IO.StreamReader]::new($archive.GetEntry('assets/xposed_init').Open())
     try { $entryClass = $reader.ReadToEnd().Trim() } finally { $reader.Dispose() }
-    if ($entryClass -cne 'com.jianguo.mistep.HostEntry') {
+    if ($entryClass -cne 'com.jiusis.mistep.HostEntry') {
         throw "Unexpected Xposed entry: $entryClass"
     }
     $dexEntry = $archive.GetEntry('classes.dex')
@@ -21,7 +21,7 @@ try {
     try { $dexStream.CopyTo($dexBytes) } finally { $dexStream.Dispose() }
     try {
         if ([Text.Encoding]::ASCII.GetString($dexBytes.ToArray()).IndexOf(
-                'Lcom/jianguo/mistep/HostEntry;', [StringComparison]::Ordinal) -lt 0) {
+                'Lcom/jiusis/mistep/HostEntry;', [StringComparison]::Ordinal) -lt 0) {
             throw 'The Xposed entry descriptor is missing from classes.dex.'
         }
     } finally { $dexBytes.Dispose() }
@@ -44,6 +44,11 @@ try {
         try { $count = $stream.Read($header, 0, $header.Length) } finally { $stream.Dispose() }
         if ($count -ne 20 -or [BitConverter]::ToString($header, 0, 5) -ne '7F-45-4C-46-02' -or
                 [BitConverter]::ToUInt16($header, 18) -ne 183) { throw 'Native library must be ELF64 ARM64.' }
+    }
+    foreach ($notice in @('LICENSE','THIRD_PARTY_NOTICES.md','SOURCE.txt','APACHE-2.0.txt',
+            'XposedBridge-NOTICE.txt','libcxx-LICENSE.txt','libcxxabi-LICENSE.txt')) {
+        $legal = @($archive.Entries | Where-Object FullName -CEQ "assets/mistep/licenses/$notice")
+        if ($legal.Count -ne 1 -or $legal[0].Length -eq 0) { throw "Missing packaged license: $notice" }
     }
     [pscustomobject]@{
         apk = $apkPath

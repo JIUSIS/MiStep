@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 import subprocess,sys
 root=Path(__file__).resolve().parents[2]
-host=(root/'module/src/main/java/com/jianguo/mistep/MiStepHost.java').read_text(encoding='utf-8-sig')
+host=(root/'module/src/main/java/com/jiusis/mistep/MiStepHost.java').read_text(encoding='utf-8-sig')
 out=Path(sys.argv[1]);out.mkdir(parents=True,exist_ok=True)
 def method(signature):
     a=host.index(signature);b=host.index('{',a)+1;depth=1
@@ -11,7 +11,7 @@ def method(signature):
         depth+=(host[b]=='{')-(host[b]=='}');b+=1
     return host[a:b]
 body=r'''
-package com.jianguo.mistep;
+package com.jiusis.mistep;
 import android.view.SurfaceControl;
 import de.robv.android.xposed.XposedHelpers;
 public class CellVisibilityRegression {
@@ -54,7 +54,7 @@ public class CellVisibilityRegression {
 }
 '''.replace('__METHODS__','\n'.join(method(s) for s in ['    private void updateCellSurfaceVisibility(', '    private void prepareCellSurface(']))
 files={
-'com/jianguo/mistep/CellVisibilityRegression.java':body,
+'com/jiusis/mistep/CellVisibilityRegression.java':body,
 'android/view/SurfaceControl.java':r'''package android.view;import java.util.*;
 public class SurfaceControl {public boolean valid=true,shown;public float alpha;public boolean isValid(){return valid;}public static final List<String> ops=new ArrayList<>();
  public static class Transaction implements AutoCloseable {
@@ -75,5 +75,5 @@ for sig,anchor in [('    private void startLiveCollect(','statusBar.runAfterHidd
 assert 'for (Slot cell : slots)' in method('    private void restoreLiveSwapVisual(')
 jdk=Path(os.environ["MISTEP_JAVA_BIN"])
 subprocess.run([str(jdk/'javac.exe'),'-encoding','UTF-8','-d',str(out),*[str(out/p) for p in files]],check=True)
-subprocess.run([str(jdk/'java.exe'),'-cp',str(out),'com.jianguo.mistep.CellVisibilityRegression'],check=True)
+subprocess.run([str(jdk/'java.exe'),'-cp',str(out),'com.jiusis.mistep.CellVisibilityRegression'],check=True)
 print('Actual entry/retirement ordering checks=4 passed')

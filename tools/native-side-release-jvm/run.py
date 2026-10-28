@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 import subprocess,sys
 root=Path(__file__).resolve().parents[2];out=Path(sys.argv[1]);out.mkdir(parents=True,exist_ok=True)
-body=r"""package com.jianguo.mistep;
+body=r"""package com.jiusis.mistep;
 import java.util.*;
 public class NativeSideReleaseTest {
  static int checks;static void check(boolean b,String s){checks++;if(!b)throw new AssertionError(s);}
@@ -38,8 +38,8 @@ public class NativeSideReleaseTest {
 helper=r"""package de.robv.android.xposed;import java.lang.reflect.*;
 public class XposedHelpers{public static Object getObjectField(Object o,String n){try{Field f=o.getClass().getField(n);return f.get(o);}catch(Exception e){throw new RuntimeException(e);}}public static int getIntField(Object o,String n){return (Integer)getObjectField(o,n);}public static Object callMethod(Object o,String n,Object...a){for(Method m:o.getClass().getMethods())if(m.getName().equals(n)&&m.getParameterCount()==a.length)try{return m.invoke(o,a);}catch(Exception e){throw new RuntimeException(e);}throw new IllegalArgumentException(n);}}
 """
-files={'com/jianguo/mistep/NativeSideReleaseTest.java':body,'de/robv/android/xposed/XposedHelpers.java':helper}
+files={'com/jiusis/mistep/NativeSideReleaseTest.java':body,'de/robv/android/xposed/XposedHelpers.java':helper}
 for n,s in files.items():p=out/n;p.parent.mkdir(parents=True,exist_ok=True);p.write_text(s,encoding='utf-8')
 jdk=Path(os.environ['MISTEP_JAVA_BIN'])
-subprocess.run([str(jdk/'javac.exe'),'-encoding','UTF-8','--release','17','-d',str(out),*[str(out/n) for n in files],str(root/'module/src/main/java/com/jianguo/mistep/MiStepNativeSideRelease.java')],check=True)
-subprocess.run([str(jdk/'java.exe'),'-cp',str(out),'com.jianguo.mistep.NativeSideReleaseTest'],check=True)
+subprocess.run([str(jdk/'javac.exe'),'-encoding','UTF-8','--release','17','-d',str(out),*[str(out/n) for n in files],str(root/'module/src/main/java/com/jiusis/mistep/MiStepNativeSideRelease.java')],check=True)
+subprocess.run([str(jdk/'java.exe'),'-cp',str(out),'com.jiusis.mistep.NativeSideReleaseTest'],check=True)

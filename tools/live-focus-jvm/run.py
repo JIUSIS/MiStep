@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 import subprocess, sys
 root = Path(__file__).resolve().parents[2]
-src = root/'module/src/main/java/com/jianguo/mistep'
+src = root/'module/src/main/java/com/jiusis/mistep'
 out = Path(sys.argv[1]); out.mkdir(parents=True, exist_ok=True)
 source = (src/'MiStepHost.java').read_text(encoding='utf-8-sig')
 def member(signature):
@@ -17,7 +17,7 @@ methods = '\n'.join(member(s) for s in ('    private void finishLiveResult(',
 files = {
 'android/os/SystemClock.java': 'package android.os;public class SystemClock {public static long uptimeMillis(){return 1000;}}',
 'android/app/ActivityTaskManager.java': 'package android.app;public class ActivityTaskManager {public static Object service;public static Object getService(){return service;}}',
-'com/jianguo/mistep/LiveFocusRegression.java': r'''package com.jianguo.mistep;
+'com/jiusis/mistep/LiveFocusRegression.java': r'''package com.jiusis.mistep;
 import java.util.*;import android.os.SystemClock;
 public class LiveFocusRegression {
  static int checks;static void check(boolean v,String s){checks++;if(!v)throw new AssertionError(s);}
@@ -65,4 +65,4 @@ jdk=Path(os.environ["MISTEP_JAVA_BIN"])
 paths += [str(src/'PromotionFocusTransfer.java'),str(root/'tests/PromotionFocusTransferTest.java')]
 subprocess.run([str(jdk/'javac.exe'),'-encoding','UTF-8','--release','17','-d',str(out),*paths],check=True)
 for name in ('PromotionFocusTransferTest','LiveFocusRegression'):
-    subprocess.run([str(jdk/'java.exe'),'-cp',str(out),'com.jianguo.mistep.'+name],check=True)
+    subprocess.run([str(jdk/'java.exe'),'-cp',str(out),'com.jiusis.mistep.'+name],check=True)

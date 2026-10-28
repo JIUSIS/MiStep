@@ -6,7 +6,7 @@ import sys
 
 root=Path(__file__).resolve().parents[2]
 out=Path(sys.argv[1]);out.mkdir(parents=True,exist_ok=True)
-text=(root/'module/src/main/java/com/jianguo/mistep/HostEntry.java').read_text(encoding='utf-8-sig')
+text=(root/'module/src/main/java/com/jiusis/mistep/HostEntry.java').read_text(encoding='utf-8-sig')
 def member(signature):
     start=text.index(signature);brace=text.index('{',start);depth,end=1,brace+1
     while depth:
@@ -19,7 +19,7 @@ start=text.index(hook_signature,hook_start);brace=text.index('{',start);depth,en
 while depth:
     depth+=(text[end]=='{')-(text[end]=='}');end+=1
 hook=text[start:end].replace('@Override protected void afterHookedMethod','static void onFinish')
-body=r'''package com.jianguo.mistep;
+body=r'''package com.jiusis.mistep;
 import java.util.*;
 public class ExitSurfaceRegression {
  static int checks,nativeLayerReconciliations;static boolean sZoomed;static Object sDisplayContent;static ZoomTarget sZoomTarget;
@@ -92,4 +92,4 @@ public class ExitSurfaceRegression {
 p=out/'ExitSurfaceRegression.java';p.write_text(body,encoding='utf8')
 jdk=Path(os.environ["MISTEP_JAVA_BIN"])
 subprocess.run([str(jdk/'javac.exe'),'-encoding','UTF-8','--release','17','-d',str(out),str(p)],check=True)
-subprocess.run([str(jdk/'java.exe'),'-cp',str(out),'com.jianguo.mistep.ExitSurfaceRegression',*sys.argv[2:]],check=True)
+subprocess.run([str(jdk/'java.exe'),'-cp',str(out),'com.jiusis.mistep.ExitSurfaceRegression',*sys.argv[2:]],check=True)

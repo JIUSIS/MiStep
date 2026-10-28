@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
-root=Path(__file__).resolve().parents[2]; src=root/'module/src/main/java/com/jianguo/mistep'
+root=Path(__file__).resolve().parents[2]; src=root/'module/src/main/java/com/jiusis/mistep'
 out=Path(sys.argv[1]);out.mkdir(parents=True,exist_ok=True)
 host=(src/'MiStepHost.java').read_text(encoding='utf-8-sig')
 def member(signature):
@@ -32,7 +32,7 @@ import java.util.*;public class SurfaceControl {public boolean valid=true,visibl
 }''',
 'de/robv/android/xposed/XposedHelpers.java':r'''package de.robv.android.xposed;
 public class XposedHelpers {public static Object callMethod(Object o,String n,Object...a){try{for(var m:o.getClass().getMethods())if(m.getName().equals(n)&&m.getParameterCount()==a.length)return m.invoke(o,a);throw new NoSuchMethodException(n);}catch(Exception e){throw new IllegalStateException(e);}}}''',
-'com/jianguo/mistep/WorkspaceRegression.java':r'''package com.jianguo.mistep;
+'com/jiusis/mistep/WorkspaceRegression.java':r'''package com.jiusis.mistep;
 import java.util.*;import android.view.SurfaceControl;import de.robv.android.xposed.XposedHelpers;
 public class WorkspaceRegression {
  static class LiveSwapVisualLease {static void writeAlpha(View v,float a){v.setAlpha(a);}}
@@ -89,9 +89,9 @@ public class WorkspaceRegression {
 }'''.replace('__METHODS__',methods)
 }
 # Java closures in the fixture must capture an immutable owner, just as production does.
-files['com/jianguo/mistep/WorkspaceRegression.java']=files['com/jianguo/mistep/WorkspaceRegression.java'].replace('h.beginWorkspaceEntry(()->h.ready++);','WorkspaceRegression initial=h;h.beginWorkspaceEntry(()->initial.ready++);')
+files['com/jiusis/mistep/WorkspaceRegression.java']=files['com/jiusis/mistep/WorkspaceRegression.java'].replace('h.beginWorkspaceEntry(()->h.ready++);','WorkspaceRegression initial=h;h.beginWorkspaceEntry(()->initial.ready++);')
 for name,text in files.items():
  p=out/name;p.parent.mkdir(parents=True,exist_ok=True);p.write_text(text,encoding='utf-8')
 jdk=Path(os.environ["MISTEP_JAVA_BIN"])
 subprocess.run([str(jdk/'javac.exe'),'-encoding','UTF-8','--release','17','-d',str(out)]+[str(out/n)for n in files],check=True)
-subprocess.run([str(jdk/'java.exe'),'-cp',str(out),'com.jianguo.mistep.WorkspaceRegression'],check=True)
+subprocess.run([str(jdk/'java.exe'),'-cp',str(out),'com.jiusis.mistep.WorkspaceRegression'],check=True)

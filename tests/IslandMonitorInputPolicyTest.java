@@ -1,4 +1,4 @@
-package com.jianguo.mistep;
+package com.jiusis.mistep;
 
 public final class IslandMonitorInputPolicyTest {
     private static int checks;

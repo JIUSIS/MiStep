@@ -30,7 +30,7 @@ public class WindowProcessController {
  public Parent getParent(){return parent;}
  public void onConfigurationChanged(Configuration c){calls++;Configuration next=(Configuration)XposedBridge.before(this,c);if(fail){fail=false;throw new IllegalStateException("native failure");}actual=new Configuration(next);}
 }''',
-'com/jianguo/mistep/ImeProcessConfigurationTest.java':r'''package com.jianguo.mistep;
+'com/jiusis/mistep/ImeProcessConfigurationTest.java':r'''package com.jiusis.mistep;
 import android.content.res.Configuration;import com.android.server.wm.WindowProcessController;import java.util.*;
 public class ImeProcessConfigurationTest {
  static int checks;static void check(boolean c,String why){checks++;if(!c)throw new AssertionError(why);}
@@ -73,6 +73,6 @@ FILES['de/robv/android/xposed/XposedHelpers.java']=helper[:pos]+r'''
 sources=[]
 for name,body in FILES.items():
     p=OUT/name;p.parent.mkdir(parents=True,exist_ok=True);p.write_text(body,encoding='utf-8');sources.append(str(p))
-sources.append(str(ROOT/'module/src/main/java/com/jianguo/mistep/MiStepImeProcessConfiguration.java'))
+sources.append(str(ROOT/'module/src/main/java/com/jiusis/mistep/MiStepImeProcessConfiguration.java'))
 subprocess.run([str(JDK/'javac.exe'),'-encoding','UTF-8','--release','17','-d',str(OUT),*sources],check=True)
-subprocess.run([str(JDK/'java.exe'),'-cp',str(OUT),'com.jianguo.mistep.ImeProcessConfigurationTest'],check=True)
+subprocess.run([str(JDK/'java.exe'),'-cp',str(OUT),'com.jiusis.mistep.ImeProcessConfigurationTest'],check=True)

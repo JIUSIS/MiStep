@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 import subprocess,sys
 root=Path(__file__).resolve().parents[2]
-src=root/'module/src/main/java/com/jianguo/mistep'
+src=root/'module/src/main/java/com/jiusis/mistep'
 out=Path(sys.argv[1]) if len(sys.argv)>1 else root/'build/tests/standalone'
 out.mkdir(parents=True,exist_ok=True)
 def method(text,signature):
@@ -16,7 +16,7 @@ def method(text,signature):
 host=(src/'MiStepHost.java').read_text(encoding='utf-8-sig')
 methods='\n'.join(method(host,s) for s in ['    private boolean ordinaryRoot(', '    private boolean isSideToken(', '    private LiveTask findMainTask(', '    private boolean isHomeRoot(', '    private boolean mayWriteSideSurface('])
 body=r"""
-package com.jianguo.mistep;
+package com.jiusis.mistep;
 import java.util.*;
 public class HomeAndSideSurfaceRegression {
  static int checks;
@@ -85,4 +85,4 @@ public class HomeAndSideSurfaceRegression {
 file=out/'HomeAndSideSurfaceRegression.java';file.write_text(body,encoding='utf8')
 jdk=Path(os.environ["MISTEP_JAVA_BIN"])
 subprocess.run([str(jdk/'javac.exe'),'-encoding','UTF-8','--release','17','-d',str(out),str(src/'TaskUserPolicy.java'),str(file)],check=True)
-subprocess.run([str(jdk/'java.exe'),'-cp',str(out),'com.jianguo.mistep.HomeAndSideSurfaceRegression'],check=True)
+subprocess.run([str(jdk/'java.exe'),'-cp',str(out),'com.jiusis.mistep.HomeAndSideSurfaceRegression'],check=True)

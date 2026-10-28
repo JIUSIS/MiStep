@@ -2,8 +2,8 @@ import os
 from pathlib import Path
 import subprocess,sys
 ROOT=Path(__file__).resolve().parents[2];OUT=Path(sys.argv[1]);OUT.mkdir(parents=True,exist_ok=True);JDK=Path(os.environ['MISTEP_JAVA_BIN'])
-test=OUT/'com/jianguo/mistep/PanelInputRegression.java';test.parent.mkdir(parents=True,exist_ok=True)
-test.write_text(r'''package com.jianguo.mistep;
+test=OUT/'com/jiusis/mistep/PanelInputRegression.java';test.parent.mkdir(parents=True,exist_ok=True)
+test.write_text(r'''package com.jiusis.mistep;
 public class PanelInputRegression {
  static int checks;static void check(boolean v,String why){checks++;if(!v)throw new AssertionError(why);}
  static boolean accepts(boolean active,int display,int type,String pkg,String title,int r){return MiStepPanelInputCoordinates.accepts(active,display,type,pkg,title,r);}
@@ -39,5 +39,5 @@ public class PanelInputRegression {
   System.out.println("actual native panel sample/trace checks="+checks+" passed");
  }
 }''',encoding='utf8')
-subprocess.run([str(JDK/'javac.exe'),'-encoding','UTF-8','--release','17','-d',str(OUT),str(test),str(ROOT/'module/src/main/java/com/jianguo/mistep/MiStepPanelInputCoordinates.java')],check=True)
-subprocess.run([str(JDK/'java.exe'),'-cp',str(OUT),'com.jianguo.mistep.PanelInputRegression'],check=True)
+subprocess.run([str(JDK/'javac.exe'),'-encoding','UTF-8','--release','17','-d',str(OUT),str(test),str(ROOT/'module/src/main/java/com/jiusis/mistep/MiStepPanelInputCoordinates.java')],check=True)
+subprocess.run([str(JDK/'java.exe'),'-cp',str(OUT),'com.jiusis.mistep.PanelInputRegression'],check=True)

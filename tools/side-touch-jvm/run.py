@@ -2,7 +2,7 @@ import os
 """Execute real side-cell gesture arbitration and the scoped TaskView insets hook."""
 from pathlib import Path
 import subprocess,sys
-root=Path(__file__).resolve().parents[2];src=root/'module/src/main/java/com/jianguo/mistep'
+root=Path(__file__).resolve().parents[2];src=root/'module/src/main/java/com/jiusis/mistep'
 out=Path(sys.argv[1]);out.mkdir(parents=True,exist_ok=True)
 host=(src/'MiStepHost.java').read_text(encoding='utf8')
 def method(signature):
@@ -14,7 +14,7 @@ methods='\n'.join(method(s) for s in ['    private boolean onSlotTouch(', '    p
 start=host.index('            installed.add(XposedHelpers.findAndHookMethod(view, "onComputeInternalInsets",')
 end=host.index('            }));',start)+len('            }));')
 hook=host[start:end].replace('MiStepHost h', 'SideTouchRegression h')
-text='''package com.jianguo.mistep;import java.util.*;
+text='''package com.jiusis.mistep;import java.util.*;
 public class SideTouchRegression {
  static int checks;static void check(boolean v,String m){checks++;if(!v)throw new AssertionError(m);}
  static class MotionEvent {static final int ACTION_DOWN=0,ACTION_UP=1,ACTION_MOVE=2,ACTION_CANCEL=3,ACTION_POINTER_DOWN=5,ACTION_POINTER_UP=6;int a;float x,y;boolean recycled;MotionEvent(int a,float x,float y){this.a=a;this.x=x;this.y=y;}static MotionEvent obtain(MotionEvent e){return new MotionEvent(e.a,e.x,e.y);}int getPointerCount(){return 1;}int getPointerId(int i){return 0;}int getActionMasked(){return a;}float getRawX(){return x;}float getRawY(){return y;}float getX(){return x;}float getY(){return y;}long getEventTime(){return 10000;}void recycle(){recycled=true;}}
@@ -49,4 +49,4 @@ public class SideTouchRegression {
 path=out/'SideTouchRegression.java';path.write_text(text,encoding='utf8')
 jdk=Path(os.environ["MISTEP_JAVA_BIN"])
 subprocess.run([str(jdk/'javac.exe'),'-encoding','UTF-8','--release','17','-d',str(out),str(path),str(src/'MiStepSideDismissGesture.java')],check=True)
-subprocess.run([str(jdk/'java.exe'),'-cp',str(out),'com.jianguo.mistep.SideTouchRegression'],check=True)
+subprocess.run([str(jdk/'java.exe'),'-cp',str(out),'com.jiusis.mistep.SideTouchRegression'],check=True)

@@ -41,7 +41,7 @@ public class XposedHelpers {
  public static void findAndHookMethod(Class<?> c,String n,Object... a){XposedBridge.hooks.put(n,(XC_MethodHook)a[a.length-1]);}
  public static Object callMethod(Object o,String n){try{return o.getClass().getMethod(n).invoke(o);}catch(Exception e){throw new RuntimeException(e);}}
 }''',
-'com/jianguo/mistep/NativeFreeformCoordinatesTest.java': '''package com.jianguo.mistep;
+'com/jiusis/mistep/NativeFreeformCoordinatesTest.java': '''package com.jiusis.mistep;
 import android.view.MotionEvent;
 import de.robv.android.xposed.*;
 import de.robv.android.xposed.XC_MethodHook.MethodHookParam;
@@ -82,9 +82,9 @@ with tempfile.TemporaryDirectory(prefix='mistep-native-coordinates-') as folder:
         file.parent.mkdir(parents=True, exist_ok=True)
         file.write_text(content, encoding='utf-8')
         files.append(str(file))
-    files += [str(root / 'module/src/main/java/com/jianguo/mistep' / (name + '.java'))
+    files += [str(root / 'module/src/main/java/com/jiusis/mistep' / (name + '.java'))
               for name in ('NativeFreeformPolicy', 'NativeFreeformCoordinates')]
     files.append(str(root / 'tests/NativeFreeformPolicyTest.java'))
     subprocess.run([str(jdk / 'javac.exe'), '-encoding', 'UTF-8', '--release', '17', '-d', str(work), *files], check=True)
     for name in ('NativeFreeformPolicyTest', 'NativeFreeformCoordinatesTest'):
-        subprocess.run([str(jdk / 'java.exe'), '-cp', str(work), 'com.jianguo.mistep.' + name], check=True)
+        subprocess.run([str(jdk / 'java.exe'), '-cp', str(work), 'com.jiusis.mistep.' + name], check=True)

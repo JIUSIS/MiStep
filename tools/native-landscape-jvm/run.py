@@ -7,10 +7,10 @@ ROOT = Path(__file__).resolve().parents[2]
 OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / 'build/tests/native-landscape-jvm'
 JDK = Path(os.environ["MISTEP_JAVA_BIN"])
 OUT.mkdir(parents=True, exist_ok=True)
-test = OUT / "com/jianguo/mistep/NativeLandscapeRegression.java"
+test = OUT / "com/jiusis/mistep/NativeLandscapeRegression.java"
 test.parent.mkdir(parents=True, exist_ok=True)
 test.write_text(
-    r'''package com.jianguo.mistep;
+    r'''package com.jiusis.mistep;
 public class NativeLandscapeRegression {
  static int checks;
  static void check(boolean value, String why) {
@@ -101,7 +101,7 @@ subprocess.run(
         "-d",
         str(OUT),
         str(test),
-        str(ROOT / "module/src/main/java/com/jianguo/mistep/NativeLandscapePolicy.java"),
+        str(ROOT / "module/src/main/java/com/jiusis/mistep/NativeLandscapePolicy.java"),
     ],
     check=True,
 )
@@ -110,7 +110,7 @@ subprocess.run(
         str(JDK / "java.exe"),
         "-cp",
         str(OUT),
-        "com.jianguo.mistep.NativeLandscapeRegression",
+        "com.jiusis.mistep.NativeLandscapeRegression",
     ],
     check=True,
 )

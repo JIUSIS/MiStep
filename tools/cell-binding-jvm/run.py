@@ -5,7 +5,7 @@ import subprocess
 import sys
 
 root = Path(__file__).resolve().parents[2]
-source = (root/'module/src/main/java/com/jianguo/mistep/MiStepHost.java').read_text(encoding='utf-8-sig')
+source = (root/'module/src/main/java/com/jiusis/mistep/MiStepHost.java').read_text(encoding='utf-8-sig')
 out = Path(sys.argv[1]) if len(sys.argv)>1 else root/'build-cell-binding-jvm'
 out.mkdir(parents=True, exist_ok=True)
 start = source.index('    private boolean cellMoveCurrent(')

@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 import subprocess, sys
 root = Path(__file__).resolve().parents[2]
-src = root / 'module/src/main/java/com/jianguo/mistep'
+src = root / 'module/src/main/java/com/jiusis/mistep'
 out = Path(sys.argv[1]); out.mkdir(parents=True, exist_ok=True)
 files = {
 'android/Manifest.java': 'package android; public class Manifest {public static class permission {public static final String WRITE_SECURE_SETTINGS="secure";}}',
@@ -37,7 +37,7 @@ files = {
  static Object call(Class<?>c,Object o,String n,Object[]a){try{for(var m:c.getDeclaredMethods())if(m.getName().equals(n)&&m.getParameterCount()==a.length){m.setAccessible(true);return m.invoke(o,a);}throw new NoSuchMethodException(n);}catch(Exception e){throw new IllegalStateException(e);}}}
 ''',
 'com/android/server/wm/WindowContainer.java': 'package com.android.server.wm;import android.os.*;import java.util.*;public class WindowContainer {public static Map<IBinder,Object>tasks=new HashMap<>();public static Object fromBinder(IBinder b){return tasks.get(b);}}',
-'com/jianguo/mistep/DesktopRouteRegression.java': '''package com.jianguo.mistep;
+'com/jiusis/mistep/DesktopRouteRegression.java': '''package com.jiusis.mistep;
 import android.os.*;import android.content.*;import com.android.server.wm.WindowContainer;import java.util.*;
 public class DesktopRouteRegression {
  static int checks;static void check(boolean v,String m){checks++;if(!v)throw new AssertionError(m);}
@@ -86,4 +86,4 @@ for name, text in files.items():
     path=out/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_text(text,encoding='utf8')
 jdk=Path(os.environ["MISTEP_JAVA_BIN"])
 subprocess.run([str(jdk/'javac.exe'),'-encoding','UTF-8','--release','17','-d',str(out)]+[str(out/n) for n in files]+[str(src/n) for n in ['MiStepDesktopLaunchBridge.java','DesktopIconLaunchPolicy.java']],check=True)
-subprocess.run([str(jdk/'java.exe'),'-cp',str(out),'com.jianguo.mistep.DesktopRouteRegression'],check=True)
+subprocess.run([str(jdk/'java.exe'),'-cp',str(out),'com.jiusis.mistep.DesktopRouteRegression'],check=True)

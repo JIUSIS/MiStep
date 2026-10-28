@@ -5,7 +5,7 @@ import subprocess
 import sys
 
 root = Path(__file__).resolve().parents[2]
-src = root / 'module/src/main/java/com/jianguo/mistep'
+src = root / 'module/src/main/java/com/jiusis/mistep'
 out = Path(sys.argv[1])
 out.mkdir(parents=True, exist_ok=True)
 source = (src / 'MiStepHost.java').read_text(encoding='utf-8-sig')
@@ -33,7 +33,7 @@ public class Canvas {
  public void drawLine(float a,float b,float c,float d,Paint paint){plusLines++;}
  public boolean clipRect(int a,int b,int c,int d){if(c<=0||d<=0)throw new AssertionError("invalid empty crop");clips++;return true;}
 }'''
-body = r'''package com.jianguo.mistep;
+body = r'''package com.jiusis.mistep;
 import android.graphics.Canvas;
 public class EmptyHostRegression {
  static class LiveSwapVisualLease {static void writeAlpha(View v,float a){v.setAlpha(a);}}
@@ -98,4 +98,4 @@ hpath.write_text(body, encoding='utf8')
 jdk = Path(os.environ["MISTEP_JAVA_BIN"])
 subprocess.run([str(jdk/'javac.exe'), '-encoding', 'UTF-8', '--release', '17', '-d', str(out),
                 str(src/'MiStepLayout.java'), str(cpath), str(ppath), str(dpath), str(hpath)], check=True)
-subprocess.run([str(jdk/'java.exe'), '-cp', str(out), 'com.jianguo.mistep.EmptyHostRegression'], check=True)
+subprocess.run([str(jdk/'java.exe'), '-cp', str(out), 'com.jiusis.mistep.EmptyHostRegression'], check=True)

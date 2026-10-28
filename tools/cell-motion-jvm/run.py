@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 import subprocess, sys
 root=Path(__file__).resolve().parents[2]
-src=root/'module/src/main/java/com/jianguo/mistep'
+src=root/'module/src/main/java/com/jiusis/mistep'
 out=Path(sys.argv[1]); out.mkdir(parents=True,exist_ok=True)
 files={
 'android/view/MotionEvent.java': r"""package android.view;public class MotionEvent {public static final int ACTION_DOWN=0,ACTION_UP=1,ACTION_MOVE=2,ACTION_CANCEL=3;}""",
@@ -24,7 +24,7 @@ files={
  public void start(){starts++;frame(0);}public void frame(float f){value=f;for(var u:updates)u.onAnimationUpdate(this);}public void end(){frame(1);listeners.forEach(l->l.onAnimationEnd(this));}public void cancel(){listeners.forEach(l->l.onAnimationEnd(this));}
 }""",
 'android/view/animation/PathInterpolator.java': r"""package android.view.animation;public class PathInterpolator {public PathInterpolator(float a,float b,float c,float d){}}""",
-'com/jianguo/mistep/CellMotionRegression.java': r"""package com.jianguo.mistep;
+'com/jiusis/mistep/CellMotionRegression.java': r"""package com.jiusis.mistep;
 import java.util.*;import android.view.*;import android.animation.*;
 public class CellMotionRegression {
  static int checks;static void check(boolean v,String m){checks++;if(!v)throw new AssertionError(m);}
@@ -67,4 +67,4 @@ for n,t in files.items():
  p=out/n;p.parent.mkdir(parents=True,exist_ok=True);p.write_text(t,encoding='utf8')
 jdk=Path(os.environ["MISTEP_JAVA_BIN"])
 subprocess.run([str(jdk/'javac.exe'),'-encoding','UTF-8','--release','17','-d',str(out)]+[str(out/n) for n in files]+[str(src/'MiStepCellMotion.java'),str(src/'MiStepTransitionInput.java'),str(src/'MiStepCollectFrame.java')],check=True)
-subprocess.run([str(jdk/'java.exe'),'-cp',str(out),'com.jianguo.mistep.CellMotionRegression'],check=True)
+subprocess.run([str(jdk/'java.exe'),'-cp',str(out),'com.jiusis.mistep.CellMotionRegression'],check=True)

@@ -122,7 +122,7 @@ extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM*, void*) {
 }
 
 extern "C" JNIEXPORT jboolean JNICALL
-Java_com_jianguo_mistep_NativeRawInputBridge_updateNative(JNIEnv*, jclass,
+Java_com_jiusis_mistep_NativeRawInputBridge_updateNative(JNIEnv*, jclass,
         jfloat scale, jfloat offset_y, jfloat offset_x, jint width, jint height, jint rotation) {
     pthread_mutex_lock(&config_lock);
     active_zoom = {scale, offset_y, offset_x, width, height, rotation};

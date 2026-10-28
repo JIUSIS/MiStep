@@ -5,8 +5,8 @@ import subprocess,sys
 root=Path(__file__).resolve().parents[2]
 out=Path(sys.argv[1]);out.mkdir(parents=True,exist_ok=True)
 subprocess.run([sys.executable,'-X','utf8',str(root/'tools/live-swap-jvm/run.py'),str(out)],check=True)
-src=out/'com/jianguo/mistep/SideCloseRegression.java'
-src.write_text(r'''package com.jianguo.mistep;
+src=out/'com/jiusis/mistep/SideCloseRegression.java'
+src.write_text(r'''package com.jiusis.mistep;
 import java.util.*;import java.util.function.*;
 class MiStepLiveSwapSession {
  interface Animation {void cancel();}
@@ -31,5 +31,5 @@ public class SideCloseRegression {
  }
 }''',encoding='utf8')
 jdk=Path(os.environ["MISTEP_JAVA_BIN"])
-subprocess.run([str(jdk/'javac.exe'),'-encoding','UTF-8','--release','17','-cp',str(out),'-d',str(out),str(src),str(root/'module/src/main/java/com/jianguo/mistep/MiStepSideClose.java')],check=True)
-subprocess.run([str(jdk/'java.exe'),'-cp',str(out),'com.jianguo.mistep.SideCloseRegression'],check=True)
+subprocess.run([str(jdk/'javac.exe'),'-encoding','UTF-8','--release','17','-cp',str(out),'-d',str(out),str(src),str(root/'module/src/main/java/com/jiusis/mistep/MiStepSideClose.java')],check=True)
+subprocess.run([str(jdk/'java.exe'),'-cp',str(out),'com.jiusis.mistep.SideCloseRegression'],check=True)

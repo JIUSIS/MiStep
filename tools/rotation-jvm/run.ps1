@@ -14,11 +14,11 @@ $sources = @(Get-ChildItem -LiteralPath $PSScriptRoot -Filter '*.java' |
     -cp "$classes;$android;$xposed" -d $out @sources
 if ($LASTEXITCODE -ne 0) { throw 'Rotation bridge test compilation failed.' }
 & (Join-Path $jdk 'java.exe') -cp "$out;$classes;$android;$xposed" `
-    com.jianguo.mistep.TaskRotationBridgeTest
+    com.jiusis.mistep.TaskRotationBridgeTest
 if ($LASTEXITCODE -ne 0) { throw 'Rotation bridge regression failed.' }
 & (Join-Path $jdk 'java.exe') -cp "$out;$classes;$android;$xposed" `
-    com.jianguo.mistep.NativeFreeformLayerBridgeTest
+    com.jiusis.mistep.NativeFreeformLayerBridgeTest
 if ($LASTEXITCODE -ne 0) { throw 'Native freeform layer bridge regression failed.' }
 & (Join-Path $jdk 'java.exe') -cp "$out;$classes;$android;$xposed" `
-    com.jianguo.mistep.LiveFinishSnapshotTest
+    com.jiusis.mistep.LiveFinishSnapshotTest
 if ($LASTEXITCODE -ne 0) { throw 'Live finish magnification snapshot regression failed.' }

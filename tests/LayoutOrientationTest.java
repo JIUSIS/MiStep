@@ -1,4 +1,4 @@
-package com.jianguo.mistep;
+package com.jiusis.mistep;
 
 /** Verify that the main pane and the three-cell column exchange sides without gaps. */
 public final class LayoutOrientationTest {

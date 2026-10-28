@@ -13,6 +13,8 @@
 
 Android SDK、Build Tools、NDK、JDK 和 LSPosed 由使用者另行准备，保留其上游许可，不包含在本源码仓库中。ARM64 库使用 NDK 提供的 C++ 运行库，相关许可见随附 Android NDK libc++ / libc++abi 文本。
 
+构建脚本同时将项目完整许可、本说明和 `libs/licenses/` 内的全部上游许可/NOTICE 原文放入 APK 的 `assets/mistep/licenses/`，使单独取得 APK 的接收者也能获取相关声明。该目录内 `SOURCE.txt` 标明项目源码位置；源码 ZIP 另附同样的许可与依赖资料。
+
 本项目包含对系统接口和行为的适配，未上传小米、锤子等厂商 ROM、APK、反编译类或研究采集材料。产品名、服务名与商标属于各自权利人。
 
 ## Mi Step 自有内容

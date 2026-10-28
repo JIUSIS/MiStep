@@ -6,8 +6,8 @@ root=Path(__file__).resolve().parents[2];out=Path(sys.argv[1]);out.mkdir(parents
 tree=ast.parse((root/'tools/cell-motion-jvm/run.py').read_text(encoding='utf-8'))
 fixtures=next(ast.literal_eval(n.value) for n in tree.body if isinstance(n,ast.Assign) and any(isinstance(t,ast.Name) and t.id=='files' for t in n.targets))
 files={k:v for k,v in fixtures.items() if k.startswith('android/')}
-files['com/jianguo/mistep/SideDismissMotionRegression.java']=r'''
-package com.jianguo.mistep;
+files['com/jiusis/mistep/SideDismissMotionRegression.java']=r'''
+package com.jiusis.mistep;
 import android.view.View;import android.animation.ValueAnimator;import java.util.*;
 public class SideDismissMotionRegression {
  static int checks;static void check(boolean b,String s){checks++;if(!b)throw new AssertionError(s);}
@@ -49,5 +49,5 @@ public class SideDismissMotionRegression {
 for n,t in files.items():
  p=out/n;p.parent.mkdir(parents=True,exist_ok=True);p.write_text(t,encoding='utf-8')
 jdk=Path(os.environ["MISTEP_JAVA_BIN"])
-subprocess.run([str(jdk/'javac.exe'),'-encoding','UTF-8','--release','17','-d',str(out)]+[str(out/n) for n in files]+[str(root/'module/src/main/java/com/jianguo/mistep/MiStepSideDismiss.java')],check=True)
-subprocess.run([str(jdk/'java.exe'),'-cp',str(out),'com.jianguo.mistep.SideDismissMotionRegression'],check=True)
+subprocess.run([str(jdk/'javac.exe'),'-encoding','UTF-8','--release','17','-d',str(out)]+[str(out/n) for n in files]+[str(root/'module/src/main/java/com/jiusis/mistep/MiStepSideDismiss.java')],check=True)
+subprocess.run([str(jdk/'java.exe'),'-cp',str(out),'com.jiusis.mistep.SideDismissMotionRegression'],check=True)

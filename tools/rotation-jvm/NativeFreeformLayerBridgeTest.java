@@ -1,4 +1,4 @@
-package com.jianguo.mistep;
+package com.jiusis.mistep;
 
 import android.view.WindowManager;
 import java.lang.reflect.Method;
@@ -170,7 +170,7 @@ public final class NativeFreeformLayerBridgeTest {
     static Object fakeTarget(Display display, Object lock) throws Exception {
         var field = sun.misc.Unsafe.class.getDeclaredField("theUnsafe"); field.setAccessible(true);
         var unsafe = (sun.misc.Unsafe) field.get(null);
-        Class<?> type = Class.forName("com.jianguo.mistep.HostEntry$ZoomTarget");
+        Class<?> type = Class.forName("com.jiusis.mistep.HostEntry$ZoomTarget");
         Object target = unsafe.allocateInstance(type);
         for (var entry : java.util.Map.<String,Object>of("display", display,
                 "globalLock", lock, "handler", new android.os.Handler()).entrySet()) {

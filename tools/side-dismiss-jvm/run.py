@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 import subprocess, sys
 root = Path(__file__).resolve().parents[2]
-src = root / 'module/src/main/java/com/jianguo/mistep'
+src = root / 'module/src/main/java/com/jiusis/mistep'
 out = Path(sys.argv[1])
 out.mkdir(parents=True, exist_ok=True)
 host = (src/'MiStepHost.java').read_text(encoding='utf-8-sig')
@@ -15,7 +15,7 @@ def method(signature):
 methods = '\n'.join(method(s) for s in ['    private boolean onSlotTouch(',
     '    private void recycleBuffered(', '    private boolean followSideDismiss(', '    private void dismissSideToBackground(']).replace('MiStepHost::log','SideDismissRegression::log')
 body = r'''
-package com.jianguo.mistep;
+package com.jiusis.mistep;
 import java.util.function.Consumer;
 public class SideDismissRegression {
  static int checks; static void check(boolean b,String why){checks++;if(!b)throw new AssertionError(why);}
@@ -100,10 +100,10 @@ public class SideDismissRegression {
  }
 }
 '''.replace('__METHODS__',methods)
-files = {'com/jianguo/mistep/SideDismissRegression.java':body,
+files = {'com/jiusis/mistep/SideDismissRegression.java':body,
  'android/widget/Toast.java':'package android.widget; public class Toast { public static final int LENGTH_SHORT=0; public static Toast makeText(Object c,String s,int n){return new Toast();}public void show(){} }'}
 for name,text in files.items():
     p=out/name;p.parent.mkdir(parents=True,exist_ok=True);p.write_text(text,encoding='utf-8')
 jdk=Path(os.environ["MISTEP_JAVA_BIN"])
 subprocess.run([str(jdk/'javac.exe'),'-encoding','UTF-8','--release','17','-d',str(out)]+[str(out/n) for n in files]+[str(src/'MiStepSideDismissGesture.java')],check=True)
-subprocess.run([str(jdk/'java.exe'),'-cp',str(out),'com.jianguo.mistep.SideDismissRegression'],check=True)
+subprocess.run([str(jdk/'java.exe'),'-cp',str(out),'com.jiusis.mistep.SideDismissRegression'],check=True)

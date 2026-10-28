@@ -7,7 +7,7 @@ import sys
 root = Path(__file__).resolve().parents[2]
 out = Path(sys.argv[1])
 out.mkdir(parents=True, exist_ok=True)
-source = (root/'module/src/main/java/com/jianguo/mistep/HostEntry.java').read_text(encoding='utf-8-sig')
+source = (root/'module/src/main/java/com/jiusis/mistep/HostEntry.java').read_text(encoding='utf-8-sig')
 start = source.index('    private static boolean cropFixedMainTouchableRegion(')
 brace = source.index('{', start)
 depth, end = 1, brace+1
@@ -31,7 +31,7 @@ public class Region {
  public boolean op(Rect r,Op op){var a=new java.awt.geom.Area(new java.awt.Rectangle(r.left,r.top,r.width(),r.height()));if(op==Op.INTERSECT)area.intersect(a);else area.subtract(a);return !area.isEmpty();}
  public boolean contains(int x,int y){return area.contains(x,y);}
 }'''
-body = r'''package com.jianguo.mistep;
+body = r'''package com.jiusis.mistep;
 import android.graphics.*;
 import java.util.*;
 public class FixedTouchRegression {
@@ -93,4 +93,4 @@ for name,text in files.items():
     path.write_text(text,encoding='utf8')
 jdk=Path(os.environ["MISTEP_JAVA_BIN"])
 subprocess.run([str(jdk/'javac.exe'),'-encoding','UTF-8','--release','17','-d',str(out),*[str(out/n)for n in files]],check=True)
-subprocess.run([str(jdk/'java.exe'),'-cp',str(out),'com.jianguo.mistep.FixedTouchRegression',*sys.argv[2:]],check=True)
+subprocess.run([str(jdk/'java.exe'),'-cp',str(out),'com.jiusis.mistep.FixedTouchRegression',*sys.argv[2:]],check=True)

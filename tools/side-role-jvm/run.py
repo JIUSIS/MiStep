@@ -8,8 +8,8 @@ JDK=Path(os.environ["MISTEP_JAVA_BIN"])
 tree=ast.parse((ROOT/'tools/live-swap-jvm/run.py').read_text(encoding='utf-8-sig'))
 files=next(ast.literal_eval(n.value) for n in tree.body if isinstance(n,ast.Assign) and any(isinstance(t,ast.Name) and t.id=='FILES' for t in n.targets))
 fake=OUT/'de/robv/android/xposed/XposedHelpers.java';fake.parent.mkdir(parents=True,exist_ok=True);fake.write_text(files['de/robv/android/xposed/XposedHelpers.java'],encoding='utf8')
-test=OUT/'com/jianguo/mistep/SideRoleRegression.java';test.parent.mkdir(parents=True,exist_ok=True)
-test.write_text(r'''package com.jianguo.mistep;
+test=OUT/'com/jiusis/mistep/SideRoleRegression.java';test.parent.mkdir(parents=True,exist_ok=True)
+test.write_text(r'''package com.jiusis.mistep;
 public class SideRoleRegression {
  static int checks;static void check(boolean v,String why){checks++;if(!v)throw new AssertionError(why);}
  static class Task {Object display;int mode=1;boolean force;Task(Object d){display=d;}public Object getDisplayContent(){return display;}public int getWindowingMode(){return mode;}public boolean isForceTranslucent(){return force;}}
@@ -34,6 +34,6 @@ public class SideRoleRegression {
   System.out.println("actual native side-role ordering/scope checks="+checks+" passed");
  }
 }''',encoding='utf8')
-source=ROOT/'module/src/main/java/com/jianguo/mistep/MiStepSideRoleChange.java'
+source=ROOT/'module/src/main/java/com/jiusis/mistep/MiStepSideRoleChange.java'
 subprocess.run([str(JDK/'javac.exe'),'-encoding','UTF-8','--release','17','-d',str(OUT),str(fake),str(test),str(source)],check=True)
-subprocess.run([str(JDK/'java.exe'),'-cp',str(OUT),'com.jianguo.mistep.SideRoleRegression'],check=True)
+subprocess.run([str(JDK/'java.exe'),'-cp',str(OUT),'com.jiusis.mistep.SideRoleRegression'],check=True)

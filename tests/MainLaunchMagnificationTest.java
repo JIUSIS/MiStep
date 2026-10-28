@@ -1,4 +1,4 @@
-package com.jianguo.mistep;
+package com.jiusis.mistep;
 
 public class MainLaunchMagnificationTest {
     private static int checks;

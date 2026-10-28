@@ -1,4 +1,4 @@
-package com.jianguo.mistep;
+package com.jiusis.mistep;
 
 /** Offline regression for the animated zoom command; no Android runtime required. */
 public final class ZoomAnimCommandTest {

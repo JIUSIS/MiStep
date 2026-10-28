@@ -20,7 +20,7 @@ if($LASTEXITCODE -ne 0){throw 'JVM geometry fake compilation failed.'}
 & (Join-Path $jdk 'javac.exe') -encoding UTF-8 --release 17 -cp $cp -d $out @tests
 if($LASTEXITCODE -ne 0){throw 'Policy test compilation failed.'}
 foreach($test in $tests){
-    & (Join-Path $jdk 'java.exe') -cp "$out;$cp" ('com.jianguo.mistep.'+[IO.Path]::GetFileNameWithoutExtension($test))
+    & (Join-Path $jdk 'java.exe') -cp "$out;$cp" ('com.jiusis.mistep.'+[IO.Path]::GetFileNameWithoutExtension($test))
     if($LASTEXITCODE -ne 0){throw "Policy test failed: $test"}
 }
 $failedSuites=@()

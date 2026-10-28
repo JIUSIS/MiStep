@@ -8,12 +8,12 @@ ROOT = Path(__file__).resolve().parents[2]
 OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / 'build/tests/live-collect-jvm'
 JDK = Path(os.environ["MISTEP_JAVA_BIN"])
 subprocess.run([sys.executable, '-X', 'utf8', str(ROOT / 'tools/live-swap-jvm/run.py'), str(OUT)], check=True)
-source = OUT / 'com/jianguo/mistep/LiveCollectRegression.java'
-source.write_text(r'''package com.jianguo.mistep;
+source = OUT / 'com/jiusis/mistep/LiveCollectRegression.java'
+source.write_text(r'''package com.jiusis.mistep;
 import android.graphics.Rect;
 import java.util.*;
 import com.android.wm.shell.ShellTaskOrganizer.TaskListener;
-import com.jianguo.mistep.LivePairRegression.*;
+import com.jiusis.mistep.LivePairRegression.*;
 public class LiveCollectRegression {
  static int checks;
  static void check(boolean v,String why){checks++;if(!v)throw new AssertionError(why);}
@@ -88,5 +88,5 @@ public class LiveCollectRegression {
  }
 }''', encoding='utf8')
 subprocess.run([str(JDK/'javac.exe'), '-encoding', 'UTF-8', '--release', '17', '-cp', str(OUT), '-d', str(OUT),
-                str(ROOT/'module/src/main/java/com/jianguo/mistep/MiStepLiveCollectTask.java'), str(ROOT/'module/src/main/java/com/jianguo/mistep/MiStepIdleTaskView.java'), str(source)], check=True)
-subprocess.run([str(JDK/'java.exe'), '-cp', str(OUT), 'com.jianguo.mistep.LiveCollectRegression'], check=True)
+                str(ROOT/'module/src/main/java/com/jiusis/mistep/MiStepLiveCollectTask.java'), str(ROOT/'module/src/main/java/com/jiusis/mistep/MiStepIdleTaskView.java'), str(source)], check=True)
+subprocess.run([str(JDK/'java.exe'), '-cp', str(OUT), 'com.jiusis.mistep.LiveCollectRegression'], check=True)

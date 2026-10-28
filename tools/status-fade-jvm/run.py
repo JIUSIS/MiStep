@@ -5,7 +5,7 @@ import subprocess
 import sys
 
 root = Path(__file__).resolve().parents[2]
-src = Path(sys.argv[2]) if len(sys.argv) > 2 else root / 'module/src/main/java/com/jianguo/mistep'
+src = Path(sys.argv[2]) if len(sys.argv) > 2 else root / 'module/src/main/java/com/jiusis/mistep'
 out = Path(sys.argv[1])
 out.mkdir(parents=True, exist_ok=True)
 files = {
@@ -38,7 +38,7 @@ files = {
  public void postOnAnimation(Runnable r){nextFrame.add(r);}public void pulse(){var copy=new ArrayList<>(nextFrame);nextFrame.clear();for(var r:copy)r.run();}
 }''',
 'android/view/inspector/WindowInspector.java': 'package android.view.inspector;import android.view.View;import java.util.*;import java.util.function.Consumer;public class WindowInspector {public static List<View>views=new ArrayList<>();public static List<Consumer<List<View>>>listeners=new ArrayList<>();public static List<View>getGlobalWindowViews(){return views;}public static void addGlobalWindowViewsListener(java.util.concurrent.Executor e,Consumer<List<View>>l){listeners.add(l);}public static void removeGlobalWindowViewsListener(Consumer<List<View>>l){listeners.remove(l);}public static void notifyViews(){for(var l:new ArrayList<>(listeners))l.accept(views);}}',
-'com/jianguo/mistep/StatusFadeRegression.java': r'''package com.jianguo.mistep;
+'com/jiusis/mistep/StatusFadeRegression.java': r'''package com.jiusis.mistep;
 import android.animation.*;import android.view.*;import android.view.inspector.*;import android.os.*;import java.util.*;
 public class StatusFadeRegression {
  static int checks;static void check(boolean b,String why){checks++;if(!b)throw new AssertionError(why);}static boolean near(float a,float b){return Math.abs(a-b)<.00001;}
@@ -87,4 +87,4 @@ for name, body in files.items():
 jdk = Path(os.environ["MISTEP_JAVA_BIN"])
 subprocess.run([str(jdk / 'javac.exe'), '-encoding', 'UTF-8', '--release', '17', '-d', str(out),
                 str(src / 'MiStepStatusBar.java'), str(src / 'SwapStatusBarLease.java'), *paths], check=True)
-subprocess.run([str(jdk / 'java.exe'), '-cp', str(out), 'com.jianguo.mistep.StatusFadeRegression'], check=True)
+subprocess.run([str(jdk / 'java.exe'), '-cp', str(out), 'com.jiusis.mistep.StatusFadeRegression'], check=True)

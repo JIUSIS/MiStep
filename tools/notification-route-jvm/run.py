@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 import subprocess,sys
 root=Path(__file__).resolve().parents[2];out=Path(sys.argv[1]);out.mkdir(parents=True,exist_ok=True)
-source=root/'module/src/main/java/com/jianguo/mistep'
+source=root/'module/src/main/java/com/jiusis/mistep'
 host=(source/'MiStepHost.java').read_text(encoding='utf-8-sig')
 def method(sig):
     a=host.index(sig);b=host.index('{',a)+1;d=1
@@ -24,8 +24,8 @@ files={
 'de/robv/android/xposed/XposedHelpers.java':'''package de.robv.android.xposed;import java.lang.reflect.*;public class XposedHelpers{public static Class<?> findClass(String s,ClassLoader l)throws Exception{return Class.forName(s);}public static Object getObjectField(Object o,String s){try{Field f=o.getClass().getDeclaredField(s);f.setAccessible(true);return f.get(o);}catch(Exception e){throw new RuntimeException(e);}}public static int getIntField(Object o,String s){return(Integer)getObjectField(o,s);}public static Object callMethod(Object o,String s,Object...a){try{for(Method m:o.getClass().getMethods())if(m.getName().equals(s)&&m.getParameterCount()==a.length){m.setAccessible(true);return m.invoke(o,a);}throw new Exception(s);}catch(Exception e){throw new RuntimeException(e);}}}''',
 'com/android/systemui/statusbar/phone/StatusBarNotificationActivityStarter.java':'''package com.android.systemui.statusbar.phone;public class StatusBarNotificationActivityStarter{public int count;public Object[] received;public void startNotificationIntentPublic(android.app.PendingIntent p,android.content.Intent f,Object entry,Object row,boolean a,boolean b,boolean c){count++;received=new Object[]{p,f,entry,row,a,b,c};}}''',
 }
-files['com/jianguo/mistep/MiStepNotificationLaunch.java']=(source/'MiStepNotificationLaunch.java').read_text(encoding='utf-8')
-files['com/jianguo/mistep/MiStepHost.java']='''package com.jianguo.mistep;import android.os.Looper;import de.robv.android.xposed.XposedHelpers;import java.util.*;
+files['com/jiusis/mistep/MiStepNotificationLaunch.java']=(source/'MiStepNotificationLaunch.java').read_text(encoding='utf-8')
+files['com/jiusis/mistep/MiStepHost.java']='''package com.jiusis.mistep;import android.os.Looper;import de.robv.android.xposed.XposedHelpers;import java.util.*;
 class MiStepHost{
  static MiStepHost sInstance;static final int ACTIVE=1,SLOT_MAIN=0;int scene=ACTIVE;boolean screenOn=true,keyguardLocked,transferBusy,canStart=true;Promotion promotion;Slot[] slots={new Slot(0),new Slot(1),new Slot(2)};QueueMain main=new QueueMain();
  static class QueueMain{ArrayList<Runnable> q=new ArrayList<>();Looper getLooper(){return Looper.MAIN;}void post(Runnable r){q.add(r);}void drain(){for(Runnable r:new ArrayList<>(q))r.run();q.clear();}}
@@ -36,7 +36,7 @@ class MiStepHost{
 '''+method('static boolean promoteForNotification(')+'\n'+method('private void resumeNotificationLaunch(')+'''
  void finish(){resumeNotificationLaunch(promotion);resumeNotificationLaunch(promotion);main.drain();}
 }'''
-files['com/jianguo/mistep/NotificationRouteTest.java']='''package com.jianguo.mistep;
+files['com/jiusis/mistep/NotificationRouteTest.java']='''package com.jiusis.mistep;
 import android.app.*;import android.content.*;import android.content.pm.*;import android.os.*;import de.robv.android.xposed.*;import com.android.systemui.statusbar.phone.*;
 public class NotificationRouteTest{
  static int checks;static Context ctx;static MiStepHost h;static StatusBarNotificationActivityStarter starter;static PendingIntent pending;static Intent fill;static Object entry,row;static XC_MethodHook.MethodHookParam args;
@@ -65,7 +65,7 @@ for name,text in files.items():
  p=out/name;p.parent.mkdir(parents=True,exist_ok=True);p.write_text(text,encoding='utf-8')
 jdk=Path(os.environ["MISTEP_JAVA_BIN"])
 subprocess.run([str(jdk/'javac.exe'),'-encoding','UTF-8','-d',str(out),*[str(out/x) for x in files]],check=True)
-subprocess.run([str(jdk/'java.exe'),'-cp',str(out),'com.jianguo.mistep.NotificationRouteTest'],check=True)
+subprocess.run([str(jdk/'java.exe'),'-cp',str(out),'com.jiusis.mistep.NotificationRouteTest'],check=True)
 restore=method('private void restoreLiveSwapVisual(');fail=method('private void failPromotion(')
 assert restore.index('setLiveSwapInputBlocked(false)')<restore.index('resumeNotificationLaunch(ticket)')
 assert fail.index('requestLiveSwapCancellation')<fail.index('resumeNotificationLaunch(ticket)')

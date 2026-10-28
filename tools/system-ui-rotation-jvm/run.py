@@ -9,8 +9,8 @@ tree=ast.parse((ROOT/'tools/live-swap-jvm/run.py').read_text(encoding='utf-8-sig
 files=next(ast.literal_eval(n.value) for n in tree.body if isinstance(n,ast.Assign) and any(isinstance(t,ast.Name) and t.id=='FILES' for t in n.targets))
 fake=OUT/'de/robv/android/xposed/XposedHelpers.java';fake.parent.mkdir(parents=True,exist_ok=True)
 fake.write_text(files['de/robv/android/xposed/XposedHelpers.java'],encoding='utf8')
-test=OUT/'com/jianguo/mistep/SystemUiRotationRegression.java';test.parent.mkdir(parents=True,exist_ok=True)
-test.write_text(r'''package com.jianguo.mistep;
+test=OUT/'com/jiusis/mistep/SystemUiRotationRegression.java';test.parent.mkdir(parents=True,exist_ok=True)
+test.write_text(r'''package com.jiusis.mistep;
 public class SystemUiRotationRegression {
  static int checks;static void check(boolean v,String why){checks++;if(!v)throw new AssertionError(why);}
  static class State {Object mRotatedOverrideConfiguration=new Object();}
@@ -97,7 +97,7 @@ public class SystemUiRotationRegression {
  }
 }''',encoding='utf8')
 area=OUT/'com/android/server/wm/DisplayArea.java';area.parent.mkdir(parents=True,exist_ok=True)
-area.write_text('''package com.android.server.wm;public class DisplayArea {public static class Tokens extends com.jianguo.mistep.SystemUiRotationRegression.Node {public Tokens(Object display){super(display,null);}}}''',encoding='utf8')
-source=ROOT/'module/src/main/java/com/jianguo/mistep/MiStepSystemUiRotation.java'
+area.write_text('''package com.android.server.wm;public class DisplayArea {public static class Tokens extends com.jiusis.mistep.SystemUiRotationRegression.Node {public Tokens(Object display){super(display,null);}}}''',encoding='utf8')
+source=ROOT/'module/src/main/java/com/jiusis/mistep/MiStepSystemUiRotation.java'
 subprocess.run([str(JDK/'javac.exe'),'-encoding','UTF-8','--release','17','-d',str(OUT),str(fake),str(test),str(area),str(source)],check=True)
-subprocess.run([str(JDK/'java.exe'),'-cp',str(OUT),'com.jianguo.mistep.SystemUiRotationRegression'],check=True)
+subprocess.run([str(JDK/'java.exe'),'-cp',str(OUT),'com.jiusis.mistep.SystemUiRotationRegression'],check=True)

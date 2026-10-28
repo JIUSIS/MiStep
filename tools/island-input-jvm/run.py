@@ -57,11 +57,11 @@ public class XposedHelpers {public static String selected;
  public static Object callMethod(Object o,String n){return ((android.view.MotionEvent)o).getDisplayId();}
 }
 ''',
-'com/jianguo/mistep/MiStepHost.java': '''package com.jianguo.mistep;
+'com/jiusis/mistep/MiStepHost.java': '''package com.jiusis.mistep;
 class MiStepHost {static float[] zoom={.74654907f,661f,0f};
  static float[] activeIslandMonitorTransform(){return zoom;}}
 ''',
-'com/jianguo/mistep/IslandMonitorHookTest.java': '''package com.jianguo.mistep;
+'com/jiusis/mistep/IslandMonitorHookTest.java': '''package com.jiusis.mistep;
 import android.view.MotionEvent;import android.content.Context;import android.provider.Settings;
 import de.robv.android.xposed.*;
 public class IslandMonitorHookTest {
@@ -109,7 +109,7 @@ for name, content in sources.items():
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(content, encoding='utf8')
     paths.append(str(p))
-prod = ROOT / 'module/src/main/java/com/jianguo/mistep'
+prod = ROOT / 'module/src/main/java/com/jiusis/mistep'
 paths += [str(prod / n) for n in ['IslandMonitorInputPolicy.java', 'MiStepIslandMonitorInput.java']]
 CLASSES.mkdir(parents=True, exist_ok=True)
 compile_result = subprocess.run([str(JDK / 'javac.exe'), '-encoding', 'UTF-8', '--release', '17',
@@ -119,7 +119,7 @@ if compile_result.returncode:
     print(compile_result.stderr.decode('gbk', 'replace')[:3000])
     sys.exit(compile_result.returncode)
 test = subprocess.run([str(JDK / 'java.exe'), '-cp', str(CLASSES),
-                       'com.jianguo.mistep.IslandMonitorHookTest'], capture_output=True)
+                       'com.jiusis.mistep.IslandMonitorHookTest'], capture_output=True)
 (OUT / 'tests.log').write_bytes(test.stdout + test.stderr)
 print((test.stdout + test.stderr).decode('utf8', 'replace'))
 sys.exit(test.returncode)

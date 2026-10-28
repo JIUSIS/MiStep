@@ -25,9 +25,9 @@ public final class Rect {
  public int hashCode(){return left+31*top+961*right+29791*bottom;}
  public String toString(){return left+","+top+","+right+","+bottom;}
 }''', encoding='utf8')
-source = ROOT / 'module/src/main/java/com/jianguo/mistep/MiStepStatusBarClip.java'
+source = ROOT / 'module/src/main/java/com/jiusis/mistep/MiStepStatusBarClip.java'
 test = Path(__file__).with_name('StatusBarClipRegression.java')
 subprocess.run([str(JDK / 'javac.exe'), '-encoding', 'UTF-8', '--release', '17', '-d', str(OUT),
                 str(fake), str(rect), str(source), str(test)], check=True)
 subprocess.run([str(JDK / 'java.exe'), '-cp', str(OUT),
-                'com.jianguo.mistep.StatusBarClipRegression'], check=True)
+                'com.jiusis.mistep.StatusBarClipRegression'], check=True)

@@ -1,4 +1,4 @@
-package com.jianguo.mistep;
+package com.jiusis.mistep;
 
 public final class PromotionFocusTransferTest {
     private static int checks;

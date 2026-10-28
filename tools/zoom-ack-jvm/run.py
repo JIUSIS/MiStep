@@ -5,14 +5,14 @@ import subprocess
 import sys
 
 root = Path(__file__).resolve().parents[2]
-src = root / 'module/src/main/java/com/jianguo/mistep'
+src = root / 'module/src/main/java/com/jiusis/mistep'
 out = Path(sys.argv[1]) if len(sys.argv) > 1 else root / 'build/tests/zoom-ack-jvm'
 out.mkdir(parents=True, exist_ok=True)
 source = (src / 'HostEntry.java').read_text(encoding='utf8')
 start = source.index('    private static final class ZoomCommit {')
 end = source.index('    /** Snapshot operations only.', start)
 actual = source[start:end].replace('private static final class ZoomCommit', 'static final class ZoomCommit')
-wrapper = r'''package com.jianguo.mistep;
+wrapper = r'''package com.jiusis.mistep;
 import java.util.*;
 public final class ZoomAckRegression {
  static final String SYSTEMUI="com.android.systemui";
@@ -65,4 +65,4 @@ android = Path(os.environ["MISTEP_ANDROID_JAR"])
 subprocess.run([str(jdk / 'javac.exe'), '-encoding', 'UTF-8', '--release', '17', '-cp', str(android),
                 '-d', str(out), str(src / 'LiveSwapZoom.java'), str(src / 'LiveSwapZoomProtocol.java'), str(target)], check=True)
 subprocess.run([str(jdk / 'java.exe'), '-cp', str(out) + ';' + str(android),
-                'com.jianguo.mistep.ZoomAckRegression'], check=True)
+                'com.jiusis.mistep.ZoomAckRegression'], check=True)
