@@ -31,9 +31,11 @@ public class LiveFinishRegression {
   public void apply(){applies++;} public void close(){closes++;mNativeObject=0;}
  }
  static class Owner {void finish(Object tx,float scale){((Tx)tx).ops.add("task-parents");}void finish(Object tx,boolean original,float scale){finish(tx,scale);}void restoreOriginal(Object tx,float scale){finish(tx,scale);}}
+ static class Overlay {void finish(Object tx,boolean original){((Tx)tx).ops.add(original?"overlay-original":"overlay-target");}}
+ static class Flip {Overlay overlays=new Overlay();}
  static class Run {
   boolean uncertain,rollback,waitingCancel,resolved=true;
-  Object flip=new Object(),finishReplay;Owner pair=new Owner(),single=new Owner();float oldSideScale=.25f,targetSideScale=.25f;
+  Flip flip=new Flip();Object finishReplay;Owner pair=new Owner(),single=new Owner();float oldSideScale=.25f,targetSideScale=.25f;
   void peersFinish(Object tx,boolean original){((Tx)tx).ops.add("peers");}
   void background(Object tx,boolean show){((Tx)tx).ops.add("background");}
   METHOD
@@ -44,10 +46,12 @@ public class LiveFinishRegression {
   forward.finish(finish,false);
   check(finish.displayX==273&&finish.ops.get(finish.ops.size()-1).equals("WMS:273.0"),"old finish offset won over current right-main tuple");
   check(finish.ops.indexOf("task-parents")<finish.ops.indexOf("WMS:273.0"),"current WMS operations did not follow owner handoff");
+  check(finish.ops.indexOf("overlay-target")<finish.ops.indexOf("WMS:273.0"),"overlay finish overwrote native final replay");
   check(finish.applies==0&&right.applies==0,"handoff split into another apply");
   check(right.closes==1&&forward.finishReplay==null,"merged replay was retained or leaked");
   Run reverse=new Run();reverse.rollback=true;Tx restored=new Tx(),left=replay(0);reverse.finishReplay=left;reverse.finish(restored,true);
   check(restored.displayX==0&&restored.ops.get(restored.ops.size()-1).equals("WMS:0.0"),"rollback retained right-main replay");
+  check(restored.ops.contains("overlay-original"),"cancel did not restore original toolbox pose");
   Run home=new Run();home.flip=null;home.pair=null;Tx covered=new Tx();home.finish(covered,false);
   check(covered.ops.equals(List.of("task-parents","peers","background")),"Home required changing main magnification");
   Run absent=new Run();try{absent.finish(new Tx(),false);throw new AssertionError("missing replay accepted");}catch(IllegalStateException expected){checks++;}

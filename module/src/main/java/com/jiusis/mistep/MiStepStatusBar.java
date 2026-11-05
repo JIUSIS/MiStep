@@ -15,11 +15,12 @@ import java.util.List;
 import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.lang.ref.WeakReference;
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
 
-/** Only status-bar drawing in this SystemUI process; preserves alpha, visibility and insets. */
+/** Borrow real SystemUI overlays and native panels until the task roles have settled. */
 final class MiStepStatusBar {
     private static MiStepStatusBar current;
     private static boolean nativeStateKnown;
@@ -27,9 +28,13 @@ final class MiStepStatusBar {
     private static boolean nativeTopAppHidesStatusBar;
     private static boolean nativeTransientStatusBar;
     private static boolean nativePanelExpanded;
+    private static long cornerContext;
+    private static WeakReference<Object> nativeControlCenter = new WeakReference<>(null);
+    private static WeakReference<Object> nativeShadeContext = new WeakReference<>(null);
     private final Handler main;
     private final Consumer<String> log;
     private final SwapStatusBarLease lease;
+    private final SwapPanelLease panels;
     private final Map<View, Fade> fades = new IdentityHashMap<>();
     private final Map<View, Float> nativeHidden = new IdentityHashMap<>();
     private final Consumer<List<View>> nativeRoots = this::includeNativeHiddenRoots;
@@ -51,7 +56,10 @@ final class MiStepStatusBar {
                                 nativeWindowStateChanged(message.arg1, message.arg2, state);
                             else if ((message.what & 0xffff0000) == (37 << 16)) {
                                 boolean hidden=message.arg1!=0;
-                                if(hidden!=nativeTopAppHidesStatusBar)nativeTransientStatusBar=false;
+                                if(hidden!=nativeTopAppHidesStatusBar) {
+                                    nativeTransientStatusBar=false;
+                                    cornerContext++;
+                                }
                                 nativeTopAppHidesStatusBar=hidden;
                             } else if (((message.what & 0xffff0000) == (48 << 16)
                                     || (message.what & 0xffff0000) == (49 << 16)) && message.obj != null) {
@@ -71,12 +79,79 @@ final class MiStepStatusBar {
             XposedHelpers.findAndHookMethod("com.android.systemui.shade.NotificationShadeWindowControllerImpl",loader,
                     "onShadeOrQsExpanded",Boolean.class,new XC_MethodHook() {
                         @Override protected void beforeHookedMethod(MethodHookParam p) {
-                            nativePanelExpanded=Boolean.TRUE.equals(p.args[0]);
+                            boolean expanded=Boolean.TRUE.equals(p.args[0]);
+                            if(expanded!=nativePanelExpanded)cornerContext++;
+                            nativePanelExpanded=expanded;
+                            try { nativeShadeContext = new WeakReference<>(
+                                    XposedHelpers.getObjectField(p.thisObject, "mContext")); }
+                            catch (Throwable ignored) {}
+                        }
+                        @Override protected void afterHookedMethod(MethodHookParam p) {
+                            nativePanelChanged();
                         }
                     });
         } catch(Throwable error) {
             XposedBridge.log("MiStep: native panel expansion observer unavailable: "+error);
         }
+        try {
+            XposedBridge.hookAllConstructors(XposedHelpers.findClass(
+                    "com.miui.systemui.controlcenter.ControlCenterImpl", loader), new XC_MethodHook() {
+                @Override protected void afterHookedMethod(MethodHookParam p) {
+                    nativeControlCenter = new WeakReference<>(p.thisObject);
+                }
+            });
+            String delegate = "com.miui.systemui.controlcenter.container.ControlCenterExpandControllerDelegate";
+            for (String method : new String[]{"onExpansionChanged", "onBlurRatioChanged", "onVisibleChanged"}) {
+                XposedHelpers.findAndHookMethod(delegate, loader, method,
+                        "onVisibleChanged".equals(method) ? boolean.class : float.class, new XC_MethodHook() {
+                    @Override protected void afterHookedMethod(MethodHookParam p) { nativePanelChanged(); }
+                });
+            }
+        } catch (Throwable error) {
+            XposedBridge.log("MiStep: native control-center swap observer unavailable: " + error);
+        }
+    }
+
+    private static void nativePanelChanged() {
+        MiStepStatusBar bar = current;
+        if (bar != null && bar.activeOwner != null) bar.main.post(bar.panels::changed);
+    }
+
+    private SwapPanelLease.Panel nativePanel() {
+        Object center = nativeControlCenter.get();
+        if (center != null) {
+            SwapPanelLease.Panel panel = new SwapPanelLease.Panel() {
+                private Object expandController() { return XposedHelpers.callMethod(center, "getExpandController"); }
+                private Object read(String method) {
+                    Object controller = expandController();
+                    try { return controller.getClass().getMethod(method).invoke(controller); }
+                    catch (ReflectiveOperationException error) { throw new IllegalStateException(method, error); }
+                }
+                private float value(String method) {
+                    return ((Number) read(method)).floatValue();
+                }
+                public Object identity() { return center; }
+                public boolean expanded() { return Boolean.TRUE.equals(XposedHelpers.callMethod(center, "getExpanded"))
+                        || value("getExpansion") > 0f; }
+                public void collapse() { XposedHelpers.callMethod(center, "collapse", true); }
+                public boolean collapsed() { return !Boolean.TRUE.equals(XposedHelpers.callMethod(center, "getExpanded"))
+                        && value("getExpansion") == 0f && value("getBlurRatio") == 0f
+                        && Boolean.FALSE.equals(read("getVisible")); }
+                public void expand() { XposedHelpers.callMethod(center, "expand", true); }
+            };
+            try { if (panel.expanded() || !nativePanelExpanded) return panel; }
+            catch (Throwable error) { log.accept("native control-center state unavailable: " + error); return panel; }
+        }
+        Object context = nativeShadeContext.get();
+        if (context == null || !nativePanelExpanded) return null;
+        return new SwapPanelLease.Panel() {
+            private Object service() { return XposedHelpers.callMethod(context, "getSystemService", "statusbar"); }
+            public Object identity() { return context; }
+            public boolean expanded() { return nativePanelExpanded; }
+            public void collapse() { XposedHelpers.callMethod(service(), "collapsePanels"); }
+            public boolean collapsed() { return !nativePanelExpanded; }
+            public void expand() { XposedHelpers.callMethod(service(), "expandNotificationsPanel"); }
+        };
     }
 
     /** A separate corner swipe is allowed only while the revealed status bar remains shown. */
@@ -85,6 +160,19 @@ final class MiStepStatusBar {
                 || nativeStateKnown && nativeWindowState!=0)return false;
         if(nativeTransientStatusBar)return nativeStateKnown && nativeWindowState==0;
         return height>width && !nativeTopAppHidesStatusBar;
+    }
+
+    static long cornerGestureContext() { return cornerContext; }
+
+    /** The bar may retract during the same admitted swipe; a new DOWN still needs it. */
+    static boolean keepsCornerGesture(long admittedContext) {
+        return admittedContext==cornerContext && !nativePanelExpanded;
+    }
+
+    static String cornerStateForTrace() {
+        return "known="+nativeStateKnown+" window="+nativeWindowState
+                +" fullscreen="+nativeTopAppHidesStatusBar+" transient="+nativeTransientStatusBar
+                +" panel="+nativePanelExpanded+" context="+cornerContext;
     }
 
     static void nativeWindowStateChanged(int display, int window, int state) {
@@ -102,7 +190,8 @@ final class MiStepStatusBar {
         } else {
             for (View view : new ArrayList<>(bar.fades.keySet())) {
                 Fade fade = bar.fades.get(view);
-                if (fade != null && fade.target != 0f) bar.holdNativeHidden(view, fade.target);
+                if (fade != null && fade.target != 0f && isNativeStatusBar(view))
+                    bar.holdNativeHidden(view, fade.target);
             }
         }
     }
@@ -122,6 +211,7 @@ final class MiStepStatusBar {
             public void postDelayed(Runnable action, long delayMs) { main.postDelayed(action, delayMs); }
             public void remove(Runnable action) { main.removeCallbacks(action); }
         }, error -> log.accept("swap status bar: " + error));
+        panels = new SwapPanelLease(error -> log.accept("swap native panel: " + error));
     }
 
     void hideFor(Object ticket, Runnable expire) {
@@ -129,11 +219,12 @@ final class MiStepStatusBar {
         hiddenOwner = null;
         Consumer<List<View>> listener = views -> include(ticket, views);
         lease.begin(ticket, () -> {
-            try { WindowInspector.removeGlobalWindowViewsListener(listener); }
+            try { WindowRootsCompat.remove(listener); }
             catch (Throwable error) { log.accept("status bar listener removal: " + error); }
-        }, expire);
+        }, () -> { try { expire.run(); } finally { finish(ticket); } });
+        panels.begin(ticket, nativePanel());
         try {
-            WindowInspector.addGlobalWindowViewsListener(main::post, listener);
+            WindowRootsCompat.add(main::post, listener);
         } catch (Throwable error) {
             log.accept("status bar listener unavailable; using attached windows: " + error);
         }
@@ -145,10 +236,7 @@ final class MiStepStatusBar {
         if (!lease.owns(ticket)) return;
         List<SwapStatusBarLease.Window> windows = new ArrayList<>();
         for (View view : views) {
-            if (!(view.getLayoutParams() instanceof WindowManager.LayoutParams params)
-                    || params.type != WindowManager.LayoutParams.TYPE_STATUS_BAR
-                    || view.getDisplay() == null
-                    || view.getDisplay().getDisplayId() != Display.DEFAULT_DISPLAY) continue;
+            if (!isSwapOverlay(view)) continue;
             windows.add(new SwapStatusBarLease.Window() {
                 public Object identity() { return view; }
                 public float transitionAlpha() {
@@ -161,7 +249,7 @@ final class MiStepStatusBar {
                             ? current.target : view.getTransitionAlpha();
                 }
                 public void transitionAlpha(float value) {
-                    if (value == 0f && hiddenOwner == ticket) {
+                    if (value == 0f && (hiddenOwner == ticket || !isDrawnSwapOverlay(view))) {
                         // A rebuilt bar must stay hidden after the swap was admitted.
                         cancelFade(view);
                         view.setTransitionAlpha(0f);
@@ -174,8 +262,26 @@ final class MiStepStatusBar {
         lease.include(ticket, windows);
     }
 
+    private static boolean isNativeStatusBar(View view) {
+        return view.getLayoutParams() instanceof WindowManager.LayoutParams params
+                && params.type == WindowManager.LayoutParams.TYPE_STATUS_BAR;
+    }
+
+    private static boolean isSwapOverlay(View view) {
+        if (view.getDisplay() == null || view.getDisplay().getDisplayId() != Display.DEFAULT_DISPLAY
+                || !(view.getLayoutParams() instanceof WindowManager.LayoutParams params)) return false;
+        return isNativeStatusBar(view) || params.type == 2009
+                && "DynamicIslandWindow".contentEquals(params.getTitle());
+    }
+
+    private static boolean isDrawnSwapOverlay(View view) {
+        return isSwapOverlay(view) && view.isAttachedToWindow() && view.isShown()
+                && view.getWindowVisibility() == View.VISIBLE;
+    }
+
     private void restoreBar(View view, float target) {
-        if (!immediateRestore && target != 0f && nativeStateKnown && nativeWindowState != 0) {
+        if (!immediateRestore && target != 0f && isNativeStatusBar(view)
+                && nativeStateKnown && nativeWindowState != 0) {
             holdNativeHidden(view, target);
             return;
         }
@@ -192,7 +298,7 @@ final class MiStepStatusBar {
         log.accept("native status reveal deferred while hidden");
         if (observingNativeRoots) return;
         observingNativeRoots = true;
-        try { WindowInspector.addGlobalWindowViewsListener(main::post, nativeRoots); }
+        try { WindowRootsCompat.add(main::post, nativeRoots); }
         catch (Throwable error) {
             observingNativeRoots = false;
             log.accept("native status root observer unavailable: " + error);
@@ -214,7 +320,7 @@ final class MiStepStatusBar {
     private void stopNativeRootObservationIfEmpty() {
         if (!nativeHidden.isEmpty() || !observingNativeRoots) return;
         observingNativeRoots = false;
-        try { WindowInspector.removeGlobalWindowViewsListener(nativeRoots); }
+        try { WindowRootsCompat.remove(nativeRoots); }
         catch (Throwable error) { log.accept("native status root observer removal: " + error); }
     }
 
@@ -278,18 +384,14 @@ final class MiStepStatusBar {
     private void admitHidden(Object ticket, Runnable action) {
         if (!lease.owns(ticket)) return;
         for (View view : WindowInspector.getGlobalWindowViews()) {
-            if (view.getLayoutParams() instanceof WindowManager.LayoutParams params
-                    && params.type == WindowManager.LayoutParams.TYPE_STATUS_BAR
-                    && view.isAttachedToWindow() && view.getDisplay() != null
-                    && view.getDisplay().getDisplayId() == Display.DEFAULT_DISPLAY
-                    && view.getTransitionAlpha() != 0f) {
+            if (isDrawnSwapOverlay(view) && view.getTransitionAlpha() != 0f) {
                 // A new root may have joined while the old root's frame was pending.
                 runAfterHiddenFrame(ticket, action);
                 return;
             }
         }
         hiddenOwner = ticket;
-        action.run();
+        panels.whenCollapsed(ticket, action);
     }
 
     /** Fade the real bar out before the existing hidden-draw gate permits the swap.
@@ -303,10 +405,7 @@ final class MiStepStatusBar {
         List<View> bars = new ArrayList<>();
         try {
             for (View view : WindowInspector.getGlobalWindowViews()) {
-                if (view.getLayoutParams() instanceof WindowManager.LayoutParams params
-                        && params.type == WindowManager.LayoutParams.TYPE_STATUS_BAR
-                        && view.isAttachedToWindow() && view.getDisplay() != null
-                        && view.getDisplay().getDisplayId() == Display.DEFAULT_DISPLAY)
+                if (isDrawnSwapOverlay(view))
                     bars.add(view);
             }
         } catch (Throwable error) { log.accept("status bar frame enumeration: " + error); return; }
@@ -338,14 +437,19 @@ final class MiStepStatusBar {
 
     boolean owns(Object ticket) { return lease.owns(ticket); }
     void finish(Object ticket) {
+        boolean owned = lease.owns(ticket);
         if (activeOwner == ticket) activeOwner = null;
         if (hiddenOwner == ticket) hiddenOwner = null;
         lease.finish(ticket);
+        // A completed swap leaves the native shade/control center collapsed.
+        // Drawing leases (including the island) still restore independently above.
+        if (owned) panels.finish(ticket, false);
     }
     void restore() {
         // Exit/lock cancels visual work immediately, including a fade-in whose lease
         // has already finished. A late animator callback cannot write alpha again.
         immediateRestore = true;
+        panels.cancel(); // Exit/lock must never reopen an expanded panel over the new scene.
         activeOwner = null;
         hiddenOwner = null;
         try {

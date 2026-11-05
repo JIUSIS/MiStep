@@ -70,6 +70,11 @@ int find_and_hook(dl_phdr_info* info, size_t, void*) {
         0xa90267fa,0xa9035ff8,0xa90457f6,0xa9054ff4,
         0x910023fd,0xd126c3ff,0xf90003ff,0xd53bd058,
         0xf9401708,0xaa0203f4,0xaa0103f3,0xaa0003f6
+    }},{0x21fc00,"xaga-os3-1ed8762e",{
+        0xfc1a0fe8,0xa900fbfd,0xf9000ffc,0xa90267fa,
+        0xa9035ff8,0xa90457f6,0xa9054ff4,0x910023fd,
+        0xd12643ff,0xd53bd057,0xaa0203f4,0xf94016e8,
+        0xaa0103f3,0xaa0003f6,0x910423e0,0x2a1f03e1
     }}};
     for (const auto& profile : profiles) {
     const auto rva=profile.rva;
@@ -86,7 +91,7 @@ int find_and_hook(dl_phdr_info* info, size_t, void*) {
     const int result = hook_function(address, reinterpret_cast<void*>(replacement_publish),
             reinterpret_cast<void**>(&original_publish));
     installed.store(result == 0 && original_publish != nullptr, std::memory_order_release);
-    top_uid_layout.store(installed.load() && (rva == 0x431a70 || rva == 0x420434),
+    top_uid_layout.store(installed.load() && (rva == 0x431a70 || rva == 0x420434 || rva == 0x21fc00),
             std::memory_order_release);
     __android_log_print(ANDROID_LOG_INFO, "MiStepRawInput",
             "publish hook installed=%d result=%d profile=%s",

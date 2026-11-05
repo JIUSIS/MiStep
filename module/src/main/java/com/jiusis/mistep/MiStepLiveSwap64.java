@@ -19,11 +19,16 @@ final class MiStepLiveSwap64 {
             LiveTaskSwapDriver.Flip flip, LiveTaskSwapDriver.Home home, BooleanSupplier current,
             Consumer<LiveSwapGeometry.Frame[]> input, Consumer<MiStepLiveSwap.Result> done,
             Consumer<String> log) {
-        synchronized (ACTIVE) { if (ACTIVE.containsKey(controller)) return false; }
+        synchronized (ACTIVE) {
+            if (ACTIVE.containsKey(controller)) { log.accept("64 preflight refused: controller already active"); return false; }
+        }
         try {
             Run run = new Run(loader, taskViews, controller, flip, home, current, input, done, log);
             if (!run.preflight()) return false;
-            synchronized (ACTIVE) { if (ACTIVE.containsKey(controller)) return false; ACTIVE.put(controller, run); }
+            synchronized (ACTIVE) {
+                if (ACTIVE.containsKey(controller)) { log.accept("64 preflight refused: controller became active"); return false; }
+                ACTIVE.put(controller, run);
+            }
             if (run.start()) return true;
             synchronized (ACTIVE) { if (ACTIVE.get(controller) == run) ACTIVE.remove(controller); }
         } catch (Throwable error) { log.accept("64 live request refused: " + error); }
@@ -61,12 +66,12 @@ final class MiStepLiveSwap64 {
             shell = XposedHelpers.getObjectField(taskViews, "mTransitions");
             backend = new MiStepLiveSwapSession.ShellBackend(shell, loader); backend.assertShellThread();
             organizer = XposedHelpers.getObjectField(controller, "mTaskOrganizer");
-            Object area = XposedHelpers.getObjectField(organizer, "mRootTaskDisplayAreaOrganizer");
+            Object area = ShellCompat.rootArea(organizer);
             Object areaInfo = XposedHelpers.callMethod(area, "getDisplayAreaInfo", 0);
             if (areaInfo == null || XposedHelpers.getIntField(areaInfo, "featureId") != 1
                     || XposedHelpers.getIntField(areaInfo, "displayId") != 0)
                 throw new IllegalStateException("verified display area unavailable");
-            displayParent = XposedHelpers.callMethod(area, "getDisplayAreaLeash", 0);
+            displayParent = ShellCompat.call(area, "getDisplayAreaLeash", 0);
             Object sideParent = XposedHelpers.getObjectField(controller, "mSurfaceControl");
             root = flip != null ? flip.hostRoot : home.hostRoot;
             backgrounds = flip != null ? flip.cellBackgrounds : home.cellBackgrounds;
@@ -101,7 +106,10 @@ final class MiStepLiveSwap64 {
             return (float) x;
         }
         boolean preflight() {
-            if (!current.getAsBoolean() || (pair != null ? !pair.preflight() : !single.preflight())) return false;
+            if (!current.getAsBoolean()) { log.accept("64 preflight refused: scene no longer current"); return false; }
+            if (pair != null ? !pair.preflight() : !single.preflight()) {
+                log.accept("64 preflight refused: " + (pair != null ? "pair" : "Home task")); return false;
+            }
             try { if (flip != null) for (int i = 0; i < flip.peers.length; i++) peer(i); return true; }
             catch (Throwable error) { log.accept("64 peer preflight refused: " + error); return false; }
         }
@@ -174,6 +182,9 @@ final class MiStepLiveSwap64 {
             input.accept(frames);
         }
         @Override public void cancelFinishing() { cancelled = true; }
+        @Override public void frame(Object tx,double fraction) {
+            if(flip!=null && flip.overlays!=null)flip.overlays.paint(tx,fraction);
+        }
         @Override public void beforeFinish(boolean failed, Consumer<Throwable> ready) {
             if (waitingCancel) { rollback = true; ready.accept(null); return; }
             if (home != null) {
@@ -254,6 +265,7 @@ final class MiStepLiveSwap64 {
                 if (rollback) pair.restoreOriginal(tx, oldSideScale); else pair.finish(tx, targetSideScale);
             } else single.finish(tx, rollback, oldSideScale);
             peersFinish(tx, rollback); background(tx, true);
+            if(flip!=null && flip.overlays!=null)flip.overlays.finish(tx,rollback);
             if (flip != null && resolved && !waitingCancel) {
                 // Last writer of the very same Shell finish transaction, never a later frame.
                 XposedHelpers.callMethod(tx, "merge", finishReplay);
@@ -270,6 +282,7 @@ final class MiStepLiveSwap64 {
         }
         @Override public boolean waitingCancelReady() { return pair != null ? pair.originalRoles() : single.roles(true); }
         @Override public void consumed(Object tx, boolean aborted) {
+            if(flip!=null && flip.overlays!=null)flip.overlays.finish(tx,true);
             if (flip != null && resolved) { uncertain = true; throw new IllegalStateException("consumed flip requires ledger recovery"); }
             rollback = pair != null ? pair.originalRoles() : single.roles(true);
             if (pair != null) pair.recover(tx, oldSideScale); else single.finish(tx, rollback, oldSideScale);
@@ -277,6 +290,7 @@ final class MiStepLiveSwap64 {
         }
         @Override public void complete(MiStepLiveSwapSession.State state, Throwable error) {
             if (delivered) return; delivered = true;
+            if(flip!=null && flip.overlays!=null)flip.overlays.close();
             LiveSwapZoom.closeReplay(finishReplay); finishReplay = null;
             synchronized (ACTIVE) { if (ACTIVE.get(controller) == this) ACTIVE.remove(controller); }
             boolean side = !uncertain && (pair != null ? pair.sideOwned() : single.sideOwned());

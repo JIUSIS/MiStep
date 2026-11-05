@@ -24,9 +24,10 @@ public class DisplayRefreshRegression {
  static void check(boolean value,String message){checks++;if(!value)throw new AssertionError(message);}
  static class View {
   static final int VISIBLE=0;
-  void setLayoutParams(Object p){} void requestLayout(){} void invalidate(){}
+  void setLayoutParams(Object p){} void setClipBounds(Rect r){} void requestLayout(){} void invalidate(){}
   int getVisibility(){return VISIBLE;}
  }
+ static class Rect {Rect(int a,int b,int c,int d){}}
  static class FrameLayout {static class LayoutParams {int leftMargin,topMargin;LayoutParams(int w,int h){}}}
  static class Bar extends View {void setStatusBarInset(int value){}}
  static class Promotion {boolean nativeSwap=true;}
@@ -47,7 +48,7 @@ public class DisplayRefreshRegression {
  int screenW=1200,screenH=2608,displayRotation=0;
  int sampleW=screenW,sampleH=screenH,sampleRotation=displayRotation,reads,cancels,rebuilds,writes;
   int geometryRefreshDeferrals,scene,carrierSlotIndex=-1,resumes;boolean geometryRefreshAfterLive,landscapeSuspended,transferBusy,mainOnRight,screenOn=true;
- View root=new View(),topStripBacking,carrierBackdrop;Object displayManager=new Object(),swapPreview,cellMovePreview,ctx,lp;
+ View root=new View(),topStripBacking,carrierBackdrop,topLiveClip;Object displayManager=new Object(),swapPreview,cellMovePreview,ctx,lp;
  Bar topBar;Manager wm;Layout layout=new Layout();Queue main=new Queue();
  Slot[] slots={new Slot(),new Slot(),new Slot(),new Slot()};View[] sideBackingViews=new View[SLOT_COUNT];
  Promotion promotion=new Promotion();String cancelReason;

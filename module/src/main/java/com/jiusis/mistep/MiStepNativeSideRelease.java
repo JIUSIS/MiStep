@@ -37,7 +37,7 @@ final class MiStepNativeSideRelease {
             // matrix, crop, hide or task removal belongs in this listener handoff.
             XposedHelpers.callMethod(transitions, "unregisterTaskView", controller);
             try {
-                if (assigned == controller) XposedHelpers.callMethod(organizer, "removeListener", controller);
+                if (assigned == controller) ShellCompat.call(organizer, "removeListener", controller);
                 if (XposedHelpers.callMethod(organizer, "getTaskListener", info, false) != fallback)
                     throw new IllegalStateException("native freeform listener did not take ownership");
                 XposedHelpers.callMethod(controller, "onTaskVanished", info);

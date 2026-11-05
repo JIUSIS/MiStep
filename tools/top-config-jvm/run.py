@@ -25,9 +25,12 @@ public class TopConfigRegression {
  static class Service {int calls,last=-1;void setFocusedTask(int id){calls++;last=id;}}
  Service service=new Service();Object applied;
  static TopConfigRegression active;
+ static class ShellCompat {
+  static Object transaction(Object organizer,Object wct,String name,Object token,Object value){return XposedHelpers.callMethod(wct,name,token,value);}
+ }
  static class XposedHelpers {
   static Object callStaticMethod(Class<?>c,String name,Object...args){return active.service;}
-  static Object getObjectField(Object o,String name){if(name.equals("mCaptionInsetsOwner"))return null;return ((Info)o).token;}
+  static Object getObjectField(Object o,String name){if(name.equals("mTaskOrganizer"))return active.service;if(name.equals("mCaptionInsetsOwner"))return null;return ((Info)o).token;}
   static boolean getBooleanField(Object o,String n){Info i=(Info)o;return n.equals("isFocused")?i.isFocused:i.isVisible;}
   static Object callMethod(Object o,String n,Object...a){
    if(o instanceof android.window.WindowContainerTransaction){((android.window.WindowContainerTransaction)o).calls.add(n+":"+a[0]+":"+(a.length>1?a[1]:"")+(a.length>2?":"+a[2]:""));return o;}

@@ -99,7 +99,7 @@ public class HostEntry implements IXposedHookLoadPackage {
             return;
         }
         final ClassLoader cl = lpparam.classLoader;
-        log("=== attached to " + SYSTEMUI + " build=1.0.1 upper-task upper-lock upper-adaptive two-finger composed-top top-effective-dpi readable-top upper-config-v3 upper-manual-center upper-dpi242 upper-native-caption upper-roll-return upper-no-main-roll-v1 upper-uniform242 upper-top-raw main-panel-touch whole-app entry-fullscreen clone-launch-users main-reveal transient-entry main-stable-frame recents-coexist fullscreen-entry-parent quick-app-pins quick-app-dialog quick-app-glass system-scope fixed-cc-icons-v6-local-slider-theme upper-live-background-v1 release ===");
+        log("=== attached to " + SYSTEMUI + " build=1.0.2 upper-task upper-lock upper-adaptive two-finger composed-top top-effective-dpi readable-top upper-config-v3 upper-manual-center upper-dpi242 upper-no-native-caption-v3 upper-roll-return upper-no-main-roll-v1 upper-uniform242 upper-top-raw main-panel-touch whole-app entry-fullscreen clone-launch-users main-reveal transient-entry main-stable-frame recents-coexist fullscreen-entry-parent quick-app-pins quick-app-dialog quick-app-glass system-scope fixed-cc-icons-v6-local-slider-theme upper-live-background-v1 status-island-swap-v1 corner-terminal-v3 swap-panel-stays-collapsed-v2 os3-shell-v5 top-live-roll-v2 ime-focus-v5 top-live-collect-v2 top-insets-v2-first-layout touch-focus-v6 swap-live-overlay-v1 top-native-bars-return-v1 top-direction-no-taskinfo-v1 top-pointer-focus-v1 main-composition-sampling-v1 main-bars-owner-v1 top-live-surface-v3 top-horizontal-dismiss-v1 cc-two-pages-v1 side-preflight-diagnostics-v1 side-launch-bal-v1 top-collect-admission-reveal-v1 lyrics-session-token-v1 lyrics-kugou-album-id-v1 lyrics-miui-qq-id-v1 lyrics-miui-joined-fallback-v1 ===");
         try {
             NativeMultiWindowUnlock.install(cl, false);
             MiStepSystemActions.install(cl);
@@ -132,7 +132,7 @@ public class HostEntry implements IXposedHookLoadPackage {
      * by the keyboard itself.
      */
     private static void hookMiTypeAutoFloating(ClassLoader cl) {
-        log("=== attached to com.xiaomi.type build=1.0.1 upper-task upper-lock upper-adaptive two-finger composed-top top-effective-dpi readable-top upper-config-v3 upper-manual-center upper-dpi242 upper-native-caption upper-roll-return upper-no-main-roll-v1 upper-uniform242 upper-top-raw main-panel-touch whole-app entry-fullscreen clone-launch-users main-reveal transient-entry main-stable-frame recents-coexist fullscreen-entry-parent quick-app-pins quick-app-dialog quick-app-glass system-scope fixed-cc-icons-v6-local-slider-theme upper-live-background-v1 release ===");
+        log("=== attached to com.xiaomi.type build=1.0.2 upper-task upper-lock upper-adaptive two-finger composed-top top-effective-dpi readable-top upper-config-v3 upper-manual-center upper-dpi242 upper-no-native-caption-v3 upper-roll-return upper-no-main-roll-v1 upper-uniform242 upper-top-raw main-panel-touch whole-app entry-fullscreen clone-launch-users main-reveal transient-entry main-stable-frame recents-coexist fullscreen-entry-parent quick-app-pins quick-app-dialog quick-app-glass system-scope fixed-cc-icons-v6-local-slider-theme upper-live-background-v1 status-island-swap-v1 corner-terminal-v3 swap-panel-stays-collapsed-v2 os3-shell-v5 top-live-roll-v2 ime-focus-v5 top-live-collect-v2 top-insets-v2-first-layout touch-focus-v6 swap-live-overlay-v1 top-native-bars-return-v1 top-direction-no-taskinfo-v1 top-pointer-focus-v1 main-composition-sampling-v1 main-bars-owner-v1 top-live-surface-v3 top-horizontal-dismiss-v1 cc-two-pages-v1 side-preflight-diagnostics-v1 side-launch-bal-v1 top-collect-admission-reveal-v1 lyrics-session-token-v1 lyrics-kugou-album-id-v1 lyrics-miui-qq-id-v1 lyrics-miui-joined-fallback-v1 ===");
         try {
             Class<?> service = XposedHelpers.findClass("com.mi.ime.MiInputMethodService", cl);
             XposedHelpers.findAndHookMethod(service, "handleSpacePressureAutoFloating",
@@ -258,7 +258,7 @@ public class HostEntry implements IXposedHookLoadPackage {
      * 与锤子Mi Step的 MagnificationSpecSmt / applyZoomedMatrixSmt 是同一机制的官方版本。
      */
     private void hookSystemServer(ClassLoader cl) {
-        log("=== attached to system_server (android) build=1.0.1 upper-task upper-lock upper-adaptive two-finger composed-top top-effective-dpi readable-top upper-config-v3 upper-manual-center upper-dpi242 upper-native-caption upper-roll-return upper-no-main-roll-v1 upper-uniform242 upper-top-raw main-panel-touch whole-app entry-fullscreen clone-launch-users main-reveal transient-entry main-stable-frame recents-coexist fullscreen-entry-parent quick-app-pins quick-app-dialog quick-app-glass system-scope fixed-cc-icons-v6-local-slider-theme upper-live-background-v1 release ===");
+        log("=== attached to system_server (android) build=1.0.2 upper-task upper-lock upper-adaptive two-finger composed-top top-effective-dpi readable-top upper-config-v3 upper-manual-center upper-dpi242 upper-no-native-caption-v3 upper-roll-return upper-no-main-roll-v1 upper-uniform242 upper-top-raw main-panel-touch whole-app entry-fullscreen clone-launch-users main-reveal transient-entry main-stable-frame recents-coexist fullscreen-entry-parent quick-app-pins quick-app-dialog quick-app-glass system-scope fixed-cc-icons-v6-local-slider-theme upper-live-background-v1 status-island-swap-v1 corner-terminal-v3 swap-panel-stays-collapsed-v2 os3-shell-v5 top-live-roll-v2 ime-focus-v5 top-live-collect-v2 top-insets-v2-first-layout touch-focus-v6 swap-live-overlay-v1 top-native-bars-return-v1 top-direction-no-taskinfo-v1 top-pointer-focus-v1 main-composition-sampling-v1 main-bars-owner-v1 top-live-surface-v3 top-horizontal-dismiss-v1 cc-two-pages-v1 side-preflight-diagnostics-v1 side-launch-bal-v1 top-collect-admission-reveal-v1 lyrics-session-token-v1 lyrics-kugou-album-id-v1 lyrics-miui-qq-id-v1 lyrics-miui-joined-fallback-v1 ===");
         MiStepRecents.install(cl);
         NativeRawInputBridge.install();
         try {
@@ -347,7 +347,8 @@ public class HostEntry implements IXposedHookLoadPackage {
         } catch (Throwable error) { log("input UI magnification unavailable: " + error); }
         try {
             Class<?> window = XposedHelpers.findClass("com.android.server.wm.WindowState", cl);
-            XposedHelpers.findAndHookMethod(window, "canBeImeLayeringTarget",
+            XposedHelpers.findAndHookMethod(window, ShellCompat.hasMethod(window, "canBeImeLayeringTarget", 0)
+                    ? "canBeImeLayeringTarget" : "canBeImeTarget",
                     new XC_MethodHook() {
                 @Override protected void afterHookedMethod(MethodHookParam p) {
                     if (!sZoomed || !Boolean.TRUE.equals(p.getResult())) return;
@@ -357,7 +358,8 @@ public class HostEntry implements IXposedHookLoadPackage {
                                 && Integer.valueOf(6).equals(XposedHelpers.callMethod(
                                         task, "getWindowingMode"))
                                 && Boolean.TRUE.equals(XposedHelpers.callMethod(
-                                        task, "isForceTranslucent"))) {
+                                        task, "isForceTranslucent"))
+                                && !MiStepImePolicy.isFocusedTopWindow(p.thisObject,sDisplayContent)) {
                             p.setResult(Boolean.FALSE);
                         }
                     } catch (Throwable error) {
@@ -365,7 +367,17 @@ public class HostEntry implements IXposedHookLoadPackage {
                     }
                 }
             });
-            log("side TaskViews excluded from IME layering while zoomed");
+            XposedHelpers.findAndHookMethod(window,"shouldControlIme",new XC_MethodHook() {
+                @Override protected void afterHookedMethod(MethodHookParam p) {
+                    if(!sZoomed || !Boolean.FALSE.equals(p.getResult()))return;
+                    try {
+                        if(MiStepImePolicy.isFocusedTopWindow(p.thisObject,sDisplayContent)
+                                && MiStepDesktopLaunchBridge.ownsTopTask(XposedHelpers.callMethod(p.thisObject,"getTask")))
+                            p.setResult(Boolean.TRUE);
+                    } catch(Throwable unavailable) {log("TOP IME control skipped: "+unavailable);}
+                }
+            });
+            log("passive side TaskViews excluded from IME layering; focused TOP keeps native eligibility");
         } catch (Throwable error) { log("side IME exclusion unavailable: " + error); }
         try {
             Class<?> spy = XposedHelpers.findClass("com.android.server.input.GestureMonitorSpyWindow", cl);
@@ -545,6 +557,16 @@ public class HostEntry implements IXposedHookLoadPackage {
                         setResultCode(MiStepCodes.receive(context, service.getClass().getClassLoader(), intent));
                         return;
                     }
+                    if(MiStepSwapOverlayBridge.ACTION.equals(intent.getAction())) {
+                        try {
+                            if(!sZoomed || sZoomTarget==null || sDisplayContent==null)return;
+                            synchronized(sZoomTarget.globalLock) {
+                                setResultExtras(MiStepSwapOverlayBridge.capture(sDisplayContent,intent));
+                                setResultCode(-1);
+                            }
+                        } catch(Throwable unavailable) {log("live toolbox native capture refused: "+unavailable);}
+                        return;
+                    }
                     if (LiveSwapZoomProtocol.APPLY.equals(intent.getAction())) {
                         receiveLiveZoom(context, intent);
                         return;
@@ -564,9 +586,25 @@ public class HostEntry implements IXposedHookLoadPackage {
                         });
                         return;
                     }
+                    if (MiStepDesktopLaunchBridge.PREPARE_TOP.equals(intent.getAction())) {
+                        boolean prepared=false;
+                        if(sZoomed && sFullscreenRotationActive && sDisplayContent!=null)
+                            synchronized(XposedHelpers.getObjectField(service,"mGlobalLock")) {
+                                prepared=MiStepDesktopLaunchBridge.prepareTop(service,intent);
+                            }
+                        setResultCode(prepared ? -1 : 0);
+                        return;
+                    }
                     if (MiStepDesktopLaunchBridge.ACTION.equals(intent.getAction())) {
-                        MiStepDesktopLaunchBridge.update(intent);
-                        MiStepDesktopLaunchBridge.refreshTopInput(service);
+                        if (MiStepDesktopLaunchBridge.update(intent)) {
+                            MiStepDesktopLaunchBridge.refreshTopInput(service);
+                            try {
+                                if (sZoomed) synchronized (XposedHelpers.getObjectField(service, "mGlobalLock")) {
+                                    MiStepTopInsets.refresh(sDisplayContent, MiStepDesktopLaunchBridge::ownsTopTask);
+                                    XposedHelpers.callMethod(service, "updateFocusedWindowLocked", 0, true);
+                                }
+                            } catch (Throwable unavailable) {log("workspace lease focus refresh skipped: "+unavailable);}
+                        }
                         return;
                     }
                     if ("com.jiusis.mistep.TRANSFER_TOUCH".equals(intent.getAction())) {
@@ -595,9 +633,11 @@ public class HostEntry implements IXposedHookLoadPackage {
             };
             IntentFilter filter = new IntentFilter("com.jiusis.mistep.ZOOM");
             filter.addAction(LiveSwapZoomProtocol.APPLY);
+            filter.addAction(MiStepSwapOverlayBridge.ACTION);
             filter.addAction("com.jiusis.mistep.TRANSFER_TOUCH");
             filter.addAction(MiStepInputTrace.ACTION);
             filter.addAction(MiStepDesktopLaunchBridge.ACTION);
+            filter.addAction(MiStepDesktopLaunchBridge.PREPARE_TOP);
             filter.addAction(MiStepCodes.ACTION);
             if (Build.VERSION.SDK_INT >= 33) {
                 // SystemUI / shell can send; ordinary apps cannot change display magnification.
@@ -692,7 +732,7 @@ public class HostEntry implements IXposedHookLoadPackage {
         sFinalMagnificationSnapshot.set(Boolean.TRUE);
         if (info == null) sMagnificationFinishInfo.remove();
         else sMagnificationFinishInfo.set(info);
-        try { XposedHelpers.callMethod(display, "reapplyMagnificationSpec", transaction); }
+        try { ShellCompat.call(display, "reapplyMagnificationSpec", transaction); }
         finally {
             if (previous == null) sFinalMagnificationSnapshot.remove();
             else sFinalMagnificationSnapshot.set(previous);
@@ -1034,7 +1074,7 @@ public class HostEntry implements IXposedHookLoadPackage {
                                     // A new session may have started since this finish was built.
                                     Object transaction = XposedHelpers.callMethod(display,
                                             "getPendingTransaction");
-                                    XposedHelpers.callMethod(display, "reapplyMagnificationSpec",
+                                    ShellCompat.call(display, "reapplyMagnificationSpec",
                                             transaction);
                                     placeHostBelowNativeFreeforms(display, transaction);
                                     XposedHelpers.callMethod(transaction, "apply");
@@ -1060,7 +1100,7 @@ public class HostEntry implements IXposedHookLoadPackage {
             try {
                 if (sZoomed) {
                     Object transaction = XposedHelpers.callMethod(target.display, "getPendingTransaction");
-                    XposedHelpers.callMethod(target.display, "reapplyMagnificationSpec", transaction);
+                    ShellCompat.call(target.display, "reapplyMagnificationSpec", transaction);
                     XposedHelpers.callMethod(transaction, "apply");
                 } else restoreExitedMagnificationLocked(target);
                 log("native freeform start committed; normal magnification writes resumed");
@@ -1070,6 +1110,7 @@ public class HostEntry implements IXposedHookLoadPackage {
 
     private static final MiStepSystemUiRotation sMainSystemUiRotation = new MiStepSystemUiRotation();
     private static final MiStepStatusBarClip sMainStatusBarClip = new MiStepStatusBarClip();
+    private static final MiStepTopSystemBars sTopSystemBars = new MiStepTopSystemBars();
     private static final MiStepImeProcessConfiguration sMainImeProcessConfiguration =
             new MiStepImeProcessConfiguration();
     private static Object sPublishedMainUiState;
@@ -1111,6 +1152,7 @@ public class HostEntry implements IXposedHookLoadPackage {
     }
 
     private void installMainSystemUiRotation(ClassLoader cl) {
+        installTopSystemBarReturn(cl);
         try {
             sMainImeProcessConfiguration.install(cl);
             Class<?> organizer = XposedHelpers.findClass("com.android.server.wm.WindowOrganizerController", cl);
@@ -1346,8 +1388,84 @@ public class HostEntry implements IXposedHookLoadPackage {
         }
     }
 
+    private void installTopSystemBarReturn(ClassLoader cl) {
+        try {
+            Class<?> follow = XposedHelpers.findClass("com.android.server.wm.BarFollowAnimationImpl", cl);
+            XposedBridge.hookAllMethods(follow, "onTaskInfoChanedForCaptionBar", new XC_MethodHook() {
+                @Override protected void afterHookedMethod(MethodHookParam p) {
+                    if (p.hasThrowable() || p.args.length != 1) return;
+                    topSystemBarsChanged(XposedHelpers.getObjectField(p.thisObject, "mStatusBarController"), p.args[0]);
+                }
+            });
+            Class<?> controller = XposedHelpers.findClass("com.android.server.wm.MiuiStatusBarController", cl);
+            XposedBridge.hookAllMethods(controller, "resetStatusBarState", new XC_MethodHook() {
+                @Override protected void afterHookedMethod(MethodHookParam p) {
+                    if (!p.hasThrowable()) topSystemBarsChanged(p.thisObject,
+                            XposedHelpers.getObjectField(p.thisObject, "mCurrentTopTask"));
+                }
+            });
+            Class<?> display = XposedHelpers.findClass("com.android.server.wm.DisplayContent", cl);
+            XposedBridge.hookAllMethods(display, "updateFocusedWindowLocked", new XC_MethodHook() {
+                @Override protected void afterHookedMethod(MethodHookParam p) {
+                    ZoomTarget target = sZoomTarget;
+                    if (p.hasThrowable() || target == null || p.thisObject != target.display
+                            || !sZoomed || !sFullscreenRotationActive) return;
+                    synchronized (target.globalLock) {
+                        sTopSystemBars.focused(target.display, target.globalLock,
+                                () -> sZoomed && sFullscreenRotationActive && sZoomTarget == target,
+                                HostEntry::log);
+                    }
+                }
+            });
+            log("upper native system bar return follows task/focus/transition lifecycle");
+        } catch (Throwable unavailable) { log("upper native system bar return hooks unavailable: " + unavailable); }
+    }
+
+    private static void topSystemBarsChanged(Object controller, Object task) {
+        ZoomTarget target = sZoomTarget;
+        if (target == null || !sZoomed || !sFullscreenRotationActive) return;
+        synchronized (target.globalLock) {
+            if (sZoomTarget != target) return;
+            sTopSystemBars.changed(controller, task, target.display, target.globalLock,
+                    () -> sZoomed && sFullscreenRotationActive && sZoomTarget == target,
+                    HostEntry::log);
+        }
+    }
+
     /** Hold the workspace portrait; app transforms must never announce display rotation. */
     private void installFixedMainRotationHooks(ClassLoader cl) {
+        try {
+            Class<?> policy = XposedHelpers.findClass("com.android.server.wm.InsetsPolicy", cl);
+            XposedBridge.hookAllMethods(policy, "adjustInsetsForWindow", new XC_MethodHook() {
+                @Override protected void afterHookedMethod(MethodHookParam p) {
+                    if (p.hasThrowable() || p.args.length != 3 || !sZoomed
+                            || !sFullscreenRotationActive || sDisplayContent == null) return;
+                    try {
+                        Object original = p.getResult();
+                        Object adjusted = MiStepTopInsets.adjust(p.args[0], sDisplayContent,
+                                original, MiStepDesktopLaunchBridge::ownsTopViewport);
+                        if (adjusted != original) sTopSystemBars.remember(p.args[0], sDisplayContent);
+                        p.setResult(adjusted);
+                    }
+                    catch (Throwable unavailable) { log("upper insets viewport unavailable: " + unavailable); }
+                }
+            });
+            XposedBridge.hookAllMethods(policy, "getInsetsForWindowMetrics", new XC_MethodHook() {
+                @Override protected void afterHookedMethod(MethodHookParam p) {
+                    if(p.hasThrowable() || p.args.length!=2 || !sZoomed || !sFullscreenRotationActive
+                            || sDisplayContent==null || p.args[0]==null)return;
+                    try {
+                        Object adjusted=MiStepTopInsets.adjust(p.args[0],sDisplayContent,p.args[1],
+                                MiStepDesktopLaunchBridge::ownsTopViewport);
+                        if(adjusted!=p.args[1]) {
+                            sTopSystemBars.remember(p.args[0],sDisplayContent);
+                            XposedHelpers.callMethod(p.args[1],"set",adjusted,true);
+                        }
+                    } catch(Throwable unavailable) {log("upper metrics insets unavailable: "+unavailable);}
+                }
+            });
+            log("upper leased viewport insets installed; native IME retained");
+        } catch (Throwable unavailable) { log("upper viewport insets hook unavailable: " + unavailable); }
         try {
             Class<?> activityRecord = XposedHelpers.findClass(
                     "com.android.server.wm.ActivityRecord", cl);
@@ -1856,12 +1974,14 @@ public class HostEntry implements IXposedHookLoadPackage {
         if(!sZoomed) {topTaskSignals.clear();return;}
         if(task==null || (mode!=1 && !isUpperLandscapeTask(task)))return;
         try {
-            Object info=XposedHelpers.callMethod(task,"getTaskInfo");
-            int user=XposedHelpers.getIntField(info,"userId");
-            Object token=XposedHelpers.getObjectField(info,"token");
+            // TaskInfo uses a shared TaskInfoHelper; never nest its aggregation in orientation hooks.
+            int user=XposedHelpers.getIntField(task,Boolean.TRUE.equals(
+                    XposedHelpers.callMethod(task,"isLeafTask"))?"mUserId":"mCurrentUser");
+            Object token=XposedHelpers.callMethod(
+                    XposedHelpers.getObjectField(task,"mRemoteToken"),"toWindowContainerToken");
             boolean landscape=FullscreenRotationPolicy.requestsLandscape(request)
                     || FullscreenRotationPolicy.usesSensorOrUserRotation(request) && (rotation==1 || rotation==3);
-            boolean focused=XposedHelpers.getBooleanField(info,"isFocused");
+            boolean focused=Boolean.TRUE.equals(XposedHelpers.callMethod(task,"isFocused"));
             String signature=topWorkspaceGeneration+":"+user+":"+mode+":"+landscape+":"+focused;
             if(signature.equals(topTaskSignals.get(task)))return;
             topTaskSignals.put(task,signature);
@@ -1947,6 +2067,7 @@ public class HostEntry implements IXposedHookLoadPackage {
     }
 
     private static final ThreadLocal<Boolean> sReadingWorkspaceFocus = new ThreadLocal<>();
+    private static final ThreadLocal<Object> sWindowFocusScanDisplay = new ThreadLocal<>();
     private static final ThreadLocal<Boolean> sWorkspaceLauncherTaskQuery = new ThreadLocal<>();
 
     private void installWorkspaceRunningTasks(ClassLoader cl) {
@@ -1993,7 +2114,116 @@ public class HostEntry implements IXposedHookLoadPackage {
         } catch (Throwable unavailable) { log("workspace running-task hook unavailable: " + unavailable); }
     }
 
+    private void installWorkspaceWindowFocus(ClassLoader cl) {
+        try {
+            Class<?> pointer = XposedHelpers.findClass("com.android.server.wm.PointerEventDispatcher", cl);
+            XposedBridge.hookAllMethods(pointer, "onInputEvent", new XC_MethodHook() {
+                @Override protected void beforeHookedMethod(MethodHookParam p) {
+                    if (p.args.length != 1 || !(p.args[0] instanceof android.view.MotionEvent)) return;
+                    android.view.MotionEvent event = (android.view.MotionEvent) p.args[0];
+                    ZoomTarget target = sZoomTarget;
+                    if (!sZoomed || target == null || target.display != sDisplayContent
+                            || event.getActionMasked() != android.view.MotionEvent.ACTION_DOWN
+                            || event.getPointerCount() != 1
+                            || !event.isFromSource(android.view.InputDevice.SOURCE_TOUCHSCREEN)) return;
+                    try {
+                        if (!Integer.valueOf(0).equals(XposedHelpers.callMethod(event, "getDisplayId"))) return;
+                        synchronized (target.globalLock) {
+                            if (!sZoomed || sZoomTarget != target) return;
+                            Object task = MiStepDesktopLaunchBridge.topTaskAt(
+                                    target.display, event.getRawX(), event.getRawY());
+                            if (MiStepTopPointerFocus.select(task, target.display,
+                                    MiStepDesktopLaunchBridge::ownsTopTask))
+                                log("workspace TOP pointer selected native back/IME focus");
+                        }
+                    } catch (Throwable unavailable) { log("TOP pointer focus unavailable: " + unavailable); }
+                }
+            });
+            log("workspace TOP focus follows physical pointer DOWN before native edge back");
+        } catch (Throwable unavailable) { log("TOP pointer focus hook unavailable: " + unavailable); }
+        try {
+            Class<?> display=XposedHelpers.findClass("com.android.server.wm.DisplayContent",cl);
+            Class<?> window=XposedHelpers.findClass("com.android.server.wm.WindowState",cl);
+            XposedHelpers.findAndHookMethod(window, "handleTapOutsideFocusInsideSelf", new XC_MethodHook() {
+                @Override protected void beforeHookedMethod(MethodHookParam p) {
+                    ZoomTarget target = sZoomTarget;
+                    if (!sZoomed || target == null || target.display != sDisplayContent
+                            || !Thread.holdsLock(target.globalLock)) return;
+                    try {
+                        if (MiStepImePolicy.admitTopTouch(p.thisObject, target.display,
+                                MiStepDesktopLaunchBridge::ownsTopTask))
+                            log("workspace explicit TOP touch selected native Activity focus");
+                    } catch (Throwable unavailable) { log("TOP touch focus unavailable: " + unavailable); }
+                }
+            });
+            final java.util.concurrent.atomic.AtomicInteger scans=new java.util.concurrent.atomic.AtomicInteger(2);
+            final java.util.concurrent.atomic.AtomicInteger candidates=new java.util.concurrent.atomic.AtomicInteger(8);
+            XposedHelpers.findAndHookMethod(display,"findFocusedWindow",new XC_MethodHook() {
+                @Override protected void beforeHookedMethod(MethodHookParam p) {
+                    p.setObjectExtra("mistep.previousFocusScan",sWindowFocusScanDisplay.get());
+                    sWindowFocusScanDisplay.set(p.thisObject);
+                    if(sZoomed && p.thisObject==sDisplayContent)try {
+                        if(MiStepImePolicy.reconcilePassiveAppFocus(p.thisObject,task->{
+                            Object lease=MiStepDesktopLaunchBridge.recentsLease(task);
+                            return lease!=null && MiStepDesktopLaunchBridge.recentsLeaseAlive(lease);
+                        }))log("workspace reconciled native Activity focus after side lease");
+                    } catch(Throwable unavailable) {log("workspace Activity focus reconcile skipped: "+unavailable);}
+                    if(sZoomed && p.thisObject==sDisplayContent && scans.getAndDecrement()>0)
+                        log("workspace focus scan entered");
+                }
+                @Override protected void afterHookedMethod(MethodHookParam p) {
+                    Object previous=p.getObjectExtra("mistep.previousFocusScan");
+                    if(previous==null)sWindowFocusScanDisplay.remove();
+                    else sWindowFocusScanDisplay.set(previous);
+                }
+            });
+            XC_MethodHook eligibility=new XC_MethodHook() {
+                @Override protected void afterHookedMethod(MethodHookParam p) {
+                    if(!sZoomed || sDisplayContent==null
+                            || sWindowFocusScanDisplay.get()!=sDisplayContent
+                            || p.args.length>0 && Boolean.TRUE.equals(p.args[0])
+                            || !Boolean.TRUE.equals(p.getResult()))return;
+                    try {
+                        Object observedTask=XposedHelpers.callMethod(p.thisObject,"getTask");
+                        if (MiStepImePolicy.isInactiveTopWindow(p.thisObject, sDisplayContent,
+                                MiStepDesktopLaunchBridge::ownsTopTask)) {
+                            p.setResult(Boolean.FALSE);
+                            return;
+                        }
+                        if(observedTask!=null && Integer.valueOf(6).equals(XposedHelpers.callMethod(observedTask,"getWindowingMode"))
+                                && candidates.getAndDecrement()>0) {
+                            Object lease=MiStepDesktopLaunchBridge.recentsLease(observedTask);
+                            log("workspace focus candidate "+p.thisObject+" bounds="+XposedHelpers.callMethod(observedTask,"getBounds")
+                                    +" translucent="+XposedHelpers.callMethod(observedTask,"isForceTranslucent")
+                                    +" lease="+(lease!=null)+" alive="+(lease!=null && MiStepDesktopLaunchBridge.recentsLeaseAlive(lease)));
+                        }
+                        if(MiStepImePolicy.isPassiveSideWindow(p.thisObject,sDisplayContent,task->{
+                            Object lease=MiStepDesktopLaunchBridge.recentsLease(task);
+                            return lease!=null && MiStepDesktopLaunchBridge.recentsLeaseAlive(lease);
+                        }))p.setResult(Boolean.FALSE);
+                    } catch(Throwable unavailable) {log("passive side window focus skipped: "+unavailable);}
+                }
+            };
+            XposedHelpers.findAndHookMethod(window,"canReceiveKeys",eligibility);
+            XposedHelpers.findAndHookMethod(window,"canReceiveKeys",boolean.class,eligibility);
+            // ART may have inlined these small focus wrappers before module hooks ran.
+            // Deopt only the observed native scan callers; all focus decisions stay native.
+            for(Class<?> owner:new Class<?>[]{display,window})for(java.lang.reflect.Method method:owner.getDeclaredMethods()) {
+                String name=method.getName();
+                if(owner==display && (name.equals("updateFocusedWindowLocked")
+                        || name.equals("findFocusedWindowIfNeeded") || name.equals("lambda$new$3"))
+                        || owner==window && name.equals("canReceiveKeys") && method.getParameterCount()==0) {
+                    try {log("workspace focus deopt "+name+"="+XposedHelpers.callStaticMethod(
+                            XposedBridge.class,"deoptimizeMethod",method));}
+                    catch(Throwable unavailable) {log("workspace focus deopt unavailable "+name+": "+unavailable);}
+                }
+            }
+            log("native window focus scan skips exact passive side leases; TOP remains eligible");
+        } catch(Throwable unavailable) {log("workspace window focus hook unavailable: "+unavailable);}
+    }
+
     private void installWorkspaceFocus(ClassLoader cl) {
+        installWorkspaceWindowFocus(cl);
         try {
             Class<?> area = XposedHelpers.findClass("com.android.server.wm.TaskDisplayArea", cl);
             XC_MethodHook selection = new XC_MethodHook() {
@@ -2003,6 +2233,7 @@ public class HostEntry implements IXposedHookLoadPackage {
                     sReadingWorkspaceFocus.set(Boolean.TRUE);
                     try {
                         Object original = p.getResult();
+                        if(MiStepImePolicy.isTopAppFocused(original,sDisplayContent))return;
                         Object lease = MiStepDesktopLaunchBridge.recentsLease(original);
                         boolean upperFallback="getNextFocusableRootTask".equals(p.method.getName()) && isUpperLandscapeTask(original);
                         if ((!upperFallback && (lease == null || !MiStepDesktopLaunchBridge.recentsLeaseAlive(lease)))
@@ -2012,8 +2243,9 @@ public class HostEntry implements IXposedHookLoadPackage {
                         int mode = excludeMode ? (Integer) p.args[3] : 0;
                         Object target = WorkspaceFocus.next(p.thisObject, ignored, excludeMode, mode, task -> {
                             Object binding = MiStepDesktopLaunchBridge.recentsLease(task);
-                            return isUpperLandscapeTask(task)
-                                    || binding != null && MiStepDesktopLaunchBridge.recentsLeaseAlive(binding);
+                            return !MiStepImePolicy.isTopAppFocused(task,sDisplayContent)
+                                    && (isUpperLandscapeTask(task)
+                                    || binding != null && MiStepDesktopLaunchBridge.recentsLeaseAlive(binding));
                         });
                         // No replacement means WM keeps its native fallback; never return a hidden task.
                         if (target != null) p.setResult(target);
@@ -2196,7 +2428,7 @@ public class HostEntry implements IXposedHookLoadPackage {
         if (sNativeFreeformLayerAnchor != lowestFreeform[0]) {
             // A newly excluded leaf does not undo a spec already on its shared ancestor.
             // Re-split that ancestor in this same WM transaction before showing freeform.
-            if (sZoomed) XposedHelpers.callMethod(display, "reapplyMagnificationSpec", transaction);
+            if (sZoomed) ShellCompat.call(display, "reapplyMagnificationSpec", transaction);
             sNativeFreeformLayerAnchor = lowestFreeform[0];
             log("native freeform anchor changed present=" + (lowestFreeform[0] != null)
                     + " hostWindows=" + hosts.size());
@@ -2310,13 +2542,22 @@ public class HostEntry implements IXposedHookLoadPackage {
                     try {
                         if (XposedHelpers.callMethod(p.thisObject, "getDisplayContent") != sDisplayContent) return;
                         Object task = XposedHelpers.callMethod(p.thisObject, "getTask");
+                        // TOP has its own bar-free viewport. Its unscaled landscape frame
+                        // must not consume the main task's status-bar appearance region.
+                        // This native predicate is only used by post-layout bar aggregation;
+                        // TOP Activity/Window focus and native edge-back/IME stay independent.
+                        if (sFullscreenRotationActive && MiStepSideRoleChange.isSide(task)
+                                && MiStepDesktopLaunchBridge.ownsTopViewport(task)) {
+                            p.setResult(Boolean.FALSE);
+                            return;
+                        }
                         Object lease = MiStepDesktopLaunchBridge.recentsLease(task);
                         if (lease != null && MiStepDesktopLaunchBridge.recentsLeaseAlive(lease))
                             p.setResult(Boolean.FALSE);
                     } catch (Throwable stale) { /* Preserve the native decision for unrelated windows. */ }
                 }
             });
-            log("side task fullscreen system-ui flags isolated from display bars");
+            log("side task fullscreen system-ui flags and leased TOP appearance isolated from main bars");
         } catch (Throwable error) {
             log("side task system-bar policy unavailable: " + error);
         }
@@ -2456,6 +2697,7 @@ public class HostEntry implements IXposedHookLoadPackage {
     }
 
     private void endFixedMainRotationLocked(Object display) {
+        sTopSystemBars.clear();
         sMainImeProcessConfiguration.clear(HostEntry::log);
         sMainSystemUiRotation.clear(HostEntry::log);
         publishMainUiConfiguration(null);
@@ -2875,7 +3117,8 @@ public class HostEntry implements IXposedHookLoadPackage {
         int hooked = 0;
         for (final Method m : module.getDeclaredMethods()) {
             if (!m.getReturnType().getName().contains("TaskView")
-                    && !m.getName().startsWith("provideTaskView")) {
+                    && !m.getName().startsWith("provideTaskView")
+                    && !m.getName().equals("provideRootTaskDisplayAreaOrganizer")) {
                 continue;
             }
             try {
@@ -2884,7 +3127,9 @@ public class HostEntry implements IXposedHookLoadPackage {
                     protected void afterHookedMethod(MethodHookParam param) {
                         Object r = param.getResult();
                         String n = m.getName();
-                        if ("provideTaskViewTransitions".equals(n)) {
+                        if ("provideRootTaskDisplayAreaOrganizer".equals(n)) {
+                            ShellCompat.rootTaskDisplayArea = r;
+                        } else if ("provideTaskViewTransitions".equals(n)) {
                             sTaskViewTransitions = r;
                         } else if ("provideTaskViewFactoryController".equals(n)) {
                             Object[] args = param.args;

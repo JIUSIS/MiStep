@@ -40,6 +40,7 @@ final class MiStepLiveSwapSession {
         void prepare(Object start, Object finish, Ready ready);
         /** Append host touch region and task-specific raw state for this same frame, without blocking input. */
         void input(Object transaction, LiveSwapGeometry.Frame[] frame);
+        default void frame(Object transaction,double fraction) {}
         /** Append real owner parents/matrices/crop and matching input to the Shell-owned finish transaction. */
         void finish(Object transaction, boolean failed);
         /** A consumed transition belongs to Shell; append recovery, never invoke its finish callback again. */
@@ -226,6 +227,7 @@ final class MiStepLiveSwapSession {
                 ready.parentToPhysical, ready.content, fraction);
         for (int i = 0; i < tasks.length; i++) backend.paint(tx, ready.surfaces[i], frames[i]);
         scene.input(tx, frames);
+        scene.frame(tx,fraction);
     }
 
     private void onFrame(Double fraction) {

@@ -38,6 +38,7 @@ public class ExitSurfaceRegression {
   public Transaction setPosition(Object o,float x,float y){var s=(Surface)o;ops.add(()->{s.x=x;s.y=y;});return this;}
   public void apply(){applies++;for(var op:ops)op.run();ops.clear();}
  }
+ static class ShellCompat{static Object call(Object o,String n,Object...args){return XposedHelpers.callMethod(o,n,args);}}
  static class XposedHelpers{
   static Object getObjectField(Object o,String n){try{var f=o.getClass().getDeclaredField(n);f.setAccessible(true);return f.get(o);}catch(Exception e){throw new RuntimeException(e);}}
   static int getIntField(Object o,String n){return (Integer)getObjectField(o,n);}

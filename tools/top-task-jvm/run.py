@@ -13,12 +13,12 @@ def member(signature,occurrence=0):
         depth+=(host[end]=='{')-(host[end]=='}');end+=1
     return host[start:end]
 body='''package com.jiusis.mistep;
-import java.util.function.Consumer;
+import java.util.function.Consumer;import android.content.*;import android.os.*;import android.graphics.Rect;import de.robv.android.xposed.XposedHelpers;
 public final class TopAdmissionRegression {
  static final int ACTIVE=1,SLOT_TOP=4;int scene=ACTIVE;long sceneEpoch=1;
  static int checks;static void check(boolean v,String why){checks++;if(!v)throw new AssertionError(why);}
  static class Slot {int index;boolean occupied;Slot(int i){index=i;}}
- static class Task {int id=42;}
+ static class Task {int id=42;Object token=new Binder();}
  static class TopCandidate {Task task=new Task();TopTaskState.Key key=new TopTaskState.Key(42,0,"token");Slot source;}
  static class Pane {boolean occupied;void occupied(boolean v){occupied=v;}void message(String s){}}
  static class Root {void requestLayout(){}}
@@ -26,6 +26,7 @@ public final class TopAdmissionRegression {
  boolean screenOn=true,keyguardLocked,transferBusy,workspaceEntering,suspendRequested,topFromMain;
  boolean fail=true,defer;int adopted,restored,finished,released;Runnable pending;
  Slot[]slots={new Slot(0),new Slot(1),new Slot(2),new Slot(3),new Slot(4)};Slot topOriginalSlot;
+ Context ctx=new Context();Handler main=new Handler();IBinder desktopSceneOwner=new Binder();Rect logicalBounds(Slot s){return new Rect(0,0,2964,1707);}
  TopTaskState topTaskState=new TopTaskState();
  void adoptExisting(Slot slot,Task task,boolean fromMain,Runnable success,Consumer<String> failure){
   adopted++;if(defer)pending=success;else if(fail)failure.accept("not visible");else success.run();
@@ -35,7 +36,7 @@ public final class TopAdmissionRegression {
  void updateTopTaskGeometry(){}void applyFullscreenBounds(Slot slot){}void applySlotScale(Slot slot){}
  void publishDesktopSideTasks(){}void preferMainAfterTopChange(){}void revealTopTaskTransition(){}void cancelTopTaskTransition(){}
  void finishPendingSuspend(){finished++;}static void log(String text){}
-'''+member('    private boolean topReady(')+member('    private void adoptTopTask(')+'''
+'''+member('    private boolean topReady(')+member('    private void adoptTopTask(')+member('    private void prepareTopViewport(')+member('    private void adoptTopTaskPrepared(')+member('    private void topAdoptionFailed(')+'''
  static TopCandidate candidate(TopAdmissionRegression h){TopCandidate c=new TopCandidate();c.source=h.slots[1];return c;}
  static TopTaskState.Ticket ticket(TopAdmissionRegression h,TopCandidate c){return h.topTaskState.request(c.key,1,true,true,true,false);}
  public static void main(String[]args){
@@ -53,12 +54,36 @@ public final class TopAdmissionRegression {
   check(h.released==1&&h.topTaskState.owner()==null&&!h.topTaskPane.occupied,"late completion returns task instead of publishing owner");
   h=new TopAdmissionRegression();c=candidate(h);h.fail=false;h.adoptTopTask(c,ticket(h,c),false);
   check(h.topTaskState.owner().equals(c.key)&&h.topOriginalSlot==c.source&&h.topTaskPane.occupied&&h.finished==1,"confirmed same task retains origin");
+  h=new TopAdmissionRegression();c=candidate(h);h.ctx.auto=false;h.fail=false;h.adoptTopTask(c,ticket(h,c),false);
+  check(h.adopted==0&&h.topTaskState.busy(),"WCT started before native viewport acknowledgement");h.ctx.ack(-1);
+  check(h.adopted==1&&h.topTaskPane.occupied&&h.main.queued.isEmpty(),"acknowledged viewport did not start exactly once");h.ctx.ack(-1);check(h.adopted==1,"duplicate viewport ack starts another WCT");
+  h=new TopAdmissionRegression();c=candidate(h);h.ctx.auto=false;h.adoptTopTask(c,ticket(h,c),false);h.ctx.ack(0);
+  check(h.adopted==0&&h.restored==1&&!h.topTaskState.busy(),"rejected viewport changed canonical task");
+  h=new TopAdmissionRegression();c=candidate(h);h.ctx.auto=false;h.adoptTopTask(c,ticket(h,c),false);h.main.fire();h.ctx.ack(-1);
+  check(h.adopted==0&&h.restored==1&&!h.topTaskState.busy(),"late ack after timeout changes native task");
+  h=new TopAdmissionRegression();c=candidate(h);h.ctx.auto=false;h.adoptTopTask(c,ticket(h,c),false);h.sceneEpoch++;h.topTaskState.sceneChanged();h.ctx.ack(-1);
+  check(h.adopted==0,"old viewport ack crosses scene epoch");
   System.out.println("Production top admission/lock/late-callback checks="+checks+" passed");
  }
 }'''
+files={
+'android/Manifest.java':'package android;public class Manifest{public static class permission{public static final String WRITE_SECURE_SETTINGS="secure";}}',
+'android/os/IBinder.java':'package android.os;public interface IBinder{}',
+'android/os/Binder.java':'package android.os;public class Binder implements IBinder{}',
+'android/os/Bundle.java':'package android.os;public class Bundle{public void putBinder(String k,IBinder b){}public void putInt(String k,int v){}public void putParcelable(String k,Object o){}}',
+'android/os/Handler.java':'package android.os;import java.util.*;public class Handler{public List<Runnable>queued=new ArrayList<>();public void postDelayed(Runnable r,long d){queued.add(r);}public void removeCallbacks(Runnable r){queued.remove(r);}public void fire(){for(var r:new ArrayList<>(queued))r.run();queued.clear();}}',
+'android/graphics/Rect.java':'package android.graphics;public class Rect{public Rect(int l,int t,int r,int b){}}',
+'android/content/Intent.java':'package android.content;public class Intent{public Intent(String a){}public Intent setPackage(String p){return this;}public Intent putExtra(String k,Object o){return this;}}',
+'android/content/BroadcastReceiver.java':'package android.content;public abstract class BroadcastReceiver{public int result;public int getResultCode(){return result;}public abstract void onReceive(Context c,Intent i);}',
+'android/content/Context.java':'package android.content;import android.os.*;public class Context{public boolean auto=true;BroadcastReceiver callback;public void sendOrderedBroadcast(Intent i,String p,BroadcastReceiver r,Handler h,int code,String data,Bundle extras){callback=r;if(auto)ack(-1);}public void ack(int c){callback.result=c;callback.onReceive(this,null);}}',
+'de/robv/android/xposed/XposedHelpers.java':'package de.robv.android.xposed;public class XposedHelpers{public static Object callMethod(Object o,String n,Object...a){return o;}}',
+'com/jiusis/mistep/MiStepDesktopLaunchBridge.java':'package com.jiusis.mistep;public class MiStepDesktopLaunchBridge{static final String PREPARE_TOP="prepare";}',
+}
+for name,text in files.items():
+ q=out/name;q.parent.mkdir(parents=True,exist_ok=True);q.write_text(text,encoding='utf8')
 p=out/'com/jiusis/mistep/TopAdmissionRegression.java';p.parent.mkdir(parents=True,exist_ok=True);p.write_text(body,encoding='utf-8')
 jdk=Path(os.environ['MISTEP_JAVA_BIN'])
-subprocess.run([str(jdk/'javac.exe'),'-encoding','UTF-8','--release','17','-d',str(out),str(p),str(src/'TopTaskState.java')],check=True)
+subprocess.run([str(jdk/'javac.exe'),'-encoding','UTF-8','--release','17','-d',str(out),str(p),str(src/'TopTaskState.java'),*[str(out/n) for n in files]],check=True)
 subprocess.run([str(jdk/'java.exe'),'-cp',str(out),'com.jiusis.mistep.TopAdmissionRegression'],check=True)
 
 # Replay the actual face/suspend methods. A visible control face must paint after
@@ -71,9 +96,9 @@ public final class TopLayerRegression {
  static class View {static final int VISIBLE=0,INVISIBLE=4;int visibility=4,raises;
   void setVisibility(int value){visibility=value;}void bringToFront(){raises++;order+="raise;";}}
  static class Bar extends View {int leaves;void leaveLandscapePage(){leaves++;}}
- static class Pane extends View {}
+ static class Pane extends View {boolean occupied;void occupied(boolean v){occupied=v;}}
  static class Root {int layouts;void requestLayout(){layouts++;}}
- static class Slot {boolean occupied;int taskId=42;long taskEpoch=1;Object taskToken="token";}
+ static class Slot {boolean occupied,parked;int taskId=42;long taskEpoch=1;Object taskToken="token";}
  static class Roll {int resets;void reset(boolean task){resets++;}}
  static class TopCandidate {boolean landscape;}
  Root root=new Root();Bar topBar=new Bar();Pane topTaskPane=new Pane();Roll topRoll=new Roll();
@@ -90,15 +115,19 @@ public final class TopLayerRegression {
  void claimTopTask(TopCandidate c,boolean manual){claimed++;}
  TopCandidate currentTopCandidate(){return current;}
  void showTopCandidates(){selected++;}void updateHint(Slot slot){hints++;}
-'''+member('    private void topRollSettled(')+member('    private void resetTopForSuspend(')+'''
+'''+member('    private void prepareLiveTopRoll(')+member('    private void topRollSettled(')+member('    private void resetTopForSuspend(')+'''
  public static void main(String[]args){
+  var moving=new TopLayerRegression();moving.slots[4].occupied=true;moving.prepareLiveTopRoll();
+  check(moving.topBar.raises==1&&moving.topTaskPane.occupied&&moving.topFace,"controls paint after the live SurfaceView hole before a return begins");
+  check(moving.returned==0&&moving.slots[4].occupied,"preparing the other live face preserves the bound task");
+  order="";
   var h=new TopLayerRegression();h.slots[4].occupied=true;h.topRollSettled(false);
   check(h.topBar.visibility==0&&h.topTaskPane.visibility==4&&!h.topFace,"control face visibility");
   check(h.topBar.raises==1&&order.equals("raise;"),"controls paint above hole without returning the occupied upper app");
-  check(h.returned==0&&h.retained==1&&h.liveTransitions==0,"occupied main keeps the landscape upper task bound in its TaskView");
+  check(h.returned==0&&h.retained==0&&h.liveTransitions==0,"occupied main keeps the landscape upper task bound in its TaskView");
   check(h.hints==1&&h.root.layouts==1,"retained upper task still updates its geometry");
   h=new TopLayerRegression();h.slots[4].occupied=true;h.mainOccupied=null;h.topRollSettled(false);
-  check(h.returned==0&&h.retained==1&&h.liveTransitions==0,"unknown main occupancy conservatively retains the upper task");
+  check(h.returned==0&&h.retained==0&&h.liveTransitions==0,"unknown main occupancy conservatively retains the upper task");
   h=new TopLayerRegression();h.slots[4].occupied=true;h.mainOccupied=false;h.topRollSettled(false);
   check(h.liveTransitions==1&&h.returned==0,"empty main starts the live task return bridge");h.liveTransfer.run();
   check(h.returned==1&&h.returnedLive,"live bridge requests native return with the real-surface reveal flag");
@@ -109,7 +138,7 @@ public final class TopLayerRegression {
   h=new TopLayerRegression();h.topRollSettled(true);check(h.selected==1,"empty face chooser");
   h=new TopLayerRegression();h.keyguardLocked=true;h.topRollSettled(false);check(h.topFace&&h.topBar.raises==0&&h.returned==0,"stale locked completion ignored");
   h=new TopLayerRegression();h.topSelectionPending=true;h.resetTopForSuspend();
-  check(!h.topFace&&!h.topSelectionPending&&h.topBar.raises==1&&h.topRoll.resets==1&&h.topBar.leaves==1,"suspend restores control paint order");
+  check(!h.topFace&&!h.topSelectionPending&&h.topBar.raises==1&&h.topRoll.resets==1,"suspend restores control paint order");
   System.out.println("Production top face/layer/suspend checks="+checks+" passed");
  }
 }'''

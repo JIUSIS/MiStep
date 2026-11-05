@@ -31,6 +31,7 @@ public class HomeCompactRegression {
  }
  static class SystemClock{static long uptimeMillis(){return 10000;}}
  static class MiStepClipboard{static MiStepClipboard get(Object c){return new MiStepClipboard();}void close(){}}
+ static class MiStepTopNativeCaption{static void refresh(){}} // Separate production caption/queue suite.
  static class StatusBar{void hideFor(Promotion p,Runnable r){}}
  static class Idle{List<Runnable>queue=new ArrayList<>();}
  static class WindowState{final int taskId;int slotIndex;boolean active=true;WindowState(int t,int s){taskId=t;slotIndex=s;}void clear(){active=false;slotIndex=-1;}}

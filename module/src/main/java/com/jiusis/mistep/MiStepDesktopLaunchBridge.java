@@ -15,7 +15,60 @@ import de.robv.android.xposed.XposedHelpers;
 final class MiStepDesktopLaunchBridge {
     static final String ACTION = "com.jiusis.mistep.DESKTOP_SIDE_TASKS";
     static final String LAUNCH = "com.jiusis.mistep.DESKTOP_ICON_LAUNCH";
+    static final String PREPARE_TOP = "com.jiusis.mistep.PREPARE_TOP_VIEWPORT";
     private static Registry current;
+    private static PendingTop pendingTop;
+
+    private static final class PendingTop {
+        final IBinder owner, token;
+        final int id, user;
+        final android.graphics.Rect bounds;
+        final long deadline;
+        PendingTop(IBinder owner, IBinder token, int id, int user, android.graphics.Rect bounds) {
+            this.owner=owner;this.token=token;this.id=id;this.user=user;
+            this.bounds=new android.graphics.Rect(bounds.left,bounds.top,bounds.right,bounds.bottom);
+            deadline=SystemClock.uptimeMillis()+5000L;
+        }
+    }
+
+    /** Protected ordered request, acknowledged before the first TOP WCT is submitted. */
+    static boolean prepareTop(Object service, Intent intent) {
+        try {
+            Bundle row=intent.getBundleExtra("state");
+            if(row==null)return false;
+            IBinder owner=row.getBinder("owner"), token=row.getBinder("task");
+            int id=row.getInt("taskId",-1),user=row.getInt("userId",-1);
+            android.graphics.Rect bounds=row.getParcelable("bounds",android.graphics.Rect.class);
+            if(owner==null || !owner.isBinderAlive() || token==null || id<0 || user<0
+                    || bounds==null || bounds.left!=0 || bounds.top!=0 || bounds.height()<=0
+                    || bounds.width()<=bounds.height())return false;
+            Class<?> type=XposedHelpers.findClass("com.android.server.wm.WindowContainer",service.getClass().getClassLoader());
+            Object task=XposedHelpers.callStaticMethod(type,"fromBinder",token);
+            Object info=XposedHelpers.callMethod(task,"getTaskInfo");
+            if(XposedHelpers.getIntField(info,"taskId")!=id || XposedHelpers.getIntField(info,"userId")!=user
+                    || XposedHelpers.getIntField(info,"displayId")!=0
+                    || !Integer.valueOf(1).equals(XposedHelpers.callMethod(task,"getWindowingMode"))
+                    || !Integer.valueOf(1).equals(XposedHelpers.callMethod(info,"getActivityType"))
+                    || Boolean.TRUE.equals(XposedHelpers.callMethod(info,"hasParentTask")))return false;
+            synchronized(MiStepDesktopLaunchBridge.class) {pendingTop=new PendingTop(owner,token,id,user,bounds);}
+            return true;
+        } catch(Throwable unavailable) {return false;}
+    }
+
+    /** Early lease affects only exact requested landscape bounds after the native role change. */
+    static boolean ownsTopViewport(Object task) {
+        if(ownsTopTask(task))return true;
+        PendingTop p;
+        synchronized(MiStepDesktopLaunchBridge.class) {p=pendingTop;}
+        if(p==null || task==null || !p.owner.isBinderAlive() || SystemClock.uptimeMillis()>p.deadline)return false;
+        try {
+            Object info=XposedHelpers.callMethod(task,"getTaskInfo");
+            Object binder=XposedHelpers.callMethod(XposedHelpers.getObjectField(info,"token"),"asBinder");
+            return XposedHelpers.getIntField(info,"taskId")==p.id && XposedHelpers.getIntField(info,"userId")==p.user
+                    && XposedHelpers.getIntField(info,"displayId")==0 && p.token.equals(binder)
+                    && MiStepSideRoleChange.isSide(task) && p.bounds.equals(XposedHelpers.callMethod(task,"getBounds"));
+        } catch(Throwable stale) {return false;}
+    }
 
     private static final class Registry implements IBinder.DeathRecipient {
         final IBinder owner;
@@ -39,25 +92,26 @@ final class MiStepDesktopLaunchBridge {
     }
 
     /** Called only from the existing WRITE_SECURE_SETTINGS-protected system receiver. */
-    static synchronized void update(Intent intent) {
+    static synchronized boolean update(Intent intent) {
         try {
             Bundle state = intent.getBundleExtra("state");
-            if (state == null) return;
+            if (state == null) return false;
             IBinder owner = state.getBinder("owner");
             long sequence = state.getLong("sequence", -1L);
             ArrayList<Bundle> rows = state.getParcelableArrayList("rows", Bundle.class);
             ArrayList<Bundle> recents = state.getParcelableArrayList("recents", Bundle.class);
             if (recents == null) recents = rows;
             if (owner == null || !owner.isBinderAlive() || sequence < 0
-                    || rows == null || rows.size() > 3 || recents == null || recents.size() > 3) return;
-            if (current != null && current.owner.equals(owner) && sequence <= current.sequence) return;
+                    || rows == null || rows.size() > 3 || recents == null || recents.size() > 3) return false;
+            if (current != null && current.owner.equals(owner) && sequence <= current.sequence) return false;
             Registry next = new Registry(owner, sequence, new ArrayList<>(rows), new ArrayList<>(recents));
             next.topInput = state.getBundle("topInput");
             owner.linkToDeath(next, 0);
             Registry old = current;
             current = next;
             if (old != null) old.owner.unlinkToDeath(old, 0);
-        } catch (Throwable unavailable) { /* Reject an incomplete registration. */ }
+            return true;
+        } catch (Throwable unavailable) { /* Reject an incomplete registration. */ return false; }
     }
 
     /** Reuse the protected scene lease; never put TOP in desktop promotion rows. */
@@ -110,6 +164,42 @@ final class MiStepDesktopLaunchBridge {
 
     static synchronized boolean recentsLeaseAlive(Object lease) {
         return current == lease && current != null && current.owner.isBinderAlive();
+    }
+
+    /** Resolve only the current visible TOP registration for a physical pointer DOWN. */
+    static Object topTaskAt(Object display, float x, float y) {
+        Registry state;
+        synchronized (MiStepDesktopLaunchBridge.class) { state = current; }
+        if (state == null || !state.owner.isBinderAlive()
+                || !MiStepTopPointerFocus.contains(state.topInput, x, y)) return null;
+        try {
+            Object task = XposedHelpers.callStaticMethod(XposedHelpers.findClass(
+                    "com.android.server.wm.WindowContainer", display.getClass().getClassLoader()),
+                    "fromBinder", state.topInput.getBinder("task"));
+            if (task == null || XposedHelpers.callMethod(task, "getDisplayContent") != display
+                    || MiStepTopRawInput.uid(state.topInput, display.getClass().getClassLoader()) < 10000)
+                return null;
+            synchronized (MiStepDesktopLaunchBridge.class) {
+                return current == state && state.owner.isBinderAlive() ? task : null;
+            }
+        } catch (Throwable stale) { return null; }
+    }
+
+    static boolean ownsTopTask(Object task) {
+        Registry state;
+        synchronized (MiStepDesktopLaunchBridge.class) { state=current; }
+        if(state==null || !state.owner.isBinderAlive() || state.topInput==null || task==null)return false;
+        try {
+            Bundle row=state.topInput;
+            Object info=XposedHelpers.callMethod(task,"getTaskInfo");
+            Object token=XposedHelpers.getObjectField(info,"token");
+            boolean exact=XposedHelpers.getIntField(info,"taskId")==row.getInt("taskId",-1)
+                    && XposedHelpers.getIntField(info,"userId")==row.getInt("userId",-1)
+                    && XposedHelpers.getIntField(info,"displayId")==0
+                    && row.getBinder("task")!=null
+                    && row.getBinder("task").equals(XposedHelpers.callMethod(token,"asBinder"));
+            synchronized(MiStepDesktopLaunchBridge.class) {return exact && current==state && state.owner.isBinderAlive();}
+        } catch(Throwable stale) {return false;}
     }
 
     static boolean before(Context context, Object atms, Object[] args) {

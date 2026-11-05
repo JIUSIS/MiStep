@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.jiusis.mistep"
-    android:versionCode="1000034"
-    android:versionName="1.0.1">
+    android:versionCode="1000072"
+    android:versionName="1.0.2">
 
-    <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="37" />
+    <uses-sdk android:minSdkVersion="36" android:targetSdkVersion="37" />
 
     <application
         android:hasCode="true"

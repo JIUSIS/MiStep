@@ -5,6 +5,13 @@ import java.util.Locale;
 
 /** Reject another recording before accepting any public-catalog lyric. */
 final class MediaLyricMatch {
+    static boolean matchesJoined(String joined,long duration,String title,String artist,long candidateDuration) {
+        String name=normalized(title),by=normalized(artist);
+        if(name.isEmpty()||by.isEmpty()||!normalized(joined).equals(name+by))return false;
+        if(duration<=0||candidateDuration<=0)return false;
+        long tolerance=Math.max(2000,Math.min(5000,duration/50));
+        return Math.abs(duration-candidateDuration)<=tolerance;
+    }
     static String normalized(String value) {
         if(value==null)return "";
         return Normalizer.normalize(value,Normalizer.Form.NFKC).toLowerCase(Locale.ROOT).replaceAll("[^\\p{L}\\p{N}]","");

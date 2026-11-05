@@ -12,11 +12,11 @@
 </p>
 
 <p align="center">
-  <kbd>1.0.1</kbd> &nbsp; <kbd>HyperOS 4</kbd> &nbsp; <kbd>Android 17</kbd> &nbsp; <kbd>ARM64</kbd> &nbsp; <kbd>Root + LSPosed</kbd> &nbsp; <kbd>Source available · Noncommercial</kbd>
+  <kbd>1.0.2</kbd> &nbsp; <kbd>HyperOS 3 / 4</kbd> &nbsp; <kbd>Android 16 / 17</kbd> &nbsp; <kbd>ARM64</kbd> &nbsp; <kbd>Root + LSPosed</kbd> &nbsp; <kbd>Source available · Noncommercial</kbd>
 </p>
 
 <p align="center">
-  <a href="https://github.com/JIUSIS/MiStep/releases/tag/v1.0.1"><strong>Download 1.0.1</strong></a> ·
+  <a href="https://github.com/JIUSIS/MiStep/releases/tag/v1.0.2"><strong>Download 1.0.2</strong></a> ·
   <a href="#features">Features</a> ·
   <a href="#installation-and-first-steps">Installation</a> ·
   <a href="#a-note-from-a-wish-making-engineer">Why I made it</a>
@@ -24,7 +24,9 @@
 
 ---
 
-**Version 1.0.1 is now available.** It adds an interactive top task window, two-finger face switching, custom pinned apps, app-clone support and a fullscreen entry rule. It also corrects translated-lyric alignment, clipboard history returning after clearing, and control-center icons. See the [1.0.1 release notes](docs/发行说明-1.0.1.md).
+**Version 1.0.2 is now available.** It adds HyperOS 3 support and a two-finger horizontal swipe to dismiss the top task to the background, and improves transitions, task swaps, system bars, keyboard behavior and lyric compatibility. See the [1.0.2 release notes](docs/发行说明-1.0.2.md).
+
+**HyperOS 3 / Android 16 support is included in 1.0.2**, with the core task flow tested on Redmi Note 11T Pro running OS3.0.301. See the [OS 3 compatibility notes](docs/澎湃OS3适配.md) and [1.0.2 validation notes](docs/验证说明-1.0.2.md) for scope and pending checks.
 
 ## Multitasking that feels natural again
 
@@ -148,7 +150,7 @@ Different ROMs on the same model may expose different interfaces. These targets 
 
 The permanent package name is **`com.jiusis.mistep`**. Future versions will keep it. If you installed an earlier package name, exit the workspace and disable the old module in LSPosed first. Install this package, enable the new module, select its scope again, then reboot normally. You can uninstall the old module after confirming the new one works. A changed package name cannot overwrite the old installation; do not enable both modules together.
 
-1. Download `MiStep-1.0.1.apk` from the [1.0.1 release](https://github.com/JIUSIS/MiStep/releases/tag/v1.0.1). Check it against `SHA256SUMS.txt` on that page.
+1. Download `MiStep-1.0.2.apk` from the [1.0.2 release](https://github.com/JIUSIS/MiStep/releases/tag/v1.0.2). Check it against `SHA256SUMS.txt` on that page.
 2. Install it, enable **Mi Step** in LSPosed and select the recommended scope below.
 3. **Reboot normally** so the system processes load the module.
 4. With the phone in portrait, use the upper corner swipe gesture. Open an app in the main area, then tap an empty side slot's ＋ to collect it.
@@ -158,7 +160,7 @@ The permanent package name is **`com.jiusis.mistep`**. Future versions will keep
 | System framework | `android` | System tasks, main area scaling and input |
 | System UI | `com.android.systemui` | Workspace, toolbar and native controls |
 
-Version 1.0.1 recommends these two system processes. Optionally select `com.xiaomi.type` to prevent the Xiaomi keyboard from automatically switching to floating mode in landscape. This remaining keyboard policy is independent of ordinary app layout and input. Settings, Douyin and media players need no app scope; the earlier Douyin TOP photo patch has been withdrawn. Previously saved LSPosed selections are not automatically cleared. See the [scope and system adaptation notes](docs/作用域与系统适配.md) (Chinese).
+Mi Step recommends these two system processes. Optionally select `com.xiaomi.type` to prevent the Xiaomi keyboard from automatically switching to floating mode in landscape. This remaining keyboard policy is independent of ordinary app layout and input. Settings, Douyin and media players need no app scope; the earlier Douyin TOP photo patch has been withdrawn. Previously saved LSPosed selections are not automatically cleared. See the [scope and system adaptation notes](docs/作用域与系统适配.md) (Chinese).
 
 The module has no separate launcher screen. Enter through the gestures after installation. The gear opens system settings. See the [full usage guide](docs/使用说明.md) for upgrades, signing and recovery. The linked detailed guides are currently in Chinese.
 

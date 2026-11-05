@@ -90,5 +90,5 @@ public class LiveCollectRegression {
  }
 }''', encoding='utf8')
 subprocess.run([str(JDK/'javac.exe'), '-encoding', 'UTF-8', '--release', '17', '-cp', str(OUT), '-d', str(OUT),
-                str(ROOT/'module/src/main/java/com/jiusis/mistep/MiStepLiveCollectTask.java'), str(ROOT/'module/src/main/java/com/jiusis/mistep/MiStepIdleTaskView.java'), str(source)], check=True)
+                str(ROOT/'module/src/main/java/com/jiusis/mistep/ShellCompat.java'),str(ROOT/'module/src/main/java/com/jiusis/mistep/MiStepLiveCollectTask.java'), str(ROOT/'module/src/main/java/com/jiusis/mistep/MiStepIdleTaskView.java'), str(source)], check=True)
 subprocess.run([str(JDK/'java.exe'), '-cp', str(OUT), 'com.jiusis.mistep.LiveCollectRegression'], check=True)

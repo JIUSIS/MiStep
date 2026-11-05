@@ -6,6 +6,8 @@ root = Path(__file__).resolve().parents[2]
 src = root / 'module/src/main/java/com/jiusis/mistep'
 out = Path(sys.argv[1]); out.mkdir(parents=True, exist_ok=True)
 files = {
+'com/jiusis/mistep/MiStepTopPointerFocus.java':'package com.jiusis.mistep;import android.os.Bundle;class MiStepTopPointerFocus {static boolean contains(Bundle b,float x,float y){return false;}}',
+'android/graphics/Rect.java': 'package android.graphics;\n\n/** JVM-only geometry fake. Never packaged into the application. */\npublic class Rect {\n    public int left, top, right, bottom;\n    public Rect(int left, int top, int right, int bottom) {\n        this.left=left; this.top=top; this.right=right; this.bottom=bottom;\n    }\n    public int width() { return right-left; }\n    public int height() { return bottom-top; }\n    public boolean isEmpty() { return left>=right || top>=bottom; }\n    @Override public boolean equals(Object other) {\n        if (!(other instanceof Rect)) return false;\n        Rect rect=(Rect)other;\n        return left==rect.left && top==rect.top && right==rect.right && bottom==rect.bottom;\n    }\n    @Override public int hashCode() { return java.util.Objects.hash(left,top,right,bottom); }\n}\n',
 'android/Manifest.java': 'package android; public class Manifest {public static class permission {public static final String WRITE_SECURE_SETTINGS="secure";}}',
 'android/os/IBinder.java': 'package android.os; public interface IBinder {boolean isBinderAlive();void linkToDeath(DeathRecipient r,int f);boolean unlinkToDeath(DeathRecipient r,int f);interface DeathRecipient {void binderDied();}}',
 'android/os/Binder.java': 'package android.os;public class Binder implements IBinder {public static int uid=10127;public boolean alive=true;public static int getCallingUid(){return uid;}public boolean isBinderAlive(){return alive;}public void linkToDeath(DeathRecipient r,int f){}public boolean unlinkToDeath(DeathRecipient r,int f){return true;}}',
@@ -18,6 +20,7 @@ files = {
  public void putLong(String k,long v){m.put(k,v);}public long getLong(String k,long d){return m.containsKey(k)?(Long)m.get(k):d;}
  public void putBoolean(String k,boolean v){m.put(k,v);}public boolean getBoolean(String k,boolean d){return m.containsKey(k)?(Boolean)m.get(k):d;}
  public void putString(String k,String v){m.put(k,v);}public String getString(String k){return (String)m.get(k);}
+ public <T>T getParcelable(String k,Class<T>t){return (T)m.get(k);}public void putParcelable(String k,Object v){m.put(k,v);}
  public <T>void putParcelableArrayList(String k,ArrayList<T>v){m.put(k,v);}public <T>ArrayList<T>getParcelableArrayList(String k,Class<T>t){return (ArrayList<T>)m.get(k);}}
 ''',
 'android/content/ComponentName.java': 'package android.content;public class ComponentName {String pkg;public ComponentName(String p,String c){pkg=p;}public String getPackageName(){return pkg;}}',
@@ -94,5 +97,5 @@ files['com/jiusis/mistep/MiStepTopRawInput.java']='package com.jiusis.mistep;imp
 for name, text in files.items():
     path=out/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_text(text,encoding='utf8')
 jdk=Path(os.environ["MISTEP_JAVA_BIN"])
-subprocess.run([str(jdk/'javac.exe'),'-encoding','UTF-8','--release','17','-d',str(out)]+[str(out/n) for n in files]+[str(src/n) for n in ['MiStepDesktopLaunchBridge.java','DesktopIconLaunchPolicy.java']],check=True)
+subprocess.run([str(jdk/'javac.exe'),'-encoding','UTF-8','--release','17','-d',str(out)]+[str(out/n) for n in files]+[str(src/n) for n in ['MiStepDesktopLaunchBridge.java','DesktopIconLaunchPolicy.java','MiStepSideRoleChange.java']],check=True)
 subprocess.run([str(jdk/'java.exe'),'-cp',str(out),'com.jiusis.mistep.DesktopRouteRegression'],check=True)

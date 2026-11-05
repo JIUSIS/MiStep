@@ -15,7 +15,8 @@ package com.jiusis.mistep;
 import android.view.SurfaceControl;
 import de.robv.android.xposed.XposedHelpers;
 public class CellVisibilityRegression {
- static int checks;static final int SLOT_TOP=4;boolean topFace;
+ static int checks;static final int SLOT_TOP=4;boolean topFace;Roll topRoll;
+ static class Roll{boolean moving,task;boolean rolling(){return moving;}boolean showingTask(){return task;}}
  static void check(boolean b,String why){checks++;if(!b)throw new AssertionError(why);}
  float workspaceAlpha=1f;Object cellMotion;Promotion promotion;boolean owns=true;
  static class Promotion{boolean nativeSwap=true,cancelled;}
@@ -52,6 +53,12 @@ public class CellVisibilityRegression {
   surface.valid=true;s.occupied=true;s.index=SLOT_TOP;h.workspaceAlpha=1f;
   h.updateCellSurfaceVisibility(s);check(s.view.alpha==0&&!surface.shown,"closed upper face hides actual task surface");
   h.topFace=true;h.updateCellSurfaceVisibility(s);check(s.view.alpha==1&&surface.shown,"settled upper face shows live task surface");
+  h.topFace=false;h.topRoll=new Roll();h.topRoll.moving=true;h.updateCellSurfaceVisibility(s);
+  check(s.view.alpha==1&&surface.shown,"native task remains visible while either live face is moving");
+  h.topRoll.moving=false;h.topRoll.task=true;h.updateCellSurfaceVisibility(s);
+  check(s.view.alpha==1&&surface.shown,"last live frame stays visible before settled callback updates topFace");
+  h.topRoll.task=false;h.updateCellSurfaceVisibility(s);
+  check(s.view.alpha==0&&!surface.shown,"controls settled frame hides real task without stale screenshot");
   System.out.println("Actual Host cell visibility checks="+checks+" passed");
  }
 }

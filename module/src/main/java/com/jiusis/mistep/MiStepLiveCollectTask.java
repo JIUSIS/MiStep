@@ -58,21 +58,31 @@ final class MiStepLiveCollectTask {
         if (!MiStepLiveHomeTask.valid(surface)) throw new IllegalStateException("collect canonical leash gone");
         return surface;
     }
+    private boolean refuse(String reason) {
+        log.accept("live collect preflight refused task=" + id + ": " + reason);
+        return false;
+    }
     boolean preflight() {
         synchronized (lock) {
             try {
                 Object task = info(1);
                 Object fallback = XposedHelpers.callMethod(listeners(), "get", -2);
-                if (fallback == null || owner(task) != fallback
-                        || XposedHelpers.callMethod(listeners(), "get", id) != null
-                        || XposedHelpers.getObjectField(controller, "mTaskToken") != null
-                        || !Boolean.TRUE.equals(XposedHelpers.getObjectField(controller, "mSurfaceCreated"))
-                        || !((List<?>) XposedHelpers.getObjectField(taskViews, "mPending")).isEmpty()) return false;
+                if (fallback == null) return refuse("fullscreen fallback absent");
+                if (owner(task) != fallback) return refuse("fullscreen owner differs from fallback");
+                if (XposedHelpers.callMethod(listeners(), "get", id) != null) return refuse("explicit listener exists");
+                if (XposedHelpers.getObjectField(controller, "mTaskToken") != null) return refuse("controller occupied");
+                Object created = XposedHelpers.getObjectField(controller, "mSurfaceCreated");
+                if (!Boolean.TRUE.equals(created)) return refuse("surfaceCreated=" + created);
+                List<?> pending = (List<?>) XposedHelpers.getObjectField(taskViews, "mPending");
+                if (!pending.isEmpty()) return refuse("taskView pending=" + pending.size());
                 int count = (Integer) XposedHelpers.callMethod(listeners(), "size");
                 for (int i = 0; i < count; i++)
-                    if (XposedHelpers.callMethod(listeners(), "valueAt", i) == controller) return false;
+                    if (XposedHelpers.callMethod(listeners(), "valueAt", i) == controller)
+                        return refuse("controller already owns listener key=" + XposedHelpers.callMethod(listeners(), "keyAt", i));
                 leash = canonical();
-                return MiStepLiveHomeTask.valid(displayParent) && MiStepLiveHomeTask.valid(sideParent);
+                if (!MiStepLiveHomeTask.valid(displayParent)) return refuse("display parent invalid");
+                if (!MiStepLiveHomeTask.valid(sideParent)) return refuse("side parent invalid");
+                return true;
             } catch (Throwable error) { log.accept("live collect preflight refused: " + error); return false; }
         }
     }
@@ -95,7 +105,7 @@ final class MiStepLiveCollectTask {
                         if (args != null && args.length > 0
                                 && token.equals(XposedHelpers.getObjectField(args[0], "token"))
                                 && XposedHelpers.callMethod(listeners(), "get", id) == lease)
-                            XposedHelpers.callMethod(organizer, "removeListener", lease);
+                            ShellCompat.call(organizer, "removeListener", lease);
                         return null;
                     case "attachChildSurfaceToTask":
                         if (Integer.valueOf(id).equals(args[0])) XposedHelpers.callMethod(args[1], "setParent", leash);
@@ -112,11 +122,11 @@ final class MiStepLiveCollectTask {
                         return null;
                 }
             });
-            XposedHelpers.callMethod(organizer, "addListenerForTaskId", lease, id);
+            ShellCompat.call(organizer, "addListenerForTaskId", lease, id);
             if (owner(info(1)) != lease) throw new IllegalStateException("collect exact lease rejected");
         }
     }
-    private void set(Object wct, String name, Object value) { XposedHelpers.callMethod(wct, name, token, value); }
+    private void set(Object wct, String name, Object value) { ShellCompat.transaction(organizer, wct, name, token, value); }
     Object windowTransaction(boolean reverse, boolean pending) throws Exception {
         if (reverse && pending) { waitingCancel = true; originalInfoSeen = false; }
         Object wct = Class.forName("android.window.WindowContainerTransaction").getDeclaredConstructor().newInstance();
@@ -164,12 +174,12 @@ final class MiStepLiveCollectTask {
                 if (XposedHelpers.getObjectField(controller, "mTaskToken") != null)
                     throw new IllegalStateException("collect controller became occupied");
                 XposedHelpers.callMethod(listeners(), "put", id, controller);
-                XposedHelpers.callMethod(organizer, "updateTaskListenerIfNeeded", task, canonical(), lease, controller);
+                ShellCompat.call(organizer, "updateTaskListenerIfNeeded", task, canonical(), lease, controller);
             }
             if (owner(task) != controller) throw new IllegalStateException("collect native claim rejected");
             if (finishWct == null) finishWct = Class.forName("android.window.WindowContainerTransaction")
                     .getDeclaredConstructor().newInstance();
-            if (!Boolean.TRUE.equals(XposedHelpers.callMethod(taskViews, "prepareOpenAnimation", controller,
+            if (!Boolean.TRUE.equals(ShellCompat.call(taskViews, "prepareOpenAnimation", controller,
                     true, start, finish, task, canonical(), finishWct)))
                 throw new IllegalStateException("collect TaskView prepare failed after possible binding");
             XposedHelpers.callMethod(start, "hide", sideParent);
@@ -199,7 +209,7 @@ final class MiStepLiveCollectTask {
         synchronized (lock) { releaseWhenSeen = true; if (originalRoles()) releaseOriginal(); }
     }
     private void releaseOriginal() {
-        if (owner(info(1)) == lease) XposedHelpers.callMethod(organizer, "removeListener", lease);
+        if (owner(info(1)) == lease) ShellCompat.call(organizer, "removeListener", lease);
     }
     Object finishWindowTransaction() { return finishWct; }
     void settle(Object tx, float scale) {
@@ -211,14 +221,14 @@ final class MiStepLiveCollectTask {
                 catch (Exception error) { throw new IllegalStateException("collect recovery claim failed", error); }
                 if (!Boolean.TRUE.equals(XposedHelpers.getObjectField(controller, "mSurfaceCreated")))
                     throw new IllegalStateException("collect destination surface disappeared");
-                XposedHelpers.callMethod(taskViews, "updateVisibilityState", controller, true);
+                ShellCompat.call(taskViews, "updateVisibilityState", controller, true);
             } else {
                 if (!originalRoles()) throw new IllegalStateException("collect inverse not confirmed");
                 if (token.equals(XposedHelpers.getObjectField(controller, "mTaskToken"))) {
                     repositoryRegistered = false;
                     try {
                         XposedHelpers.callMethod(taskViews, "unregisterTaskView", controller);
-                        if (owner(task) == controller) XposedHelpers.callMethod(organizer, "removeListener", controller);
+                        if (owner(task) == controller) ShellCompat.call(organizer, "removeListener", controller);
                         XposedHelpers.callMethod(controller, "onTaskVanished", task);
                     } finally {
                         XposedHelpers.callMethod(taskViews, "registerTaskView", controller);

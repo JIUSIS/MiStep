@@ -6,6 +6,11 @@ import java.util.function.Consumer;
 
 /** 64 request contract for real leashes; Host and WMS acknowledgements remain distinct. */
 final class LiveTaskSwapDriver {
+    interface Overlays extends AutoCloseable {
+        void paint(Object transaction,double fraction);
+        void finish(Object transaction,boolean original);
+        @Override void close();
+    }
     private LiveTaskSwapDriver() {}
 
     static final class Peer {
@@ -20,6 +25,7 @@ final class LiveTaskSwapDriver {
     }
 
     static final class Flip {
+        Overlays overlays;
         final LiveSwapGeometry.Task first, second;
         final int firstUserId, secondUserId;
         final Rect logical;

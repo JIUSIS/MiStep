@@ -33,8 +33,16 @@ final class MiStepBrightness {
     }
 
     void write(DisplayManager displays, Class<?> utils, int progress) {
-        float linear = ((Number) XposedHelpers.callStaticMethod(utils, "convertGammaToLinearFloat",
-                progress, minimum, maximum)).floatValue();
+        float linear;
+        if (ShellCompat.hasMethod(utils, "convertGammaToLinearFloat", int.class, float.class, float.class))
+            linear = ((Number) XposedHelpers.callStaticMethod(utils, "convertGammaToLinearFloat",
+                    progress, minimum, maximum)).floatValue();
+        else {
+            // OS3 keeps the inverse in SettingsLib, with min/max before progress.
+            Class<?> inverse = XposedHelpers.findClass("com.android.settingslib.display.BrightnessUtils", utils.getClassLoader());
+            linear = ((Number) XposedHelpers.callStaticMethod(inverse, "convertGammaToLinearFloat",
+                    minimum, maximum, progress)).floatValue();
+        }
         if (!Float.isFinite(linear)) throw new IllegalStateException("Invalid brightness conversion");
         XposedHelpers.callMethod(displays, "setBrightness", Display.DEFAULT_DISPLAY, clamp(linear));
     }

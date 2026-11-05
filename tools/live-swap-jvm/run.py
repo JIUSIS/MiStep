@@ -30,6 +30,8 @@ import java.util.*;public class WindowContainerTransaction {
 }''',
 'de/robv/android/xposed/XposedHelpers.java': r'''package de.robv.android.xposed;
 import java.lang.reflect.*;public class XposedHelpers {
+ public static void setBooleanField(Object o,String n,boolean v){try{java.lang.reflect.Field f=o.getClass().getDeclaredField(n);f.setAccessible(true);f.setBoolean(o,v);}catch(Exception e){throw new IllegalStateException(n,e);}}
+
  public static Object getObjectField(Object o,String n){try{Class<?> c=o.getClass();while(c!=null){try{Field f=c.getDeclaredField(n);f.setAccessible(true);return f.get(o);}catch(NoSuchFieldException e){c=c.getSuperclass();}}throw new NoSuchFieldException(n);}catch(Exception e){throw new IllegalStateException(n,e);}}
  public static boolean getBooleanField(Object o,String n){return (Boolean)getObjectField(o,n);}public static int getIntField(Object o,String n){return (Integer)getObjectField(o,n);}
  public static Object callMethod(Object o,String n,Object...args){try{Class<?> c=o.getClass();while(c!=null){for(Method m:c.getDeclaredMethods()){if(!m.getName().equals(n)||m.getParameterCount()!=args.length)continue;boolean match=true;Class<?>[] p=m.getParameterTypes();for(int i=0;i<p.length;i++){Class<?> t=p[i];if(t==int.class)t=Integer.class;if(t==boolean.class)t=Boolean.class;if(t==float.class)t=Float.class;if(args[i]!=null&&!t.isInstance(args[i]))match=false;}if(match){m.setAccessible(true);return m.invoke(o,args);}}c=c.getSuperclass();}throw new NoSuchMethodException(n);}catch(InvocationTargetException e){throw new IllegalStateException(n,e.getCause());}catch(Exception e){throw new IllegalStateException(n,e);}}
@@ -133,6 +135,6 @@ for relative, text in FILES.items():
     path.write_text(text,encoding='utf8')
     paths.append(str(path))
 subprocess.run([str(JDK/'javac.exe'),'-encoding','UTF-8','--release','17','-d',str(OUT),
-                str(SRC/'LiveSwapGeometry.java'),str(SRC/'MiStepLiveTaskPair.java'),str(SRC/'MiStepLiveHomeTask.java'),*paths],check=True)
+                str(SRC/'ShellCompat.java'),str(SRC/'LiveSwapGeometry.java'),str(SRC/'MiStepLiveTaskPair.java'),str(SRC/'MiStepLiveHomeTask.java'),*paths],check=True)
 subprocess.run([str(JDK/'java.exe'),'-cp',str(OUT),'com.jiusis.mistep.LivePairRegression'],check=True)
 subprocess.run([str(JDK/'java.exe'),'-cp',str(OUT),'com.jiusis.mistep.LiveHomeRegression'],check=True)

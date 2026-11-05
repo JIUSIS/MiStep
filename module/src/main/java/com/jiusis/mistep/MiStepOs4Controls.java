@@ -39,9 +39,7 @@ final class MiStepOs4Controls {
                 @Override protected void afterHookedMethod(MethodHookParam p) {
                     if (p.hasThrowable()) return;
                     try {
-                        Object data = XposedHelpers.getObjectField(p.thisObject, "pluginData");
-                        if (data == null) return;
-                        Context context = (Context) XposedHelpers.getObjectField(data, "context");
+                        Context context = pluginContext(p.thisObject);
                         if (context != null && "miui.systemui.plugin".equals(context.getPackageName())) {
                             // This loader and theme belong to the initialized OEM plugin.
                             XposedHelpers.findClass("miui.systemui.controlcenter.widget.VerticalSeekBar", context.getClassLoader());
@@ -53,13 +51,19 @@ final class MiStepOs4Controls {
             XposedHelpers.findAndHookMethod(instance, "unloadPlugin", new XC_MethodHook() {
                 @Override protected void beforeHookedMethod(MethodHookParam p) {
                     try {
-                        Object data = XposedHelpers.getObjectField(p.thisObject, "pluginData");
-                        if (data != null && XposedHelpers.getObjectField(data, "context") == plugin.get())
+                        if (pluginContext(p.thisObject) == plugin.get())
                             plugin.clear();
                     } catch (Throwable ignored) {}
                 }
             });
         } catch (Throwable e) { failed("install", e); }
+    }
+
+    private static Context pluginContext(Object instance) {
+        if (ShellCompat.hasMethod(instance.getClass(), "getPluginContext", 0))
+            return (Context) XposedHelpers.callMethod(instance, "getPluginContext");
+        Object data = XposedHelpers.getObjectField(instance, "pluginData");
+        return data == null ? null : (Context) XposedHelpers.getObjectField(data, "context");
     }
 
     static Context context() {
@@ -86,8 +90,12 @@ final class MiStepOs4Controls {
         Object binding = inflate("QsTileItemViewBinding");
         ViewGroup root = (ViewGroup) XposedHelpers.callMethod(binding, "getRoot");
         Class<?> iconType = XposedHelpers.findClass("miui.systemui.controlcenter.qs.tileview.QSTileItemIconView", context.getClassLoader());
-        View icon = (View) XposedHelpers.newInstance(iconType, MiStepNativeIconContext.wrap(context),
-                MiStepNativeIconContext.wrap(system), false, false);
+        boolean fourArguments = false;
+        for (java.lang.reflect.Constructor<?> constructor : iconType.getDeclaredConstructors())
+            if (constructor.getParameterCount() == 4) fourArguments = true;
+        View icon = (View) (fourArguments
+                ? XposedHelpers.newInstance(iconType, MiStepNativeIconContext.wrap(context), MiStepNativeIconContext.wrap(system), false, false)
+                : XposedHelpers.newInstance(iconType, MiStepNativeIconContext.wrap(context), MiStepNativeIconContext.wrap(system), false));
         XposedHelpers.callMethod(root, "init", icon);
         root.setContentDescription(label);
         root.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_YES);

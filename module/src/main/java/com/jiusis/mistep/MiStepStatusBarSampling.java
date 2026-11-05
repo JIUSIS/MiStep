@@ -13,6 +13,7 @@ final class MiStepStatusBarSampling {
     private static final String CALLBACK =
             "com.miui.systemui.statusbar.core.StatusBarRegionSamplingInteractor$regionSamplingHelper$1";
     private static final WeakHashMap<Object, Boolean> helpers = new WeakHashMap<>();
+    private static final WeakHashMap<Object, Boolean> statusListeners = new WeakHashMap<>();
     private static final Handler main = new Handler(Looper.getMainLooper());
 
     static void install(ClassLoader loader) {
@@ -29,9 +30,27 @@ final class MiStepStatusBarSampling {
                     "com.android.wm.shell.shared.handles.RegionSamplingHelper", loader);
             XposedBridge.hookAllConstructors(helper, new XC_MethodHook() {
                 @Override protected void afterHookedMethod(MethodHookParam p) {
-                    if (isStatusHelper(p.thisObject)) synchronized (helpers) {
-                        helpers.put(p.thisObject, Boolean.TRUE);
-                    }
+                    track(p.thisObject);
+                }
+            });
+            Class<?> composition = XposedHelpers.findClass("android.view.CompositionSamplingListener", loader);
+            XposedBridge.hookAllMethods(composition, "register", new XC_MethodHook() {
+                @Override protected void beforeHookedMethod(MethodHookParam p) {
+                    if (p.args.length != 4 || !Integer.valueOf(0).equals(p.args[1])
+                            || !usesMainComposition(p.args[0], MiStepHost.activeStatusBarTransform())) return;
+                    // The OEM's default bar can remain below the main app in the Home task.
+                    // Its stop layer would omit that app even with the correct physical region.
+                    // Sample the displayed main region; native median/contrast policy stays intact.
+                    p.args[2] = null;
+                    XposedBridge.log("MiStep: main status sampling region=" + p.args[3]
+                            + " stop=display composition");
+                }
+            });
+            XposedHelpers.findAndHookMethod(callback, "onRegionDarknessChanged", boolean.class,
+                    new XC_MethodHook() {
+                @Override protected void afterHookedMethod(MethodHookParam p) {
+                    if (MiStepHost.activeStatusBarTransform() != null)
+                        XposedBridge.log("MiStep: native main status sampling dark=" + p.args[0]);
                 }
             });
             XposedHelpers.findAndHookMethod(helper, "start", Rect.class, new XC_MethodHook() {
@@ -56,6 +75,22 @@ final class MiStepStatusBarSampling {
         return cb != null && CALLBACK.equals(cb.getClass().getName());
     }
 
+    static void track(Object helper) {
+        if (!isStatusHelper(helper)) return;
+        synchronized (helpers) {
+            helpers.put(helper, Boolean.TRUE);
+            Object listener = XposedHelpers.getObjectField(helper, "mSamplingListener");
+            if (listener != null) statusListeners.put(listener, Boolean.TRUE);
+        }
+    }
+
+    static boolean usesMainComposition(Object listener, float[] transform) {
+        if (transform == null || transform.length < 3 || !Float.isFinite(transform[0])
+                || transform[0] <= 0 || !Float.isFinite(transform[1]) || !Float.isFinite(transform[2]))
+            return false;
+        synchronized (helpers) { return statusListeners.containsKey(listener); }
+    }
+
     static Rect physical(Rect logical, float[] transform) {
         if (logical == null || logical.isEmpty() || transform == null || transform.length < 3)
             return logical;
@@ -74,7 +109,15 @@ final class MiStepStatusBarSampling {
             Object[] current;
             synchronized (helpers) { current = helpers.keySet().toArray(); }
             for (Object helper : current) {
-                try { XposedHelpers.callMethod(helper, "updateSamplingRect"); }
+                try {
+                    if (ShellCompat.hasMethod(helper.getClass(), "updateSamplingRect", 0)) {
+                        XposedHelpers.callMethod(helper, "updateSamplingRect");
+                    } else {
+                        // OS3's layout callback resamples through the same native callback.
+                        Object view = XposedHelpers.getObjectField(helper, "mSampledView");
+                        XposedHelpers.callMethod(helper, "onLayoutChange", view, 0, 0, 0, 0, 0, 0, 0, 0);
+                    }
+                }
                 catch (Throwable unavailable) {
                     XposedBridge.log("MiStep: status sampling refresh skipped: " + unavailable);
                 }

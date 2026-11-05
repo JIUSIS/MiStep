@@ -26,5 +26,25 @@ final class TopRollMotion {
         int next=Math.round(phase+Math.max(-.35f,Math.min(.35f,velocity*.08f)));
         return Math.max(base-1,Math.min(base+1,next));
     }
+    /** Affine projection of the two adjacent live faces, clipped by the upper strip. */
+    static final class Frame {
+        final float frontScale, frontTop, taskScale, taskTop;
+        Frame(float frontScale,float frontTop,float taskScale,float taskTop) {
+            this.frontScale=frontScale;this.frontTop=frontTop;
+            this.taskScale=taskScale;this.taskTop=taskTop;
+        }
+    }
+    static Frame frame(float phase,float height) {
+        int whole=(int)Math.floor(phase);
+        float fraction=phase-whole;
+        double angle=fraction*Math.PI/2;
+        float outgoing=(float)Math.cos(angle),incoming=(float)Math.sin(angle);
+        float half=Math.max(1,height)*.5f;
+        float outgoingTop=half*(1-outgoing-incoming);
+        float incomingTop=half*(1+outgoing-incoming);
+        return taskFace(whole)
+                ?new Frame(incoming,incomingTop,outgoing,outgoingTop)
+                :new Frame(outgoing,outgoingTop,incoming,incomingTop);
+    }
     static boolean taskFace(int quarter) {return (quarter&1)!=0;}
 }

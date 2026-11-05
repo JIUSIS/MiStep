@@ -53,7 +53,7 @@ final class MiStepLiveHomeTask {
     static boolean valid(Object surface) {
         return surface != null && Boolean.TRUE.equals(XposedHelpers.callMethod(surface, "isValid"));
     }
-    private void set(Object wct, String method, Object value) { XposedHelpers.callMethod(wct, method, request.app.token, value); }
+    private void set(Object wct, String method, Object value) { ShellCompat.transaction(organizer, wct, method, request.app.token, value); }
     Object windowTransaction(boolean reverse) throws Exception {
         Object wct = Class.forName("android.window.WindowContainerTransaction").getDeclaredConstructor().newInstance();
         set(wct, "setWindowingMode", reverse ? 6 : 0);
@@ -116,7 +116,7 @@ final class MiStepLiveHomeTask {
             XposedHelpers.callMethod(taskViews, "unregisterTaskView", controller);
             try {
                 if (owner(b) != controller) throw new IllegalStateException("Home app owner changed");
-                XposedHelpers.callMethod(organizer, "removeListener", controller);
+                ShellCompat.call(organizer, "removeListener", controller);
                 try { XposedHelpers.callMethod(controller, "onTaskVanished", transitionApp); }
                 finally { retired = !request.app.token.equals(XposedHelpers.getObjectField(controller, "mTaskToken")); }
             } finally { XposedHelpers.callMethod(taskViews, "registerTaskView", controller); }
@@ -138,15 +138,15 @@ final class MiStepLiveHomeTask {
                     Object listeners = XposedHelpers.getObjectField(organizer, "mTaskListeners");
                     if (XposedHelpers.callMethod(listeners, "get", request.app.id) != null)
                         throw new IllegalStateException("Home rollback listener occupied");
-                    XposedHelpers.callMethod(organizer, "addListenerForTaskId", controller, request.app.id);
+                    ShellCompat.call(organizer, "addListenerForTaskId", controller, request.app.id);
                 }
                 if (owner(b) != controller) throw new IllegalStateException("Home rollback rejected");
                 try {
                     if (finishWct == null) finishWct = Class.forName("android.window.WindowContainerTransaction").getDeclaredConstructor().newInstance();
                 } catch (Exception error) { throw new IllegalStateException(error); }
-                XposedHelpers.callMethod(taskViews, "prepareOpenAnimation", controller, true, tx, tx, b, canonical(), finishWct);
+                ShellCompat.call(taskViews, "prepareOpenAnimation", controller, true, tx, tx, b, canonical(), finishWct);
                 set(finishWct, "setHidden", false);
-                XposedHelpers.callMethod(taskViews, "updateVisibilityState", controller, true);
+                ShellCompat.call(taskViews, "updateVisibilityState", controller, true);
             } else {
                 if (!retired) prepare();
                 Object fallback = XposedHelpers.callMethod(XposedHelpers.getObjectField(organizer, "mTaskListeners"), "get", -2);

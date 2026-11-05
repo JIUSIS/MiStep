@@ -48,7 +48,14 @@ final class NativeRawInputBridge {
                 "94a7d234c897f6ce02b1ab74189380167923c86869358024072be51ec7f1a768")
                 && matches("/system/lib64/libui.so",
                 "67146e36c03eaac4f7016d933ab393de92f8901069820e1ceec6464cefd2e428");
-        return xaga ? "xaga-11t" : null;
+        if (xaga) return "xaga-11t";
+        boolean xagaOs3 = matches("/system/lib64/libinputflinger.so",
+                "1ed8762e10ad9516c04ad1649434514ef0e31a9c6d0d5fbdaa350a119673a18a")
+                && matches("/system/lib64/libinput.so",
+                "eb6c4d8163d6d4e1eb708da7fdf4820a1fdef27ef3b9d3b8a680e538a6f9cedd")
+                && matches("/system/lib64/libui.so",
+                "23706afbedb5d735330bf971705884694b6b86e09796d2e4478d250f690b068e");
+        return xagaOs3 ? "xaga-os3-3.0.301" : null;
     }
 
     static void update(float scale, float offsetY, float offsetX) {

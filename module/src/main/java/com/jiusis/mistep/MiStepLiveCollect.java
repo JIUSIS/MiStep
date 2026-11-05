@@ -77,13 +77,13 @@ final class MiStepLiveCollect implements MiStepLiveSwapSession.Scene {
         shell = XposedHelpers.getObjectField(taskViews, "mTransitions");
         backend = new MiStepLiveSwapSession.ShellBackend(shell, loader); backend.assertShellThread();
         Object organizer = XposedHelpers.getObjectField(controller, "mTaskOrganizer");
-        Object area = XposedHelpers.getObjectField(organizer, "mRootTaskDisplayAreaOrganizer");
+        Object area = ShellCompat.rootArea(organizer);
         Object areaInfo = XposedHelpers.callMethod(area, "getDisplayAreaInfo", 0);
         if (areaInfo == null || XposedHelpers.getIntField(areaInfo, "featureId") != 1
                 || XposedHelpers.getIntField(areaInfo, "displayId") != 0 || !MiStepLiveHomeTask.valid(hostRoot))
             throw new IllegalStateException("collect real parent unavailable");
         task = new MiStepLiveCollectTask(organizer, taskViews, controller, geometry.id, geometry.token,
-                homeToken, appUserId, logical, XposedHelpers.callMethod(area, "getDisplayAreaLeash", 0), log);
+                homeToken, appUserId, logical, ShellCompat.call(area, "getDisplayAreaLeash", 0), log);
         scale = (float) (geometry.end.width / geometry.bufferWidth);
         if (Math.abs(scale - geometry.end.height / geometry.bufferHeight) > .003)
             throw new IllegalStateException("collect requires uniform task buffer");

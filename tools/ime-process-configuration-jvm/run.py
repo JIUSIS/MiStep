@@ -73,6 +73,6 @@ FILES['de/robv/android/xposed/XposedHelpers.java']=helper[:pos]+r'''
 sources=[]
 for name,body in FILES.items():
     p=OUT/name;p.parent.mkdir(parents=True,exist_ok=True);p.write_text(body,encoding='utf-8');sources.append(str(p))
-sources.append(str(ROOT/'module/src/main/java/com/jiusis/mistep/MiStepImeProcessConfiguration.java'))
+sources.extend(str(ROOT/'module/src/main/java/com/jiusis/mistep'/name) for name in ['ShellCompat.java','MiStepImeProcessConfiguration.java'])
 subprocess.run([str(JDK/'javac.exe'),'-encoding','UTF-8','--release','17','-d',str(OUT),*sources],check=True)
 subprocess.run([str(JDK/'java.exe'),'-cp',str(OUT),'com.jiusis.mistep.ImeProcessConfigurationTest'],check=True)

@@ -154,6 +154,15 @@ final class MiStepInputTrace {
     }
 
     private static void hookSystemUi(ClassLoader cl) {
+        retain(XposedBridge.hookAllMethods(HotZoneGesture.class, "onMotion", new TraceHook() {
+            @Override protected void before(MethodHookParam p) {
+                if (!active() || p.args.length != 1 || !(p.args[0] instanceof MotionEvent e)) return;
+                event("mistep-corner-spy", e);
+                if (e.getActionMasked() == MotionEvent.ACTION_DOWN)
+                    line("corner-admission enabled="+XposedHelpers.getBooleanField(p.thisObject,"enabled")
+                            +" "+MiStepStatusBar.cornerStateForTrace());
+            }
+        }));
         hook(cl, "com.android.systemui.statusbar.notification.island.DynamicIslandGestureMonitor$listener$1",
                 "onPointerEvent", "island-spy");
         hook(cl, "com.miui.systemui.notification.island.DynamicIslandTouchHandlerImpl",

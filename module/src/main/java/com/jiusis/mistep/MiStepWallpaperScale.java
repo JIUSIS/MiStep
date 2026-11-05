@@ -60,8 +60,11 @@ final class MiStepWallpaperScale {
             Object controller = XposedHelpers.getObjectField(display, "mWallpaperController");
             Object tokens = XposedHelpers.getObjectField(controller, "mWallpaperTokens");
             if (!(tokens instanceof List<?>)) return;
-            for (Object token : (List<?>) tokens)
-                XposedHelpers.callMethod(token, "updateWallpaperOffset");
+            for (Object token : (List<?>) tokens) {
+                if (ShellCompat.hasMethod(token.getClass(), "updateWallpaperOffset", 0))
+                    XposedHelpers.callMethod(token, "updateWallpaperOffset");
+                else XposedHelpers.callMethod(token, "updateWallpaperOffset", false);
+            }
         } catch (Throwable unavailable) {
             XposedBridge.log("[MiStep] wallpaper scale refresh unavailable: " + unavailable);
         }

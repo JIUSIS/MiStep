@@ -23,18 +23,23 @@ files = {
 }''',
 'android/os/Looper.java': 'package android.os;public class Looper {static final Looper main=new Looper();public static Looper myLooper(){return main;}}',
 'android/os/Message.java': 'package android.os;public class Message {public int what,arg1,arg2;public Object obj;}',
-'de/robv/android/xposed/XC_MethodHook.java': 'package de.robv.android.xposed;public class XC_MethodHook {public static class MethodHookParam {public Object[] args;} protected void beforeHookedMethod(MethodHookParam p) throws Throwable {}}',
-'de/robv/android/xposed/XposedHelpers.java': 'package de.robv.android.xposed;public class XposedHelpers {public static Object findAndHookMethod(String n,ClassLoader c,String m,Object...a){return null;}public static int getIntField(Object o,String n){try{return o.getClass().getField(n).getInt(o);}catch(Exception e){throw new RuntimeException(e);}}}',
-'de/robv/android/xposed/XposedBridge.java': 'package de.robv.android.xposed;public class XposedBridge {public static void log(String s){}}',
+'de/robv/android/xposed/XC_MethodHook.java': 'package de.robv.android.xposed;public class XC_MethodHook {public static class MethodHookParam {public Object[] args;public Object thisObject;public boolean hasThrowable(){return false;}} public class Unhook {public void unhook(){}} protected void beforeHookedMethod(MethodHookParam p) throws Throwable {} protected void afterHookedMethod(MethodHookParam p) throws Throwable {}}',
+'de/robv/android/xposed/XposedHelpers.java': '''package de.robv.android.xposed;public class XposedHelpers {
+ public static Object findAndHookMethod(String n,ClassLoader c,String m,Object...a){return null;}
+ public static Class<?> findClass(String n,ClassLoader c){try{return Class.forName(n,true,c);}catch(Exception e){throw new RuntimeException(e);}}
+ public static Object getObjectField(Object o,String n){try{return o.getClass().getField(n).get(o);}catch(Exception e){throw new RuntimeException(e);}}
+ public static Object callMethod(Object o,String n,Object...a){try{for(var m:o.getClass().getMethods())if(m.getName().equals(n)&&m.getParameterCount()==a.length)return m.invoke(o,a);throw new NoSuchMethodException(n);}catch(Exception e){throw new RuntimeException(e);}}
+ public static int getIntField(Object o,String n){try{return o.getClass().getField(n).getInt(o);}catch(Exception e){throw new RuntimeException(e);}}}''',
+'de/robv/android/xposed/XposedBridge.java': 'package de.robv.android.xposed;public class XposedBridge {public static void log(String s){}public static void hookAllConstructors(Class<?> c,XC_MethodHook h){}public static java.util.Set<XC_MethodHook.Unhook> hookAllMethods(Class<?> c,String n,XC_MethodHook h){return java.util.Set.of();}}',
 'android/os/Handler.java': 'package android.os;import java.util.*;public class Handler {public List<Runnable>delayed=new ArrayList<>();public Looper getLooper(){return Looper.myLooper();}public boolean post(Runnable r){r.run();return true;}public void postDelayed(Runnable r,long d){delayed.add(r);}public void removeCallbacks(Runnable r){delayed.remove(r);}}',
 'android/view/animation/LinearInterpolator.java': 'package android.view.animation;public class LinearInterpolator {}',
 'android/view/Display.java': 'package android.view;public class Display {public static final int DEFAULT_DISPLAY=0;public int id;public int getDisplayId(){return id;}}',
-'android/view/WindowManager.java': 'package android.view;public interface WindowManager {class LayoutParams {public static final int TYPE_STATUS_BAR=2000;public int type=TYPE_STATUS_BAR;}}',
+'android/view/WindowManager.java': 'package android.view;public interface WindowManager {class LayoutParams {public static final int TYPE_STATUS_BAR=2000;public int type=TYPE_STATUS_BAR;public String title="StatusBar";public CharSequence getTitle(){return title;}}}',
 'android/view/ViewTreeObserver.java': 'package android.view;public class ViewTreeObserver {public Runnable pending;public void registerFrameCommitCallback(Runnable r){pending=r;}public void commit(){Runnable r=pending;pending=null;if(r!=null)r.run();}}',
 'android/view/View.java': r'''package android.view;import java.util.*;public class View {
- public float alpha=.63f;public int invalidates;public boolean attached=true,hardware=true;public Display display=new Display();public WindowManager.LayoutParams params=new WindowManager.LayoutParams();public ViewTreeObserver observer=new ViewTreeObserver();public List<Runnable>nextFrame=new ArrayList<>();
+ public static final int VISIBLE=0;public float alpha=.63f;public int invalidates;public boolean attached=true,hardware=true,shown=true;public int windowVisibility;public Display display=new Display();public WindowManager.LayoutParams params=new WindowManager.LayoutParams();public ViewTreeObserver observer=new ViewTreeObserver();public List<Runnable>nextFrame=new ArrayList<>();
  public Object getLayoutParams(){return params;}public Display getDisplay(){return display;}public float getTransitionAlpha(){return alpha;}public void setTransitionAlpha(float a){alpha=a;}public void invalidate(){invalidates++;}
- public boolean isAttachedToWindow(){return attached;}public boolean isHardwareAccelerated(){return hardware;}public ViewTreeObserver getViewTreeObserver(){return observer;}
+ public boolean isAttachedToWindow(){return attached;}public boolean isShown(){return shown;}public int getWindowVisibility(){return windowVisibility;}public boolean isHardwareAccelerated(){return hardware;}public ViewTreeObserver getViewTreeObserver(){return observer;}
  public void postOnAnimation(Runnable r){nextFrame.add(r);}public void pulse(){var copy=new ArrayList<>(nextFrame);nextFrame.clear();for(var r:copy)r.run();}
 }''',
 'android/view/inspector/WindowInspector.java': 'package android.view.inspector;import android.view.View;import java.util.*;import java.util.function.Consumer;public class WindowInspector {public static List<View>views=new ArrayList<>();public static List<Consumer<List<View>>>listeners=new ArrayList<>();public static List<View>getGlobalWindowViews(){return views;}public static void addGlobalWindowViewsListener(java.util.concurrent.Executor e,Consumer<List<View>>l){listeners.add(l);}public static void removeGlobalWindowViewsListener(Consumer<List<View>>l){listeners.remove(l);}public static void notifyViews(){for(var l:new ArrayList<>(listeners))l.accept(views);}}',
@@ -43,6 +48,14 @@ import android.animation.*;import android.view.*;import android.view.inspector.*
 public class StatusFadeRegression {
  static int checks;static void check(boolean b,String why){checks++;if(!b)throw new AssertionError(why);}static boolean near(float a,float b){return Math.abs(a-b)<.00001;}
  static void nativeState(int display,int window,int state){try{var m=MiStepStatusBar.class.getDeclaredMethod("nativeWindowStateChanged",int.class,int.class,int.class);m.setAccessible(true);m.invoke(null,display,window,state);}catch(NoSuchMethodException old201){/* Replay the real old restoration behavior. */}catch(Exception e){throw new RuntimeException(e);}}
+ static void state(String field,Object value){try{var f=MiStepStatusBar.class.getDeclaredField(field);f.setAccessible(true);f.set(null,value);}catch(Exception e){throw new RuntimeException(e);}}
+ static void panelChanged(){try{var m=MiStepStatusBar.class.getDeclaredMethod("nativePanelChanged");m.setAccessible(true);m.invoke(null);}catch(Exception e){throw new RuntimeException(e);}}
+ static void endAll(){for(var a:new ArrayList<>(ValueAnimator.all))if(!a.cancelled&&!a.ended)a.end();}
+ public interface ExpansionApi {default float getExpansion(){return ((Expansion)this).expansion;}default float getBlurRatio(){return ((Expansion)this).blur;}default boolean getVisible(){return ((Expansion)this).visible;}}
+ public static class Expansion implements ExpansionApi {public float expansion=1,blur=1;public boolean visible=true;}
+ public static class Center {public Expansion e=new Expansion();public boolean expanded=true;public int collapses,expands;public Object getExpandController(){return e;}public boolean getExpanded(){return expanded;}public void collapse(boolean animate){check(animate,"native collapse must animate");collapses++;expanded=false;}public void expand(boolean animate){check(animate,"native expand must animate");expands++;expanded=true;e.expansion=1;e.blur=1;e.visible=true;}}
+ public static class Service {public int collapses,expands;public void collapsePanels(){collapses++;}public void expandNotificationsPanel(){expands++;}}
+ public static class ShadeContext {public Service service=new Service();public Object getSystemService(String name){check(name.equals("statusbar"),"only native statusbar service");return service;}}
  public static void main(String[]args){
   Handler handler=new Handler();List<String>errors=new ArrayList<>();MiStepStatusBar bar=new MiStepStatusBar(handler,message->{if(!message.startsWith("live status fade ")&&!message.startsWith("native status "))errors.add(message);});View view=new View();WindowInspector.views.add(view);Object originalParams=view.params;
   View foreign=new View();foreign.params.type=2038;View otherDisplay=new View();otherDisplay.display.id=2;WindowInspector.views.add(foreign);WindowInspector.views.add(otherDisplay);
@@ -74,6 +87,33 @@ public class StatusFadeRegression {
   bar.hideFor(one,()->{});ValueAnimator.latest().end();nativeState(0,1,2);bar.finish(one);bar.restore();check(near(view.alpha,.63f),"exit restores a native-hidden deferred alpha immediately");nativeState(0,1,0);check(near(view.alpha,.63f),"late native show after exit leaves the restored bar unchanged");
   bar.hideFor(one,()->{});ValueAnimator.latest().end();nativeState(0,1,2);for(var timeout:new ArrayList<>(handler.delayed))timeout.run();check(!bar.owns(one)&&view.alpha==0,"watchdog ends a timed out swap while native drawing stays hidden");nativeState(0,1,0);ValueAnimator.latest().end();check(near(view.alpha,.63f),"native show must restore alpha even when the lease ended through watchdog cleanup");
   check(WindowInspector.listeners.isEmpty()&&handler.delayed.isEmpty()&&errors.isEmpty(),"all listeners and watchdogs released without errors");
+  View island=new View();island.params.type=2009;island.params.title="DynamicIslandWindow";island.alpha=.72f;
+  View wrongIsland=new View();wrongIsland.params.type=2009;wrongIsland.params.title="OtherWindow";View distantIsland=new View();distantIsland.params.type=2009;distantIsland.params.title="DynamicIslandWindow";distantIsland.display.id=2;
+  WindowInspector.views=new ArrayList<>(List.of(view,island,wrongIsland,distantIsland));int[]overlayStarted={0};
+  Center center=new Center();state("nativeControlCenter",new java.lang.ref.WeakReference<Object>(center));
+  bar.hideFor(one,()->{});endAll();bar.runAfterHiddenFrame(one,()->overlayStarted[0]++);
+  check(view.alpha==0&&island.alpha==0,"bar and real island hidden before reparent");check(near(wrongIsland.alpha,.63f)&&near(distantIsland.alpha,.63f),"exact island title/type/default-display scope");
+  view.observer.commit();view.pulse();check(overlayStarted[0]==0,"status hidden frame alone cannot admit visible island");
+  island.observer.commit();island.pulse();check(overlayStarted[0]==0&&center.collapses==1,"island hidden frame still waits for real native collapse");
+  center.e.expansion=0;panelChanged();check(overlayStarted[0]==0,"zero expansion with remaining blur does not admit");
+  center.e.blur=0;panelChanged();check(overlayStarted[0]==0,"remaining visible panel does not admit");
+  center.e.visible=false;panelChanged();panelChanged();check(overlayStarted[0]==1,"fully collapsed native panel admits once after both overlays committed");
+  bar.finish(one);endAll();check(center.expands==0&&!center.expanded&&near(view.alpha,.63f)&&near(island.alpha,.72f),"native panel stays collapsed while status drawing and island restore on finish");
+  state("nativeControlCenter",new java.lang.ref.WeakReference<Object>(null));nativeState(0,1,2);
+  bar.hideFor(one,()->{});endAll();bar.finish(one);endAll();check(island.alpha==.72f&&view.alpha==0,"fullscreen status-bar policy cannot strand an independent island");nativeState(0,1,0);endAll();
+  WindowInspector.views=new ArrayList<>(List.of(island));island.shown=false;bar.hideFor(one,()->{});bar.runAfterHiddenFrame(one,()->overlayStarted[0]++);
+  check(island.alpha==0&&island.observer.pending==null&&overlayStarted[0]==2,"non-drawing island hides immediately and needs no impossible frame commit");
+  island.shown=true;WindowInspector.notifyViews();check(island.alpha==0,"island becoming visible during swap remains hidden");bar.finish(one);endAll();
+  center=new Center();state("nativeControlCenter",new java.lang.ref.WeakReference<Object>(center));WindowInspector.views=new ArrayList<>(List.of(view,island));
+  bar.hideFor(one,()->{});endAll();bar.runAfterHiddenFrame(one,()->overlayStarted[0]++);view.observer.commit();island.observer.commit();view.pulse();island.pulse();
+  bar.restore();center.e.expansion=0;center.e.blur=0;center.e.visible=false;panelChanged();check(center.expands==0&&overlayStarted[0]==2&&island.alpha==.72f,"lock/exit restores drawing but never reopens native panel or starts late swap");
+  center=new Center();state("nativeControlCenter",new java.lang.ref.WeakReference<Object>(center));bar.hideFor(one,()->{});endAll();for(var timeout:new ArrayList<>(handler.delayed))timeout.run();endAll();
+  check(!bar.owns(one)&&center.expands==0&&near(island.alpha,.72f),"watchdog leaves native panel collapsed and restores island even when expiry callback does nothing");
+  state("nativeControlCenter",new java.lang.ref.WeakReference<Object>(null));ShadeContext shade=new ShadeContext();state("nativeShadeContext",new java.lang.ref.WeakReference<Object>(shade));state("nativePanelExpanded",true);
+  bar.hideFor(one,()->{});endAll();bar.runAfterHiddenFrame(one,()->overlayStarted[0]++);view.observer.commit();island.observer.commit();view.pulse();island.pulse();
+  check(shade.service.collapses==1&&overlayStarted[0]==2,"native notification panel also collapses before swap");state("nativePanelExpanded",false);panelChanged();check(overlayStarted[0]==3,"native shade collapse callback admits");bar.finish(one);endAll();
+  check(shade.service.expands==0,"notification shade stays collapsed after swap too");state("nativeShadeContext",new java.lang.ref.WeakReference<Object>(null));
+  check(WindowInspector.listeners.isEmpty()&&handler.delayed.isEmpty()&&errors.isEmpty(),"overlay/native panel paths leave no listeners timers or errors");
   System.out.println("actual live status fade checks="+checks+" passed");
  }
 }'''
@@ -86,5 +126,5 @@ for name, body in files.items():
     paths.append(str(p))
 jdk = Path(os.environ["MISTEP_JAVA_BIN"])
 subprocess.run([str(jdk / 'javac.exe'), '-encoding', 'UTF-8', '--release', '17', '-d', str(out),
-                str(src / 'MiStepStatusBar.java'), str(src / 'SwapStatusBarLease.java'), *paths], check=True)
+                str(src / 'WindowRootsCompat.java'),str(src / 'MiStepStatusBar.java'), str(src / 'SwapStatusBarLease.java'), str(src / 'SwapPanelLease.java'), *paths], check=True)
 subprocess.run([str(jdk / 'java.exe'), '-cp', str(out), 'com.jiusis.mistep.StatusFadeRegression'], check=True)

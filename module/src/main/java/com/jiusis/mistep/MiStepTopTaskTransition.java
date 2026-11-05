@@ -3,9 +3,7 @@ package com.jiusis.mistep;
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.animation.ValueAnimator;
-import android.graphics.Bitmap;
 import android.graphics.Canvas;
-import android.graphics.Paint;
 import android.graphics.PixelFormat;
 import android.graphics.Rect;
 import android.view.Gravity;
@@ -23,18 +21,19 @@ final class MiStepTopTaskTransition {
     private final WindowManager windows;
     private final WindowManager.LayoutParams params;
     private final Face face;
-    private final Rect source, destination;
     private final int width, height;
-    private final Bitmap wallpaper;
     private final BooleanSupplier current;
     private final Runnable handoff;
     private final Consumer<MiStepTopTaskTransition> finished;
     private final Consumer<String> log;
-    private final boolean liveMainReveal;
     private Object liveSurface;
+    private View collectionView;
+    private BooleanSupplier collectionSourceCurrent;
+    private float collectionPivotX, collectionPivotY;
+    private float collectionScaleX, collectionScaleY;
+    private float collectionFrameScale=-1f;
     private Runnable nativeRestore;
     private boolean liveSurfaceAtEnd;
-    private Bitmap before, after;
     private ValueAnimator animator;
     private boolean attached, closed, firstDraw, collapsed, revealing;
     private final Runnable timeout=this::close;
@@ -43,24 +42,11 @@ final class MiStepTopTaskTransition {
         @Override public void onViewDetachedFromWindow(View view) {close();}
     };
 
-    MiStepTopTaskTransition(FrameLayout host,int width,int height,Rect source,Rect destination,
-            Bitmap wallpaper,Bitmap sourceSnapshot,BooleanSupplier current,Runnable handoff,
-            Consumer<MiStepTopTaskTransition> finished,Consumer<String> log) throws Throwable {
-        this(host,width,height,source,destination,wallpaper,sourceSnapshot,false,current,handoff,finished,log);
-    }
-
-    MiStepTopTaskTransition(FrameLayout host,int width,int height,Rect source,Rect destination,
-            Bitmap wallpaper,Bitmap sourceSnapshot,boolean liveMainReveal,BooleanSupplier current,Runnable handoff,
+    MiStepTopTaskTransition(FrameLayout host,int width,int height,
+            BooleanSupplier current,Runnable handoff,
             Consumer<MiStepTopTaskTransition> finished,Consumer<String> log) throws Throwable {
         this.host=host;this.width=width;this.height=height;
-        this.source=new Rect(source);this.destination=new Rect(destination);
-        this.wallpaper=wallpaper;this.current=current;this.handoff=handoff;
-        this.finished=finished;this.log=log;
-        this.liveMainReveal=liveMainReveal;
-        before=sourceSnapshot!=null && !sourceSnapshot.isRecycled()
-                ?sourceSnapshot.copy(Bitmap.Config.ARGB_8888,false)
-                :liveMainReveal?null:SwapPreview.captureRegion(host.getContext().getClassLoader(),width,height,source);
-        if(!liveMainReveal && before==null)throw new IllegalStateException("source snapshot unavailable");
+        this.current=current;this.handoff=handoff;this.finished=finished;this.log=log;
         face=new Face();
         windows=(WindowManager)host.getContext().getSystemService(android.content.Context.WINDOW_SERVICE);
         params=new WindowManager.LayoutParams(-1,-1,
@@ -82,14 +68,22 @@ final class MiStepTopTaskTransition {
         if(closed || attached)return;
         if(!current.getAsBoolean()) {close();return;}
         windows.addView(face,params);attached=true;
-        log.accept("upper center start source="+source+" destination="+destination);
+        log.accept("upper live center start");
         host.addOnAttachStateChangeListener(attachment);
         // A failed/late native handoff must never leave an input-blocking overlay behind.
         host.postDelayed(timeout,5000L);
     }
 
     void setLiveSurface(Object surface) {
-        if(liveMainReveal)liveSurface=surface;
+        liveSurface=surface;
+    }
+
+    void collect(Object surface,BooleanSupplier sourceCurrent,View destination) {
+        liveSurface=surface;
+        collectionSourceCurrent=sourceCurrent;
+        collectionView=destination;
+        collectionPivotX=destination.getPivotX();collectionPivotY=destination.getPivotY();
+        collectionScaleX=destination.getScaleX();collectionScaleY=destination.getScaleY();
     }
 
     void setNativeRestore(Runnable restore) {
@@ -97,15 +91,16 @@ final class MiStepTopTaskTransition {
         else nativeRestore=restore;
     }
 
-    private void shrink() {
-        if(liveMainReveal) handoff();
-        else animate(1f,0f,160L,this::handoff);
+    /** Keep geometry refreshes from exposing the destination before native admission. */
+    void applyCollectionFrame(View destination) {
+        if(!closed && collectionView==destination && collectionFrameScale>=0f)
+            applyCollectionScale(collectionFrameScale);
     }
 
     private void handoff() {
         if(closed || collapsed)return;
         collapsed=true;
-        log.accept(liveMainReveal?"upper roll finished; live main reveal handoff":"upper center collapsed; native handoff");
+        log.accept("upper roll finished; live main reveal handoff");
         if(!current.getAsBoolean()) {close();return;}
         try {handoff.run();}
         catch(Throwable error) {log.accept("upper center handoff: "+error);close();}
@@ -115,54 +110,42 @@ final class MiStepTopTaskTransition {
     void reveal() {
         if(closed || !collapsed || revealing)return;
         revealing=true;
-        if(liveMainReveal) {
-            if(!validLiveSurface()) {
-                log.accept("upper live main surface unavailable; skip center animation");
-                close();return;
-            }
-            face.expanding=true;
+        if(collectionView!=null) {
+            // Shell now owns the task matrix; animate only its original SurfaceView parent.
             animate(0f,1f,180L,()->{
-                applyLiveScale(1f);
-                log.accept("upper live main surface expanded");
+                log.accept("upper live collection expanded");
                 close();
             });
             return;
         }
-        host.postOnAnimation(()->host.postOnAnimation(()->{
-            if(closed)return;
-            if(!current.getAsBoolean()) {close();return;}
-            try {
-                Object root=XposedHelpers.callMethod(face,"getViewRootImpl");
-                Object surface=XposedHelpers.callMethod(root,"getSurfaceControl");
-                if(surface==null || !Boolean.TRUE.equals(XposedHelpers.callMethod(surface,"isValid")))
-                    throw new IllegalStateException("transition surface unavailable");
-                after=SwapPreview.captureRegion(host.getContext().getClassLoader(),width,height,destination,surface);
-                log.accept("upper center destination captured excluding transition");
-            } catch(Throwable error) {
-                // Secure/unsupported capture does not change native task ownership.
-                log.accept("upper destination capture unavailable: "+error);
-                close();return;
-            }
-            face.expanding=true;
-            animate(0f,1f,180L,()->{log.accept("upper center expanded");close();});
-        }));
+        if(!validLiveSurface()) {
+            log.accept("upper live main surface unavailable; skip center animation");
+            close();return;
+        }
+        animate(0f,1f,180L,()->{
+            applyLiveScale(1f);
+            log.accept("upper live main surface expanded");
+            close();
+        });
     }
 
     private void animate(float from,float to,long duration,Runnable end) {
         if(closed)return;
         ValueAnimator next=ValueAnimator.ofFloat(from,to);
-        animator=next;face.scale=from;
+        animator=next;
         next.setDuration(duration);
         next.setInterpolator(new AccelerateDecelerateInterpolator());
         next.addUpdateListener(value->{
             if(!current.getAsBoolean()) {close();return;}
             float fraction=(Float)value.getAnimatedValue();
-            if(liveMainReveal) {
-                if(!applyLiveScale(TopTaskReturnPolicy.revealScale(fraction))) {
+            if(collectionView!=null && revealing) {
+                // Zero until admission, then start moving immediately. A .14 hold
+                // exposed a miniature task during the asynchronous native handoff.
+                applyCollectionScale(fraction);
+            } else if(!applyLiveScale(TopTaskReturnPolicy.revealScale(fraction))) {
                     log.accept("upper live main surface transform failed; restoring full frame");
-                    close();return;
-                }
-            } else face.scale=fraction;
+                close();return;
+            }
             face.invalidate();
         });
         next.addListener(new AnimatorListenerAdapter() {
@@ -177,7 +160,11 @@ final class MiStepTopTaskTransition {
     void close() {
         if(closed)return;
         closed=true;
-        if(liveMainReveal && !liveSurfaceAtEnd)applyLiveScale(1f);
+        if(!liveSurfaceAtEnd)applyLiveScale(1f);
+        if(collectionView!=null) {
+            collectionView.setPivotX(collectionPivotX);collectionView.setPivotY(collectionPivotY);
+            collectionView.setScaleX(collectionScaleX);collectionView.setScaleY(collectionScaleY);
+        }
         Runnable restore=nativeRestore;nativeRestore=null;
         if(restore!=null)try {restore.run();}
         catch(Throwable error) {log.accept("upper live main state restore: "+error);}
@@ -190,15 +177,21 @@ final class MiStepTopTaskTransition {
             catch(Throwable error) {log.accept("upper transition removal: "+error);}
             attached=false;
         }
-        // RenderThread may still retain the last display list; let its bitmaps retire with it.
-        before=after=null;
         finished.accept(this);
     }
 
     private boolean validLiveSurface() {
         try {
-            return liveSurface!=null && Boolean.TRUE.equals(XposedHelpers.callMethod(liveSurface,"isValid"));
+            return (collectionSourceCurrent==null || collectionSourceCurrent.getAsBoolean())
+                    && liveSurface!=null && Boolean.TRUE.equals(XposedHelpers.callMethod(liveSurface,"isValid"));
         } catch(Throwable ignored) {return false;}
+    }
+
+    private void applyCollectionScale(float scale) {
+        collectionFrameScale=scale;
+        collectionView.setPivotX(collectionView.getWidth()*.5f);
+        collectionView.setPivotY(collectionView.getHeight()*.5f);
+        collectionView.setScaleX(scale);collectionView.setScaleY(scale);
     }
 
     private boolean applyLiveScale(float scale) {
@@ -225,35 +218,20 @@ final class MiStepTopTaskTransition {
     }
 
     private final class Face extends View {
-        private final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG|Paint.FILTER_BITMAP_FLAG);
-        float scale=1f;
-        boolean expanding;
         Face() {super(host.getContext());}
         @Override protected void onDraw(Canvas canvas) {
             super.onDraw(canvas);
-            if(!liveMainReveal) {
-                background(canvas,source);
-                background(canvas,destination);
-                Bitmap image=expanding?after:before;
-                Rect area=expanding?destination:source;
-                if(image!=null && !image.isRecycled() && scale>0f) {
-                    int saved=canvas.save();
-                    canvas.clipRect(area);
-                    canvas.scale(scale,scale,area.exactCenterX(),area.exactCenterY());
-                    canvas.drawBitmap(image,null,area,paint);
-                    canvas.restoreToCount(saved);
-                }
-            }
             if(!firstDraw) {
-                firstDraw=true;postOnAnimation(()->{if(!closed)shrink();});
+                firstDraw=true;postOnAnimation(()->{
+                    if(closed)return;
+                    if(collectionView==null)handoff();
+                    else MiStepTopTaskTransition.this.animate(1f,0f,160L,()->{
+                        applyCollectionScale(0f);
+                        log.accept("upper live main collapsed; collection handoff");
+                        handoff();
+                    });
+                });
             }
-        }
-        private void background(Canvas canvas,Rect area) {
-            int saved=canvas.save();canvas.clipRect(area);
-            if(wallpaper!=null && !wallpaper.isRecycled())
-                canvas.drawBitmap(wallpaper,null,new Rect(0,0,width,height),paint);
-            else canvas.drawColor(HyperOsStyle.page(getContext()));
-            canvas.restoreToCount(saved);
         }
     }
 }

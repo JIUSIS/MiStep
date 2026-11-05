@@ -2,7 +2,7 @@
 from pathlib import Path
 import os, subprocess, sys
 root=Path(__file__).resolve().parents[2]
-src=root/'module/src/main/java/com/jiusis/mistep'
+src=Path(os.environ.get('MISTEP_TRANSITION_SOURCE_ROOT',str(root)))/'module/src/main/java/com/jiusis/mistep'
 out=Path(sys.argv[1]);out.mkdir(parents=True,exist_ok=True)
 files={
 'android/content/Context.java':'''package android.content;public class Context {
@@ -22,20 +22,28 @@ files={
  public void drawBitmap(Bitmap b,Object from,Rect r,Paint p){bitmapDraws++;image=r;}}''',
 'android/view/SurfaceControl.java':'''package android.view;import android.graphics.Rect;public class SurfaceControl {
  public static class Transaction {
-  public static Transaction last;public float sx,sy,x,y;public Rect crop;public int applies,closes;
+  public static Transaction last;public Object surface;public float sx,sy,x,y;public Rect crop;public int applies,closes;
   public Transaction(){last=this;}
   public Transaction setPosition(Object s,float px,float py){x=px;y=py;return this;}
-  public Transaction setMatrix(Object s,float dsdx,float dtdx,float dsdy,float dtdy){sx=dsdx;sy=dtdy;return this;}
+  public Transaction setMatrix(Object s,float dsdx,float dtdx,float dsdy,float dtdy){surface=s;sx=dsdx;sy=dtdy;return this;}
   public Transaction setWindowCrop(Object s,Rect r){crop=r;return this;}
   public void apply(){applies++;}public void close(){closes++;}
  }}''',
 'android/view/View.java':'''package android.view;import java.util.*;import android.content.Context;import android.graphics.Canvas;
 public class View {
- public static final int GONE=8,IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS=4;
+ public static final int VISIBLE=0,INVISIBLE=4,GONE=8,IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS=4;
  public static final List<Runnable> frames=new ArrayList<>(),timers=new ArrayList<>();
  public interface OnAttachStateChangeListener {void onViewAttachedToWindow(View v);void onViewDetachedFromWindow(View v);}
  public interface Touch {boolean onTouch(View v,Object event);}
  private final Context ctx;public OnAttachStateChangeListener attachment;public int visibility;
+ public float pivotX,pivotY,scaleX=1,scaleY=1;
+ public int getWidth(){return 1080;}public int getHeight(){return 622;}
+ public float getPivotX(){return pivotX;}public float getPivotY(){return pivotY;}
+ public float getScaleX(){return scaleX;}public float getScaleY(){return scaleY;}
+ public void setPivotX(float f){pivotX=f;}public void setPivotY(float f){pivotY=f;}
+ public void setScaleX(float f){scaleX=f;}public void setScaleY(float f){scaleY=f;}
+ public void setTranslationY(float f){}public void setClipBounds(android.graphics.Rect r){}
+ public Object animate(){return null;}
  public View(Context c){ctx=c;}public Context getContext(){return ctx;}
  public void setOnTouchListener(Touch t){}public void setImportantForAccessibility(int x){}public void invalidate(){}
  public void setVisibility(int v){visibility=v;}protected void onDraw(Canvas c){}public void draw(Canvas c){onDraw(c);}
@@ -68,6 +76,8 @@ public class ValueAnimator extends Animator {
 }''',
 'android/view/animation/AccelerateDecelerateInterpolator.java':'''package android.view.animation;public class AccelerateDecelerateInterpolator {}''',
 'de/robv/android/xposed/XposedHelpers.java':'''package de.robv.android.xposed;import java.lang.reflect.*;public class XposedHelpers {
+ public static Object getObjectField(Object o,String n){try{Field f=o.getClass().getDeclaredField(n);f.setAccessible(true);return f.get(o);}catch(Exception e){throw new RuntimeException(e);}}
+ public static int getIntField(Object o,String n){return(Integer)getObjectField(o,n);}
  public static final Object surface=new Object();public static Object callMethod(Object o,String n,Object...args){
   if(n.equals("isValid"))return true;
   for(Method m:o.getClass().getMethods())if(m.getName().equals(n)&&m.getParameterCount()==args.length)
@@ -90,39 +100,22 @@ public class TopTransitionRegression {
  static void reset(){ValueAnimator.all.clear();View.frames.clear();View.timers.clear();SwapPreview.fail=false;SwapPreview.captures=0;
   handoffs=finishes=restores=0;Canvas.colorDraws=Canvas.bitmapDraws=0;android.view.SurfaceControl.Transaction.last=null;
   valid=new AtomicBoolean(true);ctx=new android.content.Context();host=new FrameLayout(ctx);}
- static MiStepTopTaskTransition make(boolean intoTop,Runnable transfer)throws Throwable {
-  return new MiStepTopTaskTransition(host,1080,2460,intoTop?main:upper,intoTop?upper:main,new Bitmap(),null,valid::get,
-   transfer,v->finishes++,s->{});}
- static ValueAnimator shrink(MiStepTopTaskTransition run){run.start();check(ValueAnimator.all.isEmpty(),"no animation before opaque first draw");
-  ctx.windows.view.draw(new Canvas());View.drain();check(ValueAnimator.all.size()==1,"one shrink animator");return ValueAnimator.all.get(0);}
+ static MiStepTopTaskTransition make(Runnable transfer)throws Throwable {
+  return new MiStepTopTaskTransition(host,1080,2460,valid::get,transfer,v->finishes++,s->{});}
+ static void handoff(MiStepTopTaskTransition run){run.start();check(ValueAnimator.all.isEmpty(),"no transform before native handoff");
+  ctx.windows.view.draw(new Canvas());View.drain();}
  public static void main(String[]args)throws Throwable {
-  for(boolean intoTop:new boolean[]{true,false}) {
-   reset();var run=make(intoTop,()->handoffs++);var shrink=shrink(run);
-   check(handoffs==0,"task ownership unchanged during shrink");shrink.step(.5f);Canvas c=new Canvas();ctx.windows.view.draw(c);
-   Rect from=intoTop?main:upper,to=intoTop?upper:main;
-   check(c.scale==.5f&&c.pivotX==from.exactCenterX()&&c.pivotY==from.exactCenterY(),"source collapses at its own center in both directions");
-   shrink.end();check(handoffs==1&&ValueAnimator.all.size()==1,"handoff exactly once, expansion waits for native callback");
-   run.reveal();run.reveal();View.drain();check(SwapPreview.captures==2&&SwapPreview.exclusion==de.robv.android.xposed.XposedHelpers.surface,"destination captured once excluding only transition");
-   check(ValueAnimator.all.size()==2,"one expansion despite duplicate completion");var expand=ValueAnimator.all.get(1);expand.step(.5f);
-   c=new Canvas();ctx.windows.view.draw(c);check(c.scale==.5f&&c.pivotX==to.exactCenterX()&&c.pivotY==to.exactCenterY(),"destination expands at its own center");
-   expand.end();run.close();run.reveal();View.drain();check(ctx.windows.removes==1&&finishes==1&&View.timers.isEmpty(),"one removal, no stale completion or timeout retained");
-  }
-  reset();var run=make(true,()->handoffs++);run.start();run.close();ctx.windows.view.draw(new Canvas());View.drain();
+  reset();var run=make(()->handoffs++);run.start();run.close();ctx.windows.view.draw(new Canvas());View.drain();
   check(handoffs==0&&ValueAnimator.all.isEmpty()&&finishes==1,"cancel before first draw never transfers a task");
-  reset();run=make(true,()->handoffs++);var shrink=shrink(run);valid.set(false);shrink.step(.5f);shrink.end();
-  check(handoffs==0&&ctx.windows.removes==1&&finishes==1,"scene loss mid-shrink cancels without a handoff");
-  reset();run=make(true,()->handoffs++);shrink(run).end();View.timers.get(0).run();run.reveal();View.drain();
-  check(handoffs==1&&finishes==1&&SwapPreview.captures==1,"timeout frees overlay and late native callback starts nothing");
-  reset();run=make(false,()->{throw new IllegalStateException("native refusal");});shrink(run).end();
+  reset();run=make(()->handoffs++);run.start();valid.set(false);ctx.windows.view.draw(new Canvas());View.drain();
+  check(handoffs==0&&ctx.windows.removes==1&&finishes==1,"scene loss before handoff frees input blocker");
+  reset();run=make(()->handoffs++);handoff(run);View.timers.get(0).run();run.reveal();
+  check(handoffs==1&&finishes==1&&ValueAnimator.all.isEmpty(),"timeout frees overlay and late native callback starts nothing");
+  reset();run=make(()->{throw new IllegalStateException("native refusal");});handoff(run);
   check(ctx.windows.removes==1&&finishes==1,"handoff exception frees input overlay");
-  reset();run=make(false,()->handoffs++);shrink(run).end();SwapPreview.fail=true;run.reveal();View.drain();
-  check(finishes==1&&ctx.windows.removes==1&&ValueAnimator.all.size()==1,"failed destination capture reveals native content without a wrong snapshot");
-  reset();run=make(true,()->handoffs++);run.start();host.attachment.onViewDetachedFromWindow(host);View.drain();
-  check(finishes==1&&handoffs==0&&ctx.windows.removes==1,"Host detach retires visual bridge");
-  reset();run=new MiStepTopTaskTransition(host,1080,2460,upper,main,new Bitmap(),new Bitmap(),valid::get,
-   ()->handoffs++,v->finishes++,s->{});shrink(run).end();run.reveal();View.drain();
-  check(SwapPreview.captures==1&&handoffs==1,"roll return uses its original task snapshot, not the restored control face");run.close();
-  reset();run=new MiStepTopTaskTransition(host,1080,2460,main,main,null,null,true,valid::get,
+  reset();run=make(()->handoffs++);run.start();host.attachment.onViewDetachedFromWindow(host);View.drain();
+  check(finishes==1&&handoffs==0&&ctx.windows.removes==1,"Host detach retires live bridge");
+  reset();run=new MiStepTopTaskTransition(host,1080,2460,valid::get,
    ()->handoffs++,v->finishes++,s->{});run.start();ctx.windows.view.draw(new Canvas());View.drain();
   check(handoffs==1&&SwapPreview.captures==0&&Canvas.colorDraws==0&&Canvas.bitmapDraws==0,
    "live center handoff draws neither wallpaper nor a bitmap snapshot");
@@ -139,16 +132,16 @@ public class TopTransitionRegression {
   liveExpand.end();tx=android.view.SurfaceControl.Transaction.last;
   check(tx.sx==1f&&tx.x==0f&&tx.y==0f&&ctx.windows.removes==1&&finishes==1,
    "completed live reveal restores identity transform and removes the touch blocker");
-  reset();run=new MiStepTopTaskTransition(host,1080,2460,main,main,null,null,true,valid::get,
+  reset();run=new MiStepTopTaskTransition(host,1080,2460,valid::get,
    ()->handoffs++,v->finishes++,s->{});run.start();ctx.windows.view.draw(new Canvas());View.drain();
   run.setLiveSurface(new Object());run.reveal();var cancelExpand=ValueAnimator.all.get(0);cancelExpand.step(.4f);run.close();
   check(android.view.SurfaceControl.Transaction.last.sx==1f&&ctx.windows.removes==1&&finishes==1,
    "cancelled live reveal restores the application surface before retiring the overlay");
-  reset();run=new MiStepTopTaskTransition(host,1080,2460,main,main,null,null,true,valid::get,
+  reset();run=new MiStepTopTaskTransition(host,1080,2460,valid::get,
    ()->handoffs++,v->finishes++,s->{});run.start();ctx.windows.view.draw(new Canvas());View.drain();run.reveal();
   check(ctx.windows.removes==1&&finishes==1&&ValueAnimator.all.isEmpty(),"missing live surface skips animation and releases the blocker");
   for(int reason=0;reason<4;reason++) {
-   reset();run=new MiStepTopTaskTransition(host,1080,2460,main,main,null,null,true,valid::get,
+   reset();run=new MiStepTopTaskTransition(host,1080,2460,valid::get,
     ()->handoffs++,v->finishes++,s->{});
    run.setNativeRestore(()->restores++);run.start();ctx.windows.view.draw(new Canvas());View.drain();
    if(reason==0) {run.setLiveSurface(new Object());run.reveal();ValueAnimator.all.get(0).end();}
@@ -158,6 +151,45 @@ public class TopTransitionRegression {
    run.close();
    check(restores==1&&finishes==1,"native visibility policy restored exactly once on completion/cancel/timeout/no-surface "+reason);
    check(Canvas.colorDraws==0&&Canvas.bitmapDraws==0&&SwapPreview.captures==0,"no captured or wallpaper layer on live return "+reason);
+  }
+  reset();AtomicBoolean sourceCurrent=new AtomicBoolean(true);View destination=new View(ctx);
+  Object source=new Object();run=make(()->handoffs++);run.collect(source,sourceCurrent::get,destination);
+  handoff(run);
+  check(handoffs==0&&ValueAnimator.all.size()==1,"collection waits for actual main task collapse");
+  var shrink=ValueAnimator.all.get(0);shrink.step(.5f);
+  tx=android.view.SurfaceControl.Transaction.last;
+  check(tx.surface==source&&Math.abs(tx.sx-.57f)<.001f&&destination.scaleX==1,
+   "collection halfway moves only the canonical fullscreen task");
+  shrink.end();tx=android.view.SurfaceControl.Transaction.last;
+  check(handoffs==1&&Math.abs(tx.sx-.14f)<.001f&&destination.scaleX==0&&destination.scaleY==0,
+   "native admission wait never exposes a miniature destination task");
+  sourceCurrent.set(false);run.reveal();
+  check(ValueAnimator.all.size()==2&&destination.pivotX==540&&destination.pivotY==311,
+   "confirmed target restores its expansion around the actual TaskView center");
+  var expand=ValueAnimator.all.get(1);
+  check(destination.scaleX==0&&destination.scaleY==0,"destination remains zero size through the first expansion frame");
+  expand.step(.5f);
+  check(Math.abs(destination.scaleX-.5f)<.001f&&Math.abs(destination.scaleY-.5f)<.001f
+   &&android.view.SurfaceControl.Transaction.last==tx,"target animation never overwrites the new native task matrix");
+  expand.end();
+  check(destination.scaleX==1&&destination.scaleY==1&&destination.pivotX==0&&destination.pivotY==0
+   &&finishes==1&&ctx.windows.removes==1,"collection completes with original view geometry and no input blocker");
+  check(SwapPreview.captures==0&&Canvas.colorDraws==0&&Canvas.bitmapDraws==0,"collection renders only actual app surfaces");
+  for(int reason=0;reason<5;reason++) {
+   reset();sourceCurrent=new AtomicBoolean(true);destination=new View(ctx);source=new Object();
+   run=make(()->handoffs++);run.collect(source,sourceCurrent::get,destination);handoff(run);
+   shrink=ValueAnimator.all.get(0);shrink.step(.4f);
+   if(reason==0)run.close();
+   else if(reason==1)View.timers.get(0).run();
+   else if(reason==2){valid.set(false);shrink.step(.5f);}
+   else if(reason==3){sourceCurrent.set(false);tx=android.view.SurfaceControl.Transaction.last;shrink.step(.5f);
+    check(android.view.SurfaceControl.Transaction.last==tx,"changed source role is never reset through its new owner");}
+   else {shrink.end();sourceCurrent.set(false);tx=android.view.SurfaceControl.Transaction.last;run.reveal();ValueAnimator.all.get(1).step(.4f);run.close();
+    check(android.view.SurfaceControl.Transaction.last==tx,"cancelled target keeps the native fitted matrix");}
+   check(finishes==1&&destination.scaleX==1&&destination.scaleY==1&&ctx.windows.removes==1,
+    "collection cancel/timeout/scene-loss/role-change/target-cancel restores original view "+reason);
+   if(reason<3)check(android.view.SurfaceControl.Transaction.last.sx==1&&handoffs==0,
+    "interrupted source collapse restores fullscreen before any native transfer "+reason);
   }
   System.out.println("Production upper center transition checks="+checks+" passed (visual timing still needs device)");
  }
@@ -171,3 +203,109 @@ paths.append(str(src/'TopTaskReturnPolicy.java'))
 jdk=Path(os.environ['MISTEP_JAVA_BIN'])
 subprocess.run([str(jdk/'javac.exe'),'-encoding','UTF-8','--release','17','-d',str(out),*paths],check=True)
 subprocess.run([str(jdk/'java.exe'),'-cp',str(out),'com.jiusis.mistep.TopTransitionRegression'],check=True)
+
+host=Path(os.environ.get('MISTEP_COLLECT_HOST_SOURCE',str(src/'MiStepHost.java'))).read_text(encoding='utf-8-sig')
+def member(signature):
+    start=host.index(signature)
+    end=host.index('{',start)+1;depth=1
+    while depth:
+        depth+=(host[end]=='{')-(host[end]=='}');end+=1
+    return host[start:end]
+host_body='''package com.jiusis.mistep;
+import android.view.*;import android.widget.*;import android.graphics.Rect;import java.util.function.*;import de.robv.android.xposed.XposedHelpers;
+public class MiStepHost {
+ static final int SLOT_TOP=4,ACTIVE=1;static int checks;int scene=ACTIVE,screenW=1080,screenH=2460;
+ boolean screenOn=true,keyguardLocked,suspendRequested,topFace=true;long sceneEpoch=1;int claimed,finished;
+ android.content.Context ctx=new android.content.Context();FrameLayout root=new FrameLayout(ctx);
+ View topBar=new View(ctx),topTaskPane=new View(ctx);Roll topRoll=new Roll();Layout layout=new Layout();
+ static class Roll {boolean rolling(){return false;}boolean showingTask(){return true;}}
+ static class Layout {int topStrip=622;}
+ static class TopRollMotion {static class Frame {float frontScale=0,taskScale=1,frontTop,taskTop;}}
+ void updateCellSurfaceVisibility(Slot upper){}
+ MiStepTopTaskTransition topTransition;TopTaskState topTaskState=new TopTaskState();int opacityWrites;boolean translucent,failOpacity;
+ static class Slot {View view;Object controller;boolean occupied;}
+ static class Task {int id=42;Object token="token";boolean matches(Object o){return o instanceof Info&&((Info)o).taskId==id&&token.equals(((Info)o).token);}}
+ static class TopCandidate {Task task=new Task();TopTaskState.Key key=new TopTaskState.Key(42,0,"token");}
+ public static class Info {public int taskId=42,userId,mode=1;public Object token="token";boolean visible=true;}
+ public static class Entry {Info info=new Info();Object leash=new Object();public Object getLeash(){return leash;}public Object getTaskInfo(){return info;}}
+ public static class Organizer {Object mLock=new Object();android.util.SparseArray<Entry> mTasks=new android.util.SparseArray<>();}
+ public static class Controller {Object mTaskOrganizer;}
+ Slot[] slots={new Slot(),new Slot(),new Slot(),new Slot(),new Slot()};TopCandidate selected=new TopCandidate();
+ MiStepHost(){Controller c=new Controller();Organizer o=new Organizer();o.mTasks.put(42,new Entry());c.mTaskOrganizer=o;
+  slots[4].controller=c;slots[4].view=new View(ctx);}
+ Entry entry(){return ((Organizer)((Controller)slots[4].controller).mTaskOrganizer).mTasks.get(42);}
+ Object rootInfo(Task task){return entry().info;}
+ boolean applyWct(String what,Object wct){opacityWrites++;if(failOpacity)return false;
+  translucent=((android.window.WindowContainerTransaction)wct).translucent;return true;}
+ TopCandidate currentTopCandidate(){return selected;}boolean topReady(){return true;}
+ boolean ordinaryRoot(Object o,int mode){return o instanceof Info&&((Info)o).mode==mode;}
+ boolean mainTaskVisible(Object o){return ((Info)o).visible;}
+ void claimTopTask(TopCandidate c,boolean manual){claimed++;}void finishPendingSuspend(){finished++;}
+ void cancelTopTaskTransition(){if(topTransition!=null)topTransition.close();}static void log(String s){}
+ static void check(boolean b,String m){checks++;if(!b)throw new AssertionError(m);}
+'''+member('    private void captureMainIntoTop(')
+for signature in ('    private boolean startTopCollectionTransition(',
+                  '    private boolean topCollectionSourceCurrent(',
+                  '    private boolean setTopCollectionTranslucent('):
+    if signature in host:host_body+=member(signature)
+for signature in ('    private boolean startTopTaskTransition(boolean intoTop, Runnable transfer)',
+                  '    private boolean startTopTaskTransition(boolean intoTop, boolean liveMainReveal, Runnable transfer)'):
+    host_body+=member(signature)
+signature='    private boolean startTopTaskTransition(boolean intoTop, boolean liveMainReveal, Runnable transfer,'
+if signature in host:host_body+=member(signature)
+host_body+=member('    private void renderTopRollFrame(')
+host_body+='''public static void main(String[]args){
+ ValueAnimatorReset();MiStepHost h=new MiStepHost();h.captureMainIntoTop();
+ check(h.topTransition!=null&&h.claimed==0,"actual main capture starts the live bridge before claiming");
+ check(h.translucent&&h.opacityWrites==1,"source reveals the actual underlying task before it is shrunk");
+ h.ctx.windows.view.draw(new android.graphics.Canvas());View.drain();
+ check(android.animation.ValueAnimator.all.size()==1&&h.claimed==0,"production admission waits for source collapse");
+ android.animation.ValueAnimator.all.get(0).end();check(h.claimed==1,"production admission claims exactly once after collapse");
+ check(h.slots[4].view.scaleX==0&&h.slots[4].view.scaleY==0,"production handoff keeps target zero size while native admission waits");
+ h.renderTopRollFrame(new TopRollMotion.Frame());
+ check(h.slots[4].view.scaleX==0&&h.slots[4].view.scaleY==0,"production geometry refresh cannot expose the waiting miniature");
+ h.entry().info.mode=6;h.topTransition.reveal();
+ check(android.animation.ValueAnimator.all.size()==2,"native admission restores the real destination expansion");
+ android.animation.ValueAnimator.all.get(1).step(.5f);h.renderTopRollFrame(new TopRollMotion.Frame());
+ check(h.slots[4].view.scaleX==.5f&&h.slots[4].view.scaleY==.5f,"production geometry refresh preserves the moving destination frame");
+ android.animation.ValueAnimator.all.get(1).end();
+ check(h.topTransition==null&&h.finished==1,"production completion releases its own transition");
+ check(h.opacityWrites==1&&h.translucent,"new native TOP ownership keeps its own translucent policy");
+ for(int mutation=0;mutation<6;mutation++){
+  ValueAnimatorReset();h=new MiStepHost();
+  switch(mutation){case 0:h.entry().info.userId=999;break;case 1:h.entry().info.token="other";break;
+   case 2:h.entry().info.taskId=43;break;case 3:h.entry().info.mode=6;break;case 4:h.entry().info.visible=false;break;
+   case 5:h.slots[4].view=null;break;}
+  h.captureMainIntoTop();check(h.topTransition==null&&android.animation.ValueAnimator.all.isEmpty(),"invalid source cannot acquire an animation surface "+mutation);
+ }
+ ValueAnimatorReset();h=new MiStepHost();h.captureMainIntoTop();h.ctx.windows.view.draw(new android.graphics.Canvas());View.drain();
+ android.animation.ValueAnimator.all.get(0).step(.4f);h.entry().leash=new Object();
+ var tx=android.view.SurfaceControl.Transaction.last;android.animation.ValueAnimator.all.get(0).step(.6f);
+ check(h.claimed==0&&h.topTransition==null&&android.view.SurfaceControl.Transaction.last==tx,
+  "canonical replacement interrupts before handoff and never resets the replacement");
+ check(!h.translucent&&h.opacityWrites==2,"cancelled fullscreen source regains its native opacity even after canonical replacement");
+ ValueAnimatorReset();h=new MiStepHost();h.captureMainIntoTop();h.topTransition.close();
+ check(!h.translucent&&h.opacityWrites==2,"cancel before first draw restores temporary translucency");
+ ValueAnimatorReset();h=new MiStepHost();h.captureMainIntoTop();View.timers.get(0).run();
+ check(!h.translucent&&h.opacityWrites==2,"watchdog restores temporary source translucency");
+ ValueAnimatorReset();h=new MiStepHost();h.failOpacity=true;h.captureMainIntoTop();
+ check(h.topTransition==null&&android.animation.ValueAnimator.all.isEmpty(),"failed translucency preparation never starts source shrinking");
+ System.out.println("Production Host collection entry checks="+checks+" passed");
+ }
+ static void ValueAnimatorReset(){android.animation.ValueAnimator.all.clear();View.frames.clear();View.timers.clear();}
+}'''
+extra={
+ 'com/jiusis/mistep/MiStepHost.java':host_body,
+ 'android/util/SparseArray.java':'''package android.util;public class SparseArray<T>{
+ java.util.Map<Integer,T>m=new java.util.HashMap<>();public T get(int i){return m.get(i);}public void put(int i,T v){m.put(i,v);}}''',
+ 'android/widget/Toast.java':'''package android.widget;public class Toast {public static final int LENGTH_SHORT=0;
+ public static Toast makeText(Object c,String s,int d){return new Toast();}public void show(){}}''',
+ 'android/window/WindowContainerTransaction.java':'''package android.window;public class WindowContainerTransaction {
+ public boolean translucent;public void setForceTranslucent(Object token,boolean value){translucent=value;}}'''
+}
+extra_paths=[]
+for name,text in extra.items():
+    p=out/name;p.parent.mkdir(parents=True,exist_ok=True);p.write_text(text,encoding='utf8');extra_paths.append(str(p))
+subprocess.run([str(jdk/'javac.exe'),'-encoding','UTF-8','--release','17','-cp',str(out),'-d',str(out),
+                *extra_paths,str(src/'TopTaskState.java')],check=True)
+subprocess.run([str(jdk/'java.exe'),'-cp',str(out),'com.jiusis.mistep.MiStepHost'],check=True)

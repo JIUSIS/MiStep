@@ -15,6 +15,7 @@ files = {
 'android/os/Looper.java': 'package android.os;public class Looper{public static Looper getMainLooper(){return new Looper();}}',
 'android/os/Handler.java': 'package android.os;public class Handler{public Handler(Looper l){}public void post(Runnable r){r.run();}}',
 'android/view/View.java': 'package android.view;public class View{}',
+'android/view/CompositionSamplingListener.java':'package android.view;public class CompositionSamplingListener {}',
 'de/robv/android/xposed/XC_MethodHook.java': '''package de.robv.android.xposed;public abstract class XC_MethodHook{
  protected void beforeHookedMethod(MethodHookParam p)throws Throwable{}protected void afterHookedMethod(MethodHookParam p)throws Throwable{}
  public void before(MethodHookParam p)throws Throwable{beforeHookedMethod(p);}public void after(MethodHookParam p)throws Throwable{afterHookedMethod(p);}
@@ -25,6 +26,8 @@ files = {
  public static void hookAllConstructors(Class<?>c,XC_MethodHook h){hookAllMethods(c,"<init>",h);}
 }''',
 'de/robv/android/xposed/XposedHelpers.java': '''package de.robv.android.xposed;import java.util.*;public class XposedHelpers{
+ public static void setBooleanField(Object o,String n,boolean v){try{java.lang.reflect.Field f=o.getClass().getDeclaredField(n);f.setAccessible(true);f.setBoolean(o,v);}catch(Exception e){throw new IllegalStateException(n,e);}}
+
  public static Map<String,XC_MethodHook>hooks=new HashMap<>();public static Class<?>findClass(String n,ClassLoader l){try{return Class.forName(n);}catch(Exception e){throw new RuntimeException(e);}}
  public static void findAndHookMethod(Class<?>c,String n,Object...args){hooks.put(c.getName()+"."+n,(XC_MethodHook)args[args.length-1]);}
  public static Object getObjectField(Object o,String n){try{return o.getClass().getField(n).get(o);}catch(Exception e){throw new RuntimeException(e);}}
@@ -36,7 +39,7 @@ public class InputConsumerImpl{public String mName="recents_animation_input_cons
  public static class Handle{public int displayId;}public static class Surface{public boolean valid=true;public boolean isValid(){return valid;}}
 }''',
 'com/android/wm/shell/shared/handles/RegionSamplingHelper.java': '''package com.android.wm.shell.shared.handles;
-public class RegionSamplingHelper{public Object mCallback;public int updates;public boolean enabled;
+public class RegionSamplingHelper{public Object mCallback;public Object mSamplingListener=new Object();public int updates;public boolean enabled;
  public void updateSamplingRect(){updates++;} }
 ''',
 'com/miui/systemui/statusbar/core/StatusBarRegionSamplingInteractor$regionSamplingHelper$1.java': '''package com.miui.systemui.statusbar.core;import android.graphics.Rect;
@@ -89,8 +92,14 @@ public class HandoffRegression{
   var unrelated=new RegionSamplingHelper();unrelated.mCallback=new Object();started=invoke("com.android.wm.shell.shared.handles.RegionSamplingHelper.start",unrelated,null,logical);
   check(started.args[0]==logical,"navigation and unrelated native samplers untouched");
   MiStepStatusBarSampling.geometryChanged();check(helper.updates==1&&!helper.enabled,"refresh retargets native helper without enabling a paused sampler");
+  Object stop=new Object();String register="android.view.CompositionSamplingListener.register";
+  var sampled=invoke(register,null,null,helper.mSamplingListener,0,stop,sample);check(sampled.args[2]==null,"owned native sampler retained hidden Home stop layer");check(sampled.args[3]==sample,"registered physical sample rectangle changed");
+  sampled=invoke(register,null,null,new Object(),0,stop,sample);check(sampled.args[2]==stop,"foreign sampler stop layer changed");
+  sampled=invoke(register,null,null,helper.mSamplingListener,1,stop,sample);check(sampled.args[2]==stop,"foreign display sampler changed");
+
   MiStepHost.geometry=null;sample=(Rect)invoke(cb+".getSampledRegion",callback,logical,new android.view.View()).result;
   check(sample==logical,"exit/keyguard returns native coordinates");
+  sampled=invoke(register,null,null,helper.mSamplingListener,0,stop,logical);check(sampled.args[2]==stop,"exit failed to restore native sampling stop layer");
   check(MiStepStatusBarSampling.physical(logical,new float[]{Float.NaN,0,0})==logical,"invalid geometry rejected");
   check(MiStepStatusBarSampling.physical(new Rect(1,1,1,1),new float[]{.75f,600,0}).isEmpty(),"empty sampling region remains empty");
   System.out.println("actual recents input/native status sampling hook checks="+checks+" passed");
@@ -102,5 +111,5 @@ for name, text in files.items():
 jdk=Path(os.environ["MISTEP_JAVA_BIN"])
 subprocess.run([str(jdk/'javac.exe'),'-encoding','UTF-8','--release','17','-d',str(out)]+
                [str(out/name) for name in files]+[str(src/name) for name in
-                ['MiStepRecentsInput.java','MiStepStatusBarSampling.java']],check=True)
+                ['ShellCompat.java','MiStepRecentsInput.java','MiStepStatusBarSampling.java']],check=True)
 subprocess.run([str(jdk/'java.exe'),'-cp',str(out),'com.jiusis.mistep.HandoffRegression'],check=True)

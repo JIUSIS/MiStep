@@ -52,7 +52,8 @@ public class WorkspaceRegression {
  static class SystemClock {static long uptimeMillis(){return 10000;}}
  static class Promotion {boolean nativeSwap,cancelled;}
  static final int ACTIVE=1,RESUMING=2,SUSPENDING=3,SUSPENDED=4,SLOT_COUNT=4,SLOT_MAIN=0,SLOT_TOP=4;static final long ZOOM_ANIM_MS=300;
- FrameLayout root=new FrameLayout();View topBar=new View(),topStripBacking=new View(),topTaskPane=new View();boolean topFace;View[]sideBackingViews={null,new View(),new View(),new View()};Slot[]slots={new Slot(),new Slot(),new Slot(),new Slot()};
+ FrameLayout root=new FrameLayout();View topBar=new View(),topStripBacking=new View(),topTaskPane=new View();boolean topFace;Roll topRoll;View[]sideBackingViews={null,new View(),new View(),new View()};Slot[]slots={new Slot(),new Slot(),new Slot(),new Slot()};
+ static class Roll{boolean rolling(){return false;}boolean showingTask(){return false;}}
  static class CellMotion{void finish(){}}
  Queue main=new Queue();Object ctx=new Object();CellMotion cellMotion;StatusBar statusBar=new StatusBar();Promotion promotion;Bitmap mainBackdrop,wallpaperBackdrop=new Bitmap();
   boolean screenOn=true,zoomed=true,suspendRequested,landscapeSuspended,transferBusy,workspaceEntering;int scene=ACTIVE,zoomWrites,parks,returns,ready;long sceneEpoch=1,workspaceGeneration,zoomAnimUntil;

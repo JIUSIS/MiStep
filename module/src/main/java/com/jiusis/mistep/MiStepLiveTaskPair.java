@@ -74,26 +74,45 @@ final class MiStepLiveTaskPair {
     }
     private Object owner(Object info) { return XposedHelpers.callMethod(organizer, "getTaskListener", info, false); }
     private Object listeners() { return XposedHelpers.getObjectField(organizer, "mTaskListeners"); }
+    private boolean refuse(String reason) {
+        log.accept("live pair preflight refused A=" + firstId + " B=" + secondId + ": " + reason);
+        return false;
+    }
+    private static String identity(Object value) {
+        return value == null ? "null" : value.getClass().getName() + "@"
+                + Integer.toHexString(System.identityHashCode(value));
+    }
 
     boolean preflight() {
         synchronized (lock) {
-            if (closed || armed) return false;
+            if (closed || armed) return refuse("closed=" + closed + " armed=" + armed);
             try {
                 valid(displayParent); valid(sideParent);
-                if (!Boolean.TRUE.equals(XposedHelpers.getObjectField(controller, "mSurfaceCreated"))) return false;
+                Object created = XposedHelpers.getObjectField(controller, "mSurfaceCreated");
+                if (!Boolean.TRUE.equals(created)) return refuse("surfaceCreated=" + created);
                 Object a = info(firstId, firstToken, firstUserId, 1), b = info(secondId, secondToken, secondUserId, 6);
                 Object fallback = XposedHelpers.callMethod(listeners(), "get", -2);
-                if (fallback == null || owner(a) != fallback || owner(b) != controller
-                        || XposedHelpers.callMethod(listeners(), "get", firstId) != null
-                        || XposedHelpers.callMethod(listeners(), "get", secondId) != controller
-                        || !secondToken.equals(XposedHelpers.getObjectField(controller, "mTaskToken"))) return false;
+                if (fallback == null) return refuse("fullscreen fallback absent");
+                Object firstOwner = owner(a), secondOwner = owner(b);
+                if (firstOwner != fallback) return refuse("first owner=" + identity(firstOwner)
+                        + " fallback=" + identity(fallback));
+                if (secondOwner != controller) return refuse("second owner=" + identity(secondOwner)
+                        + " controller=" + identity(controller));
+                Object firstListener = XposedHelpers.callMethod(listeners(), "get", firstId);
+                if (firstListener != null) return refuse("first explicit listener=" + identity(firstListener));
+                Object secondListener = XposedHelpers.callMethod(listeners(), "get", secondId);
+                if (secondListener != controller) return refuse("second explicit listener=" + identity(secondListener)
+                        + " controller=" + identity(controller));
+                if (!secondToken.equals(XposedHelpers.getObjectField(controller, "mTaskToken")))
+                    return refuse("controller token differs");
                 List<?> pending = (List<?>) XposedHelpers.getObjectField(taskViews, "mPending");
-                if (!pending.isEmpty()) return false;
+                if (!pending.isEmpty()) return refuse("taskView pending=" + pending.size());
                 // removeListener(controller) is allowed only when it owns exactly B.
                 int size = (Integer) XposedHelpers.callMethod(listeners(), "size");
                 for (int i = 0; i < size; i++) {
                     if (XposedHelpers.callMethod(listeners(), "valueAt", i) == controller
-                            && !Integer.valueOf(secondId).equals(XposedHelpers.callMethod(listeners(), "keyAt", i))) return false;
+                            && !Integer.valueOf(secondId).equals(XposedHelpers.callMethod(listeners(), "keyAt", i)))
+                        return refuse("controller also owns listener key=" + XposedHelpers.callMethod(listeners(), "keyAt", i));
                 }
                 firstCanonical = canonical(firstId); secondCanonical = canonical(secondId);
                 return true;
@@ -124,7 +143,7 @@ final class MiStepLiveTaskPair {
                             if (args != null && args.length > 0
                                     && firstToken.equals(XposedHelpers.getObjectField(args[0], "token"))
                                     && XposedHelpers.callMethod(listeners(), "get", firstId) == temporaryFirstOwner)
-                                XposedHelpers.callMethod(organizer, "removeListener", temporaryFirstOwner);
+                                ShellCompat.call(organizer, "removeListener", temporaryFirstOwner);
                         } catch (Throwable error) { log.accept("vanished temporary lease cleanup: " + error); }
                         return null;
                     case "attachChildSurfaceToTask":
@@ -143,7 +162,7 @@ final class MiStepLiveTaskPair {
                 }
             });
             armed = true;
-            XposedHelpers.callMethod(organizer, "addListenerForTaskId", temporaryFirstOwner, firstId);
+            ShellCompat.call(organizer, "addListenerForTaskId", temporaryFirstOwner, firstId);
             if (owner(info(firstId, firstToken, firstUserId, 1)) != temporaryFirstOwner)
                 throw new IllegalStateException("A lease was rejected by native owner");
         }
@@ -185,8 +204,8 @@ final class MiStepLiveTaskPair {
         return wct;
     }
 
-    private static void set(Object wct, String name, Object token, Object value) {
-        XposedHelpers.callMethod(wct, name, token, value);
+    private void set(Object wct, String name, Object token, Object value) {
+        ShellCompat.transaction(organizer, wct, name, token, value);
     }
 
     /** Explicit inverse roles for a pending cancellation; no replacement organizer is registered. */
@@ -249,29 +268,29 @@ final class MiStepLiveTaskPair {
                 XposedHelpers.callMethod(taskViews, "unregisterTaskView", controller);
                 try {
                     if (owner(a) != controller) throw new IllegalStateException("rollback A owner changed");
-                    XposedHelpers.callMethod(organizer, "removeListener", controller);
+                    ShellCompat.call(organizer, "removeListener", controller);
                     XposedHelpers.callMethod(controller, "onTaskVanished", a);
                 } finally {
                     XposedHelpers.callMethod(taskViews, "registerTaskView", controller);
                     repositoryRegistered = true;
                 }
             }
-            if (owner(a) == temporaryFirstOwner) XposedHelpers.callMethod(organizer, "removeListener", temporaryFirstOwner);
+            if (owner(a) == temporaryFirstOwner) ShellCompat.call(organizer, "removeListener", temporaryFirstOwner);
             token = XposedHelpers.getObjectField(controller, "mTaskToken");
             if (!secondToken.equals(token)) {
                 if (token != null || XposedHelpers.callMethod(listeners(), "get", secondId) != null)
                     throw new IllegalStateException("rollback B owner occupied");
-                XposedHelpers.callMethod(organizer, "addListenerForTaskId", controller, secondId);
+                ShellCompat.call(organizer, "addListenerForTaskId", controller, secondId);
             }
             if (owner(b) != controller) throw new IllegalStateException("rollback B claim rejected");
             if (finishWct == null)
                 finishWct = newWindowContainerTransaction();
             // prepareOpen(false) on this ROM may append hidden=true even after onTaskAppeared.
-            XposedHelpers.callMethod(taskViews, "prepareOpenAnimation", controller,
+            ShellCompat.call(taskViews, "prepareOpenAnimation", controller,
                     true, tx, tx, b, canonical(secondId), finishWct);
             set(finishWct, "setHidden", firstToken, false);
             set(finishWct, "setHidden", secondToken, false);
-            XposedHelpers.callMethod(taskViews, "updateVisibilityState", controller, true);
+            ShellCompat.call(taskViews, "updateVisibilityState", controller, true);
             finalSurface(tx, canonical(firstId), displayParent, 1f, false);
             finalSurface(tx, canonical(secondId), sideParent, sideScale, true);
             retiredSecond = false; detachedSecond = false; transferred = false;
@@ -285,7 +304,7 @@ final class MiStepLiveTaskPair {
 
     private void releaseOriginalLease() {
         if (!retiredSecond && owner(info(firstId, firstToken, firstUserId, 1)) == temporaryFirstOwner)
-            XposedHelpers.callMethod(organizer, "removeListener", temporaryFirstOwner);
+            ShellCompat.call(organizer, "removeListener", temporaryFirstOwner);
     }
 
     /** Exact Change == canonical layer evidence is rechecked for each submitted pair. */
@@ -359,7 +378,7 @@ final class MiStepLiveTaskPair {
                             throw new IllegalStateException("pair ownership changed before claim");
                         repositoryRegistered = false;
                         XposedHelpers.callMethod(taskViews, "unregisterTaskView", controller);
-                        try { XposedHelpers.callMethod(organizer, "removeListener", controller); }
+                        try { ShellCompat.call(organizer, "removeListener", controller); }
                         finally { detachedSecond = owner(b) != controller; }
                     }
                     // Native removeListener never retires the old copied task handle.
@@ -379,14 +398,14 @@ final class MiStepLiveTaskPair {
                     throw new IllegalStateException("A lease mapping changed");
                 XposedHelpers.callMethod(listeners(), "put", firstId, controller);
                 try {
-                    XposedHelpers.callMethod(organizer, "updateTaskListenerIfNeeded", a, canonical(firstId),
+                    ShellCompat.call(organizer, "updateTaskListenerIfNeeded", a, canonical(firstId),
                             temporaryFirstOwner, controller);
                 } finally { transferred = owner(a) == controller; }
                 if (!transferred) throw new IllegalStateException("A native claim rejected");
             }
             if (finishWct == null)
                 finishWct = Class.forName("android.window.WindowContainerTransaction").getDeclaredConstructor().newInstance();
-            if (!Boolean.TRUE.equals(XposedHelpers.callMethod(taskViews, "prepareOpenAnimation", controller,
+            if (!Boolean.TRUE.equals(ShellCompat.call(taskViews, "prepareOpenAnimation", controller,
                     true, start, finish, a, canonical(firstId), finishWct)))
                 throw new IllegalStateException("A task view preparation failed");
         }
@@ -415,7 +434,7 @@ final class MiStepLiveTaskPair {
             finalSurface(tx, canonical(secondId), displayParent, 1f, false);
             finalSurface(tx, canonical(firstId), sideParent, sideScale, true);
             if (finishWct != null) set(finishWct, "setHidden", firstToken, false);
-            XposedHelpers.callMethod(taskViews, "updateVisibilityState", controller, true);
+            ShellCompat.call(taskViews, "updateVisibilityState", controller, true);
             closed = true;
         }
     }
@@ -445,7 +464,7 @@ final class MiStepLiveTaskPair {
                 return;
             }
             if (modeA == 1 && modeB == 6 && !retiredSecond) {
-                if (owner(a) == temporaryFirstOwner) XposedHelpers.callMethod(organizer, "removeListener", temporaryFirstOwner);
+                if (owner(a) == temporaryFirstOwner) ShellCompat.call(organizer, "removeListener", temporaryFirstOwner);
                 finalSurface(tx, canonical(firstId), displayParent, 1f, false);
                 finalSurface(tx, canonical(secondId), sideParent, sideScale, true);
                 closed = true;

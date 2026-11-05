@@ -39,6 +39,9 @@ final class MediaLyricLookup {
     static MediaLyricLookup start(Executor delivery,String title,String artist,long duration,String pkg,String mediaId,Consumer<String> result) {
         MediaLyricLookup task=new MediaLyricLookup(delivery,title,artist,duration,pkg,mediaId);
         task.future=WORKER.submit(()->{
+            if(task.cancelled)return;
+            note("lookup pkg="+task.packageName+" title="+task.title+" artist="+task.artist
+                    +" durationMs="+task.duration+" mediaId="+task.mediaId);
             String lyrics="";
             synchronized(CACHE) {lyrics=CACHE.get(task.key);}
             if(lyrics==null) {
@@ -49,6 +52,8 @@ final class MediaLyricLookup {
                 }
             }
             String resolved=lyrics;
+            if(!task.cancelled)note((resolved.isEmpty()?"miss":"resolved")+" pkg="+task.packageName
+                    +" chars="+resolved.length());
             if(!task.cancelled)task.delivery.execute(()->{if(!task.cancelled)result.accept(resolved);});
         });
         return task;
@@ -60,14 +65,34 @@ final class MediaLyricLookup {
     }
     private static String limit(String text) {return text==null?"":text.substring(0,Math.min(256,text.length())).trim();}
     private static String encode(String text) {return URLEncoder.encode(text,StandardCharsets.UTF_8);}
+    static boolean usesMiuiSongId(String pkg,String id) {
+        // The QQMusicCar session in MIUI Music publishes a QQ songmid. Local
+        // numeric IDs and every other player's IDs belong to different catalogs.
+        return "com.miui.player".equals(pkg)&&id!=null&&id.matches("00[A-Za-z0-9]{12}");
+    }
+    private String searchWords() {
+        // QQMusicCar publishes a stable joined song/artist label in ARTIST
+        // while TITLE becomes the current lyric. Do not guess a split point:
+        // hyphens may also belong to the real title or performer name.
+        return usesMiuiSongId(packageName,mediaId)?artist.replace('-', ' '):title+" "+artist;
+    }
+    private boolean matches(String name,String by,long candidateDuration) {
+        return usesMiuiSongId(packageName,mediaId)
+                ?MediaLyricMatch.matchesJoined(artist,duration,name,by,candidateDuration)
+                :MediaLyricMatch.matches(title,artist,duration,name,by,candidateDuration);
+    }
     private String fetch() {
+        if(usesMiuiSongId(packageName,mediaId)) {
+            String direct=qqById();
+            if(!direct.isEmpty())return direct;
+        }
         // Soda's MediaSession id is the same public Luna track id used by its
         // search/detail API. This path runs in SystemUI and never injects Soda.
         if(packageName.equals("com.luna.music")&&mediaId.matches("[0-9]{1,20}")) {
             String direct=qishuiById(mediaId);
             if(!direct.isEmpty())return direct;
         }
-        if(title.isEmpty()||artist.isEmpty()||duration<=0||cancelled)return "";
+        if((title.isEmpty()&&!usesMiuiSongId(packageName,mediaId))||artist.isEmpty()||duration<=0||cancelled)return "";
         if(packageName.equals("com.luna.music")) {
             String soda=qishuiSearch();
             if(!soda.isEmpty())return soda;
@@ -93,10 +118,12 @@ final class MediaLyricLookup {
         if(!kugou.isEmpty())return kugou;
         if(cancelled)return "";
         try {
-            JSONArray rows=new JSONArray(get("https://lrclib.net/api/search?track_name="+encode(title)+"&artist_name="+encode(artist)));
+            String query=usesMiuiSongId(packageName,mediaId)?"q="+encode(searchWords())
+                    :"track_name="+encode(title)+"&artist_name="+encode(artist);
+            JSONArray rows=new JSONArray(get("https://lrclib.net/api/search?"+query));
             for(int i=0;i<Math.min(20,rows.length());i++) {
                 JSONObject row=rows.optJSONObject(i);
-                if(row==null||!MediaLyricMatch.matches(title,artist,duration,row.optString("trackName"),
+                if(row==null||!matches(row.optString("trackName"),
                         row.optString("artistName"),Math.round(row.optDouble("duration")*1000)))continue;
                 String raw=row.optString("syncedLyrics","");
                 if(usable(raw))return raw;
@@ -104,19 +131,39 @@ final class MediaLyricLookup {
         } catch(Exception error) {note("lrclib lyric",error);}
         return "";
     }
+    private String qqById() {
+        try {
+            JSONObject data=new JSONObject(get("https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg?songmid="
+                    +encode(mediaId)+"&format=json&nobase64=1", "MiStep/2.9 (lyrics display)", "https://y.qq.com/"));
+            if(data.optInt("code",-1)!=0)return "";
+            String raw=data.optString("lyric",""),translation=data.optString("trans","");
+            if(usable(raw))return usable(translation)?MediaLyrics.combineTranslation(raw,translation):raw;
+        } catch(Exception error) {note("qq lyric",error);}
+        return "";
+    }
     private String kugouSearch() {
+        // KuGou/Concept publish an album-audio ID, not a NetEase or lyric ID.
+        // The keyword-only endpoint omits some recordings available through it.
+        if((packageName.equals("com.kugou.android")||packageName.equals("com.kugou.android.lite"))
+                &&mediaId.matches("[0-9]{1,20}")) {
+            String direct=kugouSearch("&album_audio_id="+encode(mediaId));
+            if(!direct.isEmpty()||cancelled)return direct;
+        }
+        return kugouSearch("");
+    }
+    private String kugouSearch(String discriminator) {
         try {
             String url="https://lyrics.kugou.com/search?ver=1&man=yes&client=pc&keyword="
-                    +encode(title+" "+artist)+"&duration="+duration;
+                    +encode(searchWords())+"&duration="+duration+discriminator;
             // KuGou's MediaSession id can be a KRC/content hash. The lyric
             // service accepts it as an optional direct discriminator.
-            if(packageName.startsWith("com.kugou.android")&&mediaId.matches("[0-9A-Fa-f]{16,64}"))
+            if(discriminator.isEmpty()&&packageName.startsWith("com.kugou.android")&&mediaId.matches("[0-9A-Fa-f]{32}"))
                 url+="&hash="+encode(mediaId);
             JSONObject data=new JSONObject(get(url));
             JSONArray candidates=data.optJSONArray("candidates");
             if(candidates!=null)for(int i=0;i<Math.min(20,candidates.length());i++) {
                 JSONObject candidate=candidates.optJSONObject(i);
-                if(candidate==null||!MediaLyricMatch.matches(title,artist,duration,candidate.optString("song"),
+                if(candidate==null||!matches(candidate.optString("song"),
                         candidate.optString("singer"),candidate.optLong("duration")))continue;
                 String id=candidate.optString("id"),access=candidate.optString("accesskey");
                 if(id.isEmpty()||access.isEmpty())continue;
@@ -191,7 +238,7 @@ final class MediaLyricLookup {
     private String neteaseSearch() {
         try {
             JSONObject data=new JSONObject(get("https://music.163.com/api/search/get?s="
-                    +encode(title+" "+artist)+"&type=1&limit=15"));
+                    +encode(searchWords())+"&type=1&limit=15"));
             JSONObject result=data.optJSONObject("result");
             JSONArray songs=result==null?null:result.optJSONArray("songs");
             String bestId="";
@@ -208,7 +255,7 @@ final class MediaLyricLookup {
                     names.append(item.optString("name"));
                 }
                 long candidateDuration=song.optLong("duration");
-                if(!MediaLyricMatch.matches(title,artist,duration,song.optString("name"),
+                if(!matches(song.optString("name"),
                         names.toString(),candidateDuration))continue;
                 long distance=Math.abs(duration-candidateDuration);
                 if(distance<bestDistance) {
@@ -248,9 +295,10 @@ final class MediaLyricLookup {
         }
         return false;
     }
-    private static void note(String label,Throwable error) {
+    private static void note(String label,Throwable error) {note(label+": "+error);}
+    private static void note(String message) {
         Consumer<String> sink=diagnostics;
-        if(sink!=null)try {sink.accept(label+": "+error);}catch(Throwable ignored) {}
+        if(sink!=null)try {sink.accept(message);}catch(Throwable ignored) {}
     }
     private String get(String address) throws Exception {
         return get(address,"MiStep/2.9 (lyrics display)","https://music.163.com/");

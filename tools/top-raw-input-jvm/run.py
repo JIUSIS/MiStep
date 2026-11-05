@@ -18,7 +18,7 @@ public class TopRawRegression {
  static class Token {IBinder binder=new Binder();IBinder asBinder(){return binder;}}
  static class App {int uid=10321;}
  static class Activity {App applicationInfo=new App();}
- static class Info {int taskId=743,userId=0,displayId=0;Token token=new Token();Activity topActivityInfo=new Activity();}
+ static class Info {int taskId=743,userId=0,displayId=0;int type=1;boolean parent;int getActivityType(){return type;}boolean hasParentTask(){return parent;}Token token=new Token();Activity topActivityInfo=new Activity();}
  static class Task {int mTaskId=743,mode=6;boolean translucent=true;Rect bounds=new Rect(0,0,2964,1707);Info info=new Info();int getWindowingMode(){return mode;}boolean isForceTranslucent(){return translucent;}Rect getBounds(){return bounds;}Info getTaskInfo(){return info;}}
  static class Service {Object mGlobalLock=new Object();}
  Task task=new Task();Bundle row=new Bundle();Binder owner=new Binder();Service service=new Service();long sequence=1;
@@ -44,6 +44,29 @@ public class TopRawRegression {
   h.register(h.row,3);h.task.mode=1;MiStepDesktopLaunchBridge.refreshTopInput(h.service);check(NativeRawInputBridge.uid<0,"native mode revalidated before update");h.task.mode=6;
   h.register(h.row,4);h.owner.die();check(NativeRawInputBridge.uid<0,"host Binder death immediately clears TOP");
   h=new TopRawRegression();h.register(h.row,1);h.task.info.topActivityInfo.applicationInfo.uid=10322;h.register(h.row,2);check(NativeRawInputBridge.uid==10322,"activity UID refresh follows exact task");
+  check(MiStepDesktopLaunchBridge.ownsTopTask(h.task),"current exact TOP token lease not recognized");
+  h.task.info.userId=999;check(!MiStepDesktopLaunchBridge.ownsTopTask(h.task),"TOP user mismatch admitted");h.task.info.userId=0;
+  h.task.info.displayId=1;check(!MiStepDesktopLaunchBridge.ownsTopTask(h.task),"foreign TOP display admitted");h.task.info.displayId=0;
+  h.task.info.token=new Token();check(!MiStepDesktopLaunchBridge.ownsTopTask(h.task),"reused TOP id with new token admitted");
+  h=new TopRawRegression();h.register(h.row,1);h.owner.die();check(!MiStepDesktopLaunchBridge.ownsTopTask(h.task),"dead TOP owner lease survived");
+  h=new TopRawRegression();h.register(null,1);h.task.mode=1;
+  Bundle pending=new Bundle(h.row);pending.putBinder("owner",h.owner);pending.putParcelable("bounds",h.task.bounds);
+  var request=new Intent("prepare").putExtra("state",pending);
+  check(MiStepDesktopLaunchBridge.prepareTop(h.service,request),"exact fullscreen request not prepared");
+  check(!MiStepDesktopLaunchBridge.ownsTopViewport(h.task),"early lease changed fullscreen");h.task.mode=6;
+  check(MiStepDesktopLaunchBridge.ownsTopViewport(h.task),"first mode6 layout lacks viewport before confirmation");
+  check(!MiStepDesktopLaunchBridge.ownsTopTask(h.task),"early viewport grants confirmed input lease");
+  h.task.bounds=new Rect(0,0,1630,939);check(!MiStepDesktopLaunchBridge.ownsTopViewport(h.task),"wrong pending viewport accepted");h.task.bounds=new Rect(0,0,2964,1707);
+  h.task.info.userId=999;check(!MiStepDesktopLaunchBridge.ownsTopViewport(h.task),"pending different user accepted");h.task.info.userId=0;
+  h.task.info.displayId=1;check(!MiStepDesktopLaunchBridge.ownsTopViewport(h.task),"pending foreign display accepted");h.task.info.displayId=0;
+  h.task.translucent=false;check(!MiStepDesktopLaunchBridge.ownsTopViewport(h.task),"pending native unowned mode6 accepted");h.task.translucent=true;
+  android.os.SystemClock.now+=5001;check(!MiStepDesktopLaunchBridge.ownsTopViewport(h.task),"pending lease does not expire");
+  h.task.mode=1;check(MiStepDesktopLaunchBridge.prepareTop(h.service,request),"fresh request rejected");h.task.mode=6;h.owner.die();check(!MiStepDesktopLaunchBridge.ownsTopViewport(h.task),"dead pending owner accepted");
+  h=new TopRawRegression();h.task.mode=1;pending=new Bundle(h.row);pending.putBinder("owner",h.owner);pending.putParcelable("bounds",h.task.bounds);request=new Intent("prepare").putExtra("state",pending);
+  h.task.info.parent=true;check(!MiStepDesktopLaunchBridge.prepareTop(h.service,request),"nested task early lease accepted");h.task.info.parent=false;
+  h.task.info.type=2;check(!MiStepDesktopLaunchBridge.prepareTop(h.service,request),"Home early lease accepted");h.task.info.type=1;
+  pending.putInt("taskId",744);check(!MiStepDesktopLaunchBridge.prepareTop(h.service,request),"stale requested task accepted");pending.putInt("taskId",743);
+  pending.putParcelable("bounds",new Rect(0,0,1080,2460));check(!MiStepDesktopLaunchBridge.prepareTop(h.service,request),"portrait pending viewport accepted");
   System.out.println("actual TOP raw ownership checks="+checks+" passed");
  }
 }'''

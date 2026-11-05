@@ -70,7 +70,6 @@ final class MiStepTopBar extends FrameLayout {
         });
         addView(quickRail, new FrameLayout.LayoutParams(-1, 1));
         controlCenter = new MiStepControlCenter(context);
-        controlCenter.setOnLandscapeRequest(listener::onOpenLandscape);
         addView(controlCenter, new FrameLayout.LayoutParams(-1, 1));
     }
 
@@ -88,8 +87,6 @@ final class MiStepTopBar extends FrameLayout {
     }
 
     void closeQuickAppPicker() { appPicker.close(); }
-
-    void leaveLandscapePage() { controlCenter.leaveLandscapePage(); }
 
     void toggleClipboard(Bitmap backdrop, int screenWidth, int screenHeight) {
         if (geometry == null) return;
