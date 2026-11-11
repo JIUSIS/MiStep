@@ -16,6 +16,11 @@ import com.android.wm.shell.ShellTaskOrganizer.TaskListener;
 import com.jiusis.mistep.LivePairRegression.*;
 public class LiveCollectRegression {
  static int checks;
+ public static class Os2Idle {
+  public Object mTaskToken,mPendingInfo;public boolean mTaskNotFound=true;public int resets;
+  public Object mTaskOrganizer;public Os2Idle(Object o){mTaskOrganizer=o;}
+  public void resetTaskInfo(){resets++;mTaskNotFound=false;}
+ }
  static void check(boolean v,String why){checks++;if(!v)throw new AssertionError(why);}
  static class Case {
   Fixture f=new Fixture(); Surface parent=new Surface(1); MiStepLiveCollectTask task;
@@ -86,6 +91,14 @@ public class LiveCollectRegression {
   Case busy=new Case();busy.f.c.mPendingInfo=new Object();busy.f.o.mTaskListeners.put(99,busy.f.c);MiStepIdleTaskView.reset(busy.f.c,t->{});
   check(busy.f.c.resets==0&&busy.f.o.mTaskListeners.get(99)==busy.f.c,"pending TaskView reset");busy.f.c.mPendingInfo=null;busy.f.c.mTaskToken="B";MiStepIdleTaskView.reset(busy.f.c,t->{});
   check(busy.f.c.resets==0,"occupied TaskView reset");
+  Case legacy=new Case();Os2Idle os2=new Os2Idle(legacy.f.o);legacy.f.o.mTaskListeners.put(99,os2);
+  os2.mPendingInfo=new Object();MiStepIdleTaskView.reset(os2,t->{});
+  check(os2.resets==0&&legacy.f.o.mTaskListeners.get(99)==os2,"OS2 pending controller reset");
+  os2.mPendingInfo=null;os2.mTaskToken="B";MiStepIdleTaskView.reset(os2,t->{});
+  check(os2.resets==0,"OS2 occupied controller reset");os2.mTaskToken=null;
+  MiStepIdleTaskView.reset(os2,t->{});
+  check(os2.resets==1&&!os2.mTaskNotFound&&legacy.f.o.mTaskListeners.get(99)==null,"OS2 idle field path did not retire exact dead owner");
+  check(legacy.f.o.mTaskListeners.get(-2)==legacy.f.o.fullscreen&&legacy.f.o.mTasks.get(11)!=null,"OS2 reset changed global organizer or main");
   System.out.println("actual live collect ownership checks="+checks+" passed");
  }
 }''', encoding='utf8')

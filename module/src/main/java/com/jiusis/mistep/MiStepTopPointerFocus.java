@@ -10,9 +10,11 @@ final class MiStepTopPointerFocus {
         if (row == null || !Float.isFinite(x) || !Float.isFinite(y)) return false;
         float scale = row.getFloat("scale", 1);
         int width = row.getInt("width", 0), height = row.getInt("height", 0);
+        float left=row.getFloat("left",0), top=row.getFloat("top",0);
         return row.getInt("displayId", -1) == 0 && Float.isFinite(scale)
-                && scale > 0 && scale < 1 && width > height && height > 0
-                && x >= 0 && y >= 0 && x < width * scale && y < height * scale;
+                && scale > 0 && scale < 1 && width > 0 && height > 0
+                && Float.isFinite(left) && Float.isFinite(top) && left>=0 && top>=0
+                && x >= left && y >= top && x < left+width * scale && y < top+height * scale;
     }
 
     /** Caller holds WMS's global lock and has resolved the current visible lease. */
@@ -23,11 +25,13 @@ final class MiStepTopPointerFocus {
         Object activity = XposedHelpers.callMethod(task, "topRunningActivityLocked");
         Object window = activity == null ? null : XposedHelpers.callMethod(activity, "findMainWindow");
         if (window == null || XposedHelpers.callMethod(window, "getTask") != task) return false;
-        if (MiStepImePolicy.isFocusedTopWindow(window, display)) return false;
+        if (MiStepImePolicy.isFocusedTopWindow(window, display, lease)) return false;
         MiStepImePolicy.admitTopTouch(window, display, lease);
         if (!MiStepImePolicy.isTopAppFocused(task, display)) return false;
-        XposedHelpers.callMethod(display, "updateFocusedWindowLocked", 0, true, 0);
-        return MiStepImePolicy.isFocusedTopWindow(window, display);
+        // No display has been selected by this local update. Passing display 0
+        // makes a default display without own-focus skip its native scan.
+        XposedHelpers.callMethod(display, "updateFocusedWindowLocked", 0, true, -1);
+        return MiStepImePolicy.isFocusedTopWindow(window, display, lease);
     }
 
     private MiStepTopPointerFocus() {}

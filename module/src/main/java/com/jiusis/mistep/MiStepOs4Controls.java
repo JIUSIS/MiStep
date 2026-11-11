@@ -27,7 +27,7 @@ import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
 
-/** Independent views from the already loaded OS4 plugin, never reparent the system's views. */
+/** Independent views from the loaded OEM plugin, never reparent the system's views. */
 final class MiStepOs4Controls {
     private static WeakReference<Context> plugin = new WeakReference<>(null);
     private static int failures = 4;
@@ -68,18 +68,50 @@ final class MiStepOs4Controls {
 
     static Context context() {
         Context context = plugin.get();
-        if (context == null) throw new IllegalStateException("OS4 control plugin not loaded");
+        if (context == null) throw new IllegalStateException("OEM control plugin not loaded");
         return context;
     }
 
     static Object inflate(String bindingName) {
         Context context = context();
-        Class<?> binding = XposedHelpers.findClass("miui.systemui.controlcenter.databinding." + bindingName,
+        Class<?> binding = XposedHelpers.findClassIfExists("miui.systemui.controlcenter.databinding." + bindingName,
                 context.getClassLoader());
-        return XposedHelpers.callStaticMethod(binding, "inflate", LayoutInflater.from(context));
+        if (binding != null)
+            return XposedHelpers.callStaticMethod(binding, "inflate", LayoutInflater.from(context));
+        String layout, rootType;
+        switch (bindingName) {
+            case "QsTileItemViewBinding":
+                layout = "qs_tile_item_view";
+                rootType = "miui.systemui.controlcenter.qs.tileview.QSTileItemView";
+                break;
+            case "ToggleSliderItemViewBinding":
+                layout = "toggle_slider_item_view";
+                rootType = "miui.systemui.controlcenter.widget.ToggleSliderView";
+                break;
+            default: throw new IllegalArgumentException("Unsupported OEM binding " + bindingName);
+        }
+        int id = context.getResources().getIdentifier(layout, "layout", context.getPackageName());
+        if (id == 0) throw new IllegalStateException("Missing OEM layout " + layout);
+        View root = LayoutInflater.from(context).inflate(id, null, false);
+        if (!root.getClass().getName().equals(rootType))
+            throw new IllegalStateException("Unexpected OEM layout root " + root.getClass().getName());
+        return root;
     }
 
-    static View field(Object object, String name) { return (View) XposedHelpers.getObjectField(object, name); }
+    static View root(Object binding) {
+        return binding instanceof View ? (View) binding
+                : (View) XposedHelpers.callMethod(binding, "getRoot");
+    }
+
+    static View field(Object object, String name) {
+        if (!(object instanceof View)) return (View) XposedHelpers.getObjectField(object, name);
+        View root = (View) object;
+        Context context = root.getContext();
+        String resource = name.replaceAll("([a-z])([A-Z])", "$1_$2").toLowerCase(java.util.Locale.ROOT);
+        int id = context.getResources().getIdentifier(resource, "id", context.getPackageName());
+        if (id == 0) throw new IllegalStateException("Missing OEM view " + resource);
+        return root.requireViewById(id);
+    }
 
     static View tile(Context system, String label, Runnable action) {
         return tile(system, label, action, false);
@@ -88,7 +120,7 @@ final class MiStepOs4Controls {
     static View tile(Context system, String label, Runnable action, boolean iconOnly) {
         Context context = context();
         Object binding = inflate("QsTileItemViewBinding");
-        ViewGroup root = (ViewGroup) XposedHelpers.callMethod(binding, "getRoot");
+        ViewGroup root = (ViewGroup) root(binding);
         Class<?> iconType = XposedHelpers.findClass("miui.systemui.controlcenter.qs.tileview.QSTileItemIconView", context.getClassLoader());
         boolean fourArguments = false;
         for (java.lang.reflect.Constructor<?> constructor : iconType.getDeclaredConstructors())
@@ -107,10 +139,8 @@ final class MiStepOs4Controls {
         text.setVisibility(iconOnly ? View.GONE : View.VISIBLE);
         text.setAlpha(1f);
         text.setText(label);
-        text.setTextSize(9);
+        configureCaption(system, text);
         text.setTextColor(HyperOsStyle.textPrimary(system));
-        text.setSingleLine(true);
-        text.setIncludeFontPadding(false);
         FrameLayout.LayoutParams tp = new FrameLayout.LayoutParams(-1, dp(system, 14), Gravity.TOP);
         tp.topMargin = dp(system, 40);
         text.setLayoutParams(tp);
@@ -122,27 +152,43 @@ final class MiStepOs4Controls {
                 ((TileStyle) root.getTag()).fitIconOnly();
                 return;
             }
-            int top = Math.max(0, ((b - t) - dp(system, 54)) / 2);
-            FrameLayout.LayoutParams circleLp = (FrameLayout.LayoutParams) frame.getLayoutParams();
-            if (circleLp.topMargin != top) {
-                circleLp.topMargin = top;
-                frame.setLayoutParams(circleLp);
-            }
-            FrameLayout.LayoutParams captionLp = (FrameLayout.LayoutParams) text.getLayoutParams();
-            int captionTop = top + dp(system, 40);
-            if (captionLp.topMargin != captionTop) {
-                captionLp.topMargin = captionTop;
-                text.setLayoutParams(captionLp);
-            }
+            ((TileStyle) root.getTag()).fitCaption(r - l, b - t);
         });
         icon.setLayoutParams(new FrameLayout.LayoutParams(-1, -1));
         icon.setScaleX(1f);
         icon.setScaleY(1f);
         icon.setClickable(false);
         icon.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-        root.setTag(new TileStyle(system, label, icon, frame, root, iconOnly));
+        root.setTag(new TileStyle(system, label, icon, frame, root, text, iconOnly));
         ((TileStyle) root.getTag()).apply(root, false);
         return root;
+    }
+
+    /** Run before the parent's measure, so the first frame uses the fitting bounds. */
+    static void fitTile(View tile, int width, int height) {
+        Object tag = tile.getTag();
+        if (tag instanceof TileStyle && !((TileStyle) tag).iconOnly)
+            ((TileStyle) tag).fitCaption(width, height);
+    }
+
+    private static void configureCaption(Context system, TextView text) {
+        text.setTextSize(DeviceProfile.isTablet(system) ? 12 : 9);
+        text.setSingleLine(true);
+        // Single-line TextViews otherwise measure an unbounded scrolling width,
+        // preventing auto-size from fitting a three-character caption to a narrow tile.
+        text.setHorizontallyScrolling(false);
+        text.setEllipsize(null);
+        text.setIncludeFontPadding(false);
+        text.setLineSpacing(0f, 1f);
+        text.setPadding(0, 0, 0, 0);
+        text.setMinWidth(0); text.setMinimumWidth(0);
+        text.setMinHeight(0); text.setMinimumHeight(0);
+        text.setGravity(Gravity.CENTER);
+        int max = Math.max(2, Math.round(android.util.TypedValue.applyDimension(
+                android.util.TypedValue.COMPLEX_UNIT_SP, DeviceProfile.isTablet(system) ? 12 : 9,
+                system.getResources().getDisplayMetrics())));
+        text.setAutoSizeTextTypeUniformWithConfiguration(1, max, 1,
+                android.util.TypedValue.COMPLEX_UNIT_PX);
     }
 
     static void state(View tile, Object state) {
@@ -164,15 +210,24 @@ final class MiStepOs4Controls {
         final View icon;
         final View frame;
         final View root;
+        final TextView caption;
         final GradientDrawable material;
+        final android.graphics.drawable.RippleDrawable surface;
         final View codeGlyph;
         final boolean iconOnly;
-        TileStyle(Context system, String label, View icon, View frame, View root, boolean iconOnly) {
+        TileStyle(Context system, String label, View icon, View frame, View root, TextView caption, boolean iconOnly) {
             this.system = system; this.label = label; this.icon = icon; this.frame = frame;
             this.root = root;
+            this.caption = caption;
             this.iconOnly = iconOnly;
             Object source = XposedHelpers.getObjectField(icon, "disabledBg");
             material = copyShape(source instanceof Drawable ? (Drawable) source : null, system);
+            GradientDrawable mask = new GradientDrawable();
+            mask.setShape(GradientDrawable.OVAL);
+            mask.setColor(0xffffffff);
+            surface = new android.graphics.drawable.RippleDrawable(
+                    android.content.res.ColorStateList.valueOf(0x33ffffff), material, mask);
+            frame.setDuplicateParentStateEnabled(true);
             // These two MiStep actions have no matching stock QS artwork.
             codeGlyph = "付款码".equals(label) || "乘车码".equals(label)
                     ? new MiStepCodeIcon.GlyphView(system, "乘车码".equals(label)) : null;
@@ -182,11 +237,14 @@ final class MiStepOs4Controls {
         }
         void apply(View root, boolean active) {
             if (iconOnly) fitIconOnly();
+            else if (root.getWidth() > 0 && root.getHeight() > 0)
+                fitCaption(root.getWidth(), root.getHeight());
             // Native blend tokens need the OEM panel blur provider. Our window supplies a
             // standalone material behind the unchanged OEM view.
-            material.setColor(active ? 0xff3478ed : 0xb25d6875);
-            material.setCornerRadius(iconOnly ? Math.max(1, Math.min(root.getWidth(), root.getHeight())) / 2f : dp(system, 18));
-            frame.setBackground(material);
+            material.setColor(HyperOsStyle.nativeGlyphFill(system, active));
+            ViewGroup.LayoutParams frameSize = frame.getLayoutParams();
+            material.setCornerRadius(Math.max(0, Math.min(frameSize.width, frameSize.height)) / 2f);
+            frame.setBackground(surface);
             root.setBackground(null);
             root.setElevation(0);
             if (codeGlyph != null) {
@@ -194,8 +252,7 @@ final class MiStepOs4Controls {
                 icon.setVisibility(View.INVISIBLE);
                 codeGlyph.setVisibility(View.VISIBLE);
                 codeGlyph.bringToFront();
-                TextView text = (TextView) field(XposedHelpers.callMethod(root, "getBinding"), "tileLabel");
-                text.setTextColor(HyperOsStyle.textPrimary(system));
+                caption.setTextColor(HyperOsStyle.textPrimary(system));
                 return;
             }
             // Exactly one icon view; its State resolves the original OEM resources.
@@ -220,13 +277,45 @@ final class MiStepOs4Controls {
             // ImageView makes those transparent layers opaque circles.
             image.setImageTintList(null);
             settleIcon(image.getDrawable());
-            TextView text = (TextView) field(XposedHelpers.callMethod(root, "getBinding"), "tileLabel");
-            text.setTextColor("扫一扫".equals(label) || "付款码".equals(label)
+            caption.setTextColor("扫一扫".equals(label) || "付款码".equals(label)
                     || "乘车码".equals(label) ? HyperOsStyle.textPrimary(system) : 0xffffffff);
         }
 
+        void fitCaption(int width, int height) {
+            Paint metrics = new Paint(caption.getPaint());
+            metrics.setTextSize(android.util.TypedValue.applyDimension(
+                    android.util.TypedValue.COMPLEX_UNIT_SP, DeviceProfile.isTablet(system) ? 12 : 9,
+                    system.getResources().getDisplayMetrics()));
+            Paint.FontMetrics font = metrics.getFontMetrics();
+            int lineHeight = Math.max(dp(system, 14), (int) Math.ceil(font.bottom - font.top));
+            ControlCenterTileGeometry g = new ControlCenterTileGeometry(
+                    width, height, dp(system, 36), lineHeight, dp(system, 4));
+            fitIconFrame(frame, g.iconSize, g.iconTop);
+            if (codeGlyph != null) fitIconFrame(codeGlyph, g.iconSize, g.iconTop);
+            FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) caption.getLayoutParams();
+            if (lp.width != -1 || lp.height != g.captionHeight || lp.topMargin != g.captionTop
+                    || lp.gravity != Gravity.TOP || lp.leftMargin != 0 || lp.rightMargin != 0 || lp.bottomMargin != 0) {
+                lp.width = -1; lp.height = g.captionHeight; lp.topMargin = g.captionTop;
+                lp.leftMargin = lp.rightMargin = lp.bottomMargin = 0;
+                lp.gravity = Gravity.TOP;
+                caption.setLayoutParams(lp);
+            }
+            material.setCornerRadius(g.iconSize / 2f);
+        }
+
+        private void fitIconFrame(View view, int size, int top) {
+            FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) view.getLayoutParams();
+            int gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
+            if (lp.width != size || lp.height != size || lp.topMargin != top || lp.gravity != gravity
+                    || lp.leftMargin != 0 || lp.rightMargin != 0 || lp.bottomMargin != 0) {
+                lp.width = lp.height = size; lp.topMargin = top; lp.gravity = gravity;
+                lp.leftMargin = lp.rightMargin = lp.bottomMargin = 0;
+                view.setLayoutParams(lp);
+            }
+        }
+
         void fitIconOnly() {
-            field(XposedHelpers.callMethod(root, "getBinding"), "tileLabel").setVisibility(View.GONE);
+            caption.setVisibility(View.GONE);
             int size = Math.max(1, Math.min(root.getWidth(), root.getHeight()));
             FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) frame.getLayoutParams();
             if (lp.width != size || lp.height != size || lp.gravity != Gravity.CENTER || lp.topMargin != 0) {
@@ -301,12 +390,12 @@ final class MiStepOs4Controls {
             this.system = system;
             isVolume = "音量".equals(title);
             Object binding = inflate("ToggleSliderItemViewBinding");
-            root = (ViewGroup) XposedHelpers.callMethod(binding, "getRoot");
+            root = (ViewGroup) root(binding);
             slider = (SeekBar) field(binding, "slider");
             progress = field(binding, "progress");
             background = field(binding, "progressBg");
             GradientDrawable base = copyShape(background.getBackground(), system);
-            base.setColor(0xb2353f49);
+            base.setColor(HyperOsStyle.controlFill(system, false));
             base.setCornerRadius(cornerRadius(system));
             background.setBackground(base);
             // Draw the changing filled rectangle itself. Clipping a full-height
@@ -333,8 +422,8 @@ final class MiStepOs4Controls {
             text = (TextView) field(binding, "topText");
             text.setVisibility(View.VISIBLE);
             text.setText(title);
-            text.setTextSize(9);
-            text.setTextColor(0xfff2f4f8);
+            configureCaption(system, text);
+            text.setTextColor(HyperOsStyle.textSecondary(system));
             text.setLayoutParams(new FrameLayout.LayoutParams(-1, dp(system, 24), Gravity.TOP));
             text.setPadding(0, dp(system, 8), 0, 0);
             root.setContentDescription(title);
@@ -353,7 +442,7 @@ final class MiStepOs4Controls {
                 }
             });
             progress.setClipToOutline(false);
-            XposedHelpers.callMethod(slider, "setDragView", root);
+            configureSliderDrag(slider, root);
             icon = (ImageView) field(binding, "icon");
             FrameLayout.LayoutParams iconLp = new FrameLayout.LayoutParams(dp(system, 22), dp(system, 22), Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
             iconLp.bottomMargin = dp(system, 12);
@@ -396,9 +485,21 @@ final class MiStepOs4Controls {
         void updateProgressShape() { fill.invalidateSelf(); progress.invalidate(); }
         void release() {
             slider.setOnSeekBarChangeListener(null);
-            try { XposedHelpers.callMethod(slider, "resetTouchAnimNow"); }
+            try { releaseSliderDrag(slider); }
             catch (Throwable ignored) {}
         }
+    }
+
+    private static void configureSliderDrag(View slider, View root) {
+        if (ShellCompat.hasMethod(slider.getClass(), "setDragView", 1))
+            XposedHelpers.callMethod(slider, "setDragView", root);
+        else XposedHelpers.callMethod(XposedHelpers.callMethod(slider, "getDragAnim"), "setDragView", root);
+    }
+
+    private static void releaseSliderDrag(View slider) {
+        if (ShellCompat.hasMethod(slider.getClass(), "resetTouchAnimNow", 0))
+            XposedHelpers.callMethod(slider, "resetTouchAnimNow");
+        else XposedHelpers.callMethod(XposedHelpers.callMethod(slider, "getDragAnim"), "cleanAnim");
     }
 
     static int cornerRadius(Context context) { return dp(context, 22); }

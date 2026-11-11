@@ -10,6 +10,16 @@ import de.robv.android.xposed.XposedHelpers;
 final class MiStepRecentsWallpaper {
     private MiStepRecentsWallpaper() {}
 
+    /** OS2 carries isTranslucent before info; newer ROMs omit that argument. */
+    static int argumentOffset(Object[] args) {
+        if (args == null) return -1;
+        int offset = args.length == 6 && args[2] instanceof Boolean ? 1 : 0;
+        if (args.length != 5 + offset || args[0] == null || !(args[1] instanceof Integer)
+                || args[2 + offset] == null || args[3 + offset] == null
+                || !(args[4 + offset] instanceof Map)) return -1;
+        return offset;
+    }
+
     static boolean stage(Object info, Object change, Object wrapped, Object transaction,
             float[] main, Rect mainBounds, Map<Object, Object> leashes) {
         if (info == null || change == null || wrapped == null || transaction == null

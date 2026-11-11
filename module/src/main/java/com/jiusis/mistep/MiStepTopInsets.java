@@ -24,7 +24,7 @@ final class MiStepTopInsets {
         if (!MiStepSideRoleChange.isSide(task) || !lease.test(task)) return original;
         Rect bounds = (Rect) XposedHelpers.callMethod(task, "getBounds");
         if (bounds == null || bounds.left != 0 || bounds.top != 0
-                || bounds.height() <= 0 || bounds.width() <= bounds.height()) return original;
+                || bounds.height() <= 0 || bounds.width() <= 0) return original;
         Object config = XposedHelpers.callMethod(task, "getConfiguration");
         Object wc = XposedHelpers.getObjectField(config, "windowConfiguration");
         if (!bounds.equals(XposedHelpers.callMethod(wc, "getAppBounds"))) return original;

@@ -43,6 +43,39 @@ public final class InputMagnificationPolicyTest {
         }
         check(!InputMagnificationPolicy.shouldForceMagnification(2024, 0,
                 "com.android.systemui", "MiuiBubbles"), "wrong pin type untouched");
+        for (String title : new String[]{"gxzw_icon", "gxzw_touch"})
+            check(InputMagnificationPolicy.shouldExcludeFromMagnification(2018,
+                    "com.android.systemui", title), "physical FOD window excluded");
+        check(InputMagnificationPolicy.shouldExcludeFromMagnification(2021,
+                "com.android.systemui", "hbm_overlay"), "full-screen HBM layer excluded");
+        check(!InputMagnificationPolicy.shouldForceMagnification(2018, 0x08000000,
+                "com.android.systemui", "gxzw_touch"), "FOD exclusion precedes force rules");
+        check(!InputMagnificationPolicy.shouldExcludeFromMagnification(2018,
+                "other.app", "gxzw_touch"), "same title in another package unchanged");
+        check(!InputMagnificationPolicy.shouldExcludeFromMagnification(2019,
+                "com.android.systemui", "gxzw_touch"), "other window type unchanged");
+        check(!InputMagnificationPolicy.shouldExcludeFromMagnification(2018,
+                "com.android.systemui", "gxzw_touch-copy"), "similar title unchanged");
+        check(InputMagnificationPolicy.shouldExcludeFromMagnification(2015,
+                "com.android.systemui", "gxzw_anim"), "native FOD animation stays physical");
+        check(!InputMagnificationPolicy.shouldForceMagnification(2015, 0x08000000,
+                "com.android.systemui", "gxzw_anim"), "animation exclusion precedes force");
+        check(!InputMagnificationPolicy.shouldExcludeFromMagnification(2015,
+                "other.app", "gxzw_anim"), "foreign animation title unchanged");
+        check(!InputMagnificationPolicy.shouldExcludeFromMagnification(2018,
+                "com.android.systemui", "gxzw_anim"), "wrong animation type unchanged");
+        check(!InputMagnificationPolicy.shouldExcludeFromMagnification(2015,
+                "com.android.systemui", "gxzw_anim-copy"), "similar animation title unchanged");
+        check(InputMagnificationPolicy.shouldExcludeFromMagnification(2009,
+                "com.android.systemui", "MiStepNativeBiometricPrompt"),
+                "tagged native biometric container stays physical");
+        check(!InputMagnificationPolicy.shouldExcludeFromMagnification(2009,
+                "com.android.systemui", "com.android.systemui"),
+                "generic keyguard dialogs are not broadly excluded");
+        check(!InputMagnificationPolicy.shouldExcludeFromMagnification(2009,
+                "other.app", "MiStepNativeBiometricPrompt"), "foreign tagged dialog unchanged");
+        check(!InputMagnificationPolicy.shouldExcludeFromMagnification(2017,
+                "com.android.systemui", "MiStepNativeBiometricPrompt"), "wrong dialog type unchanged");
         System.out.println("InputMagnificationPolicy: " + checks + " checks passed");
     }
 

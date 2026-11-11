@@ -15,7 +15,7 @@ host = (src / 'MiStepHost.java').read_text(encoding='utf8')
 swap = host[host.index('    private void startLiveSwap('):host.index('    private void drawLiveEmptyHints(')]
 call = swap[swap.index('ticket.liveBackdrop = MiStepLiveBackdrop.create('):]
 call = call[:call.index('canvas ->')]
-side_crops = re.findall(r'new Rect\([\s\S]*?\)', call)
+side_crops = re.findall(r'liveSideStrip\((?:geometry|target)\)', call)
 if len(side_crops) != 2:
     raise RuntimeError('Expected actual original/target wallpaper crop arguments')
 a = host.index('    private void ensureCellBackground(')
@@ -62,6 +62,7 @@ static class Host {
  ENSURE
 }
 static class Run {Object[]backgrounds;MiStepLiveBackdrop backdrop;Object home;boolean rollback;BACKGROUND}
+STRIP
 static Rect[] actualHostCrops(MiStepLayout geometry,MiStepLayout target){int width=geometry.width,height=geometry.height;return new Rect[]{CALL_CROPS};}
 static void coversGap(Rect crop,MiStepLayout g,String phase){
  double sx=360.0/g.width,sy=820.0/g.height;
@@ -122,7 +123,7 @@ public static void main(String[]args)throws Exception {
  try{MiStepLiveBackdrop.create(parent,null,1080,2460,s->{});throw new AssertionError("missing wallpaper accepted");}catch(IllegalStateException e){checks++;}
  System.out.println("actual wallpaper lease and same-transaction visibility checks="+checks+" passed");
 }}
-'''.replace('BACKGROUND', background).replace('ENSURE', ensure).replace('CALL_CROPS', ','.join(side_crops))
+'''.replace('BACKGROUND', background).replace('ENSURE', ensure).replace('CALL_CROPS', ','.join(side_crops)).replace('STRIP',host[host.index('    private static Rect liveSideStrip('):host.index('    private boolean livePeerBindingsCurrent(')])
 }
 paths = []
 for name, text in files.items():

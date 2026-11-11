@@ -49,7 +49,7 @@ void run(const mistep::Zoom& zoom, uint8_t* entry, bool remap,
     expected_raw = mistep::read<mistep::Transform>(entry, 0x44);
     bool upper = profile && top.uid >= 10000 && mistep::read<int32_t>(entry,0x84)==top.uid
             && mistep::uniform_basis(expected_local,1/top.scale);
-    const mistep::Zoom selected = upper ? mistep::Zoom{top.scale,0,0} : zoom;
+    const mistep::Zoom selected = upper ? mistep::Zoom{top.scale,top.offset_y,top.offset_x} : zoom;
     if (remap) check(mistep::corrected_raw(selected, expected_local, expected_raw, expected_raw),
             "expected inverse available");
     const int before_calls = original_calls;
@@ -192,6 +192,15 @@ int main() {
     write(entry,0x1c,upper);write(entry,0x44,upper_raw);run(zoom,entry,false,top,true);
     write(entry,0x44,raw);write(entry,0x1c,raw);run(zoom,entry,false,top,true);
 
+    const mistep::TopInput right{10321,.605f,2291,508};
+    auto right_local=identity();right_local.m[0]=right_local.m[4]=1/right.scale;
+    right_local.m[6]=-91;right_local.m[7]=-77;
+    write(entry,0x1c,right_local);write(entry,0x44,raw);write<int32_t>(entry,0x84,right.uid);
+    run(zoom,entry,true,right,true);
+    check(mistep::corrected_raw({right.scale,right.offset_y,right.offset_x},right_local,raw,upper_raw),"right viewport inverse exists");
+    check(std::fabs(upper_raw.m[0]*2333+upper_raw.m[6]-42/right.scale)<.001f,"right raw X subtracts physical origin");
+    check(std::fabs(upper_raw.m[4]*550+upper_raw.m[7]-42/right.scale)<.001f,"right raw Y subtracts physical origin");
+    write(entry,0x1c,local);run(zoom,entry,true,right,true); // Same UID main keeps its distinct native matrix.
     void* libui = dlopen("/system/lib64/libui.so", RTLD_NOW);
     check(libui != nullptr, "real target libui opened in isolated process");
     using Set = void (*)(void*, float, float, float, float);

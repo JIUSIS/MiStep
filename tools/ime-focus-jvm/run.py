@@ -43,13 +43,16 @@ public class ImeFocusTest {
   check(!MiStepImePolicy.isPassiveSideWindow(cell,new Display(),lease),"foreign display cell blocked native focus");
   side.mode=1;check(!MiStepImePolicy.isPassiveSideWindow(cell,d,lease),"main fullscreen blocked native focus");side.mode=6;
   side.translucent=false;check(!MiStepImePolicy.isPassiveSideWindow(cell,d,lease),"unowned mode6 blocked native focus");side.translucent=true;
-  d.mCurrentFocus=null;side.bounds=new Rect(0,0,2460,1080);check(!MiStepImePolicy.isPassiveSideWindow(cell,d,lease),"TOP could not bootstrap focus before editor target");
-  side.bounds=new Rect(20,20,2480,1100);check(!MiStepImePolicy.isPassiveSideWindow(cell,d,lease),"landscape native role blocked native focus");
+  d.mCurrentFocus=null;side.bounds=new Rect(0,0,2460,1080);check(MiStepImePolicy.isPassiveSideWindow(cell,d,lease),"landscape exchange cell must remain passive");
+  side.bounds=new Rect(20,20,2480,1100);check(MiStepImePolicy.isPassiveSideWindow(cell,d,lease),"exact passive role remains passive despite geometry");
   side.bounds=null;check(!MiStepImePolicy.isPassiveSideWindow(cell,d,lease),"unknown bounds blocked native focus");
   side.bounds=new Rect(0,0,0,2460);check(!MiStepImePolicy.isPassiveSideWindow(cell,d,lease),"empty bounds blocked native focus");
   check(!MiStepImePolicy.isPassiveSideWindow(null,d,lease),"null window blocked native focus");
   side.bounds=new Rect(0,0,1080,2460);side.fail=true;boolean sideFailed=false;try{MiStepImePolicy.isPassiveSideWindow(cell,d,lease);}catch(RuntimeException e){sideFailed=true;}check(sideFailed,"passive native lookup failure swallowed");
   d.mFocusedApp=null;check(!MiStepImePolicy.isFocusedTopWindow(editor,d),"stale TOP window with no focused app stole input");d.mFocusedApp=new App(new Task());check(!MiStepImePolicy.isFocusedTopWindow(editor,d),"stale TOP window overrode main app focus");d.mFocusedApp=new App(top);
+  top.bounds=new Rect(0,0,1251,2519);d.mCurrentFocus=editor;
+  check(MiStepImePolicy.isFocusedTopWindow(editor,d,t->t==top),"explicit portrait editor lease admitted");
+  check(!MiStepImePolicy.isFocusedTopWindow(editor,d,t->false),"expired portrait editor rejected");
   top.fail=true;boolean failed=false;try{MiStepImePolicy.isFocusedTopWindow(editor,d);}catch(RuntimeException e){failed=true;}check(failed,"native lookup failure swallowed");
   System.out.println("actual TOP IME focus/task resolver checks="+checks+" passed");
  }

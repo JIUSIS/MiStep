@@ -23,7 +23,7 @@ public class DisplayRefreshRegression {
  static int checks;
  static void check(boolean value,String message){checks++;if(!value)throw new AssertionError(message);}
  static class View {
-  static final int VISIBLE=0;
+  static final int VISIBLE=0,GONE=8;void setVisibility(int v){}
   void setLayoutParams(Object p){} void setClipBounds(Rect r){} void requestLayout(){} void invalidate(){}
   int getVisibility(){return VISIBLE;}
  }
@@ -33,21 +33,23 @@ public class DisplayRefreshRegression {
  static class Promotion {boolean nativeSwap=true;}
  static class CellMotion {int finishes;void finish(){finishes++;}}
  CellMotion cellMotion;
- static class Slot {int index;int[] rect;boolean carrier,promoting,launching,occupied;View carrierTapView;}
+ static class Slot {int index,taskId;int[] rect;boolean carrier,promoting,launching,occupied,parked;View carrierTapView;}
  static class Layout {
   int topStrip,sideWidth,mainWidth,mainDispWidth,mainDispHeight,mainOffsetX,mainOffsetY;
-  boolean mainOnRight;int[] cellBounds(int i){return new int[4];}String describe(){return "layout";}
+  int cellCount=3;boolean mainOnRight,tabletLandscape;int[] cellBounds(int i){return new int[4];}String describe(){return "layout";}
  }
  static class Queue {void postDelayed(Runnable r,long delay){}}
  static class Manager {void updateViewLayout(Object r,Object p){}}
  static class FullscreenRotationPolicy {static int portraitDisplayRotation(){return 0;}}
- static class DeviceProfile {static int statusBarHeightPx(Object c){return 0;}}
+ static class DeviceProfile {static boolean tablet;static boolean isTablet(Object c){return tablet;}static int statusBarHeightPx(Object c){return 0;}}
  static class ZoomLifecyclePolicy {static boolean shouldReassertGeometry(boolean a,boolean b,boolean c){return a&&b&&c;}}
   static class NativeLandscapePolicy {static boolean shouldRestoreFromDisplay(boolean landscape,boolean suspended,int rotation){return landscape&&suspended&&(rotation==0||rotation==2);}}
-  static final int SLOT_COUNT=4,SLOT_MAIN=0,ACTIVE=0,SUSPENDED=4;
+  static final int SLOT_COUNT=4,SLOT_MAIN=0,SLOT_TOP=5,ACTIVE=0,SUSPENDED=4;
+ int CELL_SLOT_COUNT=4,suspends;void suspendSession(String s){suspends++;scene=SUSPENDED;}
+ void clearSlot(Slot s){s.parked=false;s.occupied=false;}void configureTabletTools(){}void updateTopTaskGeometry(){}
  int screenW=1200,screenH=2608,displayRotation=0;
  int sampleW=screenW,sampleH=screenH,sampleRotation=displayRotation,reads,cancels,rebuilds,writes;
-  int geometryRefreshDeferrals,scene,carrierSlotIndex=-1,resumes;boolean geometryRefreshAfterLive,landscapeSuspended,transferBusy,mainOnRight,screenOn=true;
+  int geometryRefreshDeferrals,scene,carrierSlotIndex=-1,resumes;boolean geometryRefreshAfterLive,landscapeSuspended,transferBusy,mainOnRight,keyguardLocked,screenOn=true;
  View root=new View(),topStripBacking,carrierBackdrop,topLiveClip;Object displayManager=new Object(),swapPreview,cellMovePreview,ctx,lp;
  Bar topBar;Manager wm;Layout layout=new Layout();Queue main=new Queue();
  Slot[] slots={new Slot(),new Slot(),new Slot(),new Slot()};View[] sideBackingViews=new View[SLOT_COUNT];
@@ -82,13 +84,19 @@ public class DisplayRefreshRegression {
   DisplayRefreshRegression normal=live();normal.promotion=null;normal.refreshDisplayGeometry();
   check(normal.reads==1&&normal.cancels==0&&normal.rebuilds==0,"ordinary unchanged geometry remains a no-op");
   DisplayRefreshRegression resize=live();resize.promotion=null;resize.sampleH=2400;resize.refreshDisplayGeometry();
-  check(resize.screenH==2400&&resize.rebuilds==1&&resize.writes==1,"real geometry refresh still rebuilds after swap");
+  check(resize.screenH==2608&&resize.rebuilds==0&&resize.writes==0&&resize.suspends==1,"geometry change returns real tasks before replacing their coordinate space");
+  resize.refreshDisplayGeometry();check(resize.screenH==2400&&resize.rebuilds==1&&resize.writes==0,"suspended layout refresh does not zoom");
   DisplayRefreshRegression detached=live();detached.root=null;detached.refreshDisplayGeometry();
   check(detached.reads==0&&detached.cancels==0,"detached Host does not read or cancel");
    DisplayRefreshRegression restored=live();restored.promotion=null;restored.displayRotation=1;restored.sampleRotation=0;restored.landscapeSuspended=true;restored.scene=SUSPENDED;restored.refreshDisplayGeometry();
    check(restored.resumes==1&&restored.rebuilds==0,"portrait return restores landscape-suspended workspace before rebuilding");
    DisplayRefreshRegression fullscreen=live();fullscreen.promotion=null;fullscreen.displayRotation=0;fullscreen.sampleRotation=1;fullscreen.landscapeSuspended=true;fullscreen.scene=SUSPENDED;fullscreen.refreshDisplayGeometry();
    check(fullscreen.resumes==0&&fullscreen.rebuilds==0,"landscape display does not restore workspace early");
+  DeviceProfile.tablet=true;
+  DisplayRefreshRegression tablet=live();tablet.promotion=null;tablet.sampleW=3048;tablet.sampleH=2032;tablet.sampleRotation=1;tablet.refreshDisplayGeometry();
+  check(tablet.screenW==1200&&tablet.screenH==2608&&tablet.suspends==1,"tablet direction change exits before changing capacity");
+  tablet.refreshDisplayGeometry();check(tablet.screenW==3048&&tablet.screenH==2032&&tablet.rebuilds==1&&tablet.writes==0,"tablet suspended geometry can be rebuilt before explicit entry");
+  DeviceProfile.tablet=false;
   System.out.println("actual Host display refresh checks="+checks+" passed");
  }
 }

@@ -39,7 +39,7 @@ public class ImeProcessConfigurationTest {
  static class Window{Attr mAttrs=new Attr();Session mSession=new Session();Token mToken=new Token();Object mActivityRecord;Display display;Window(Display d,int p){display=d;mSession.mPid=p;}Object getDisplayContent(){return display;}Window getWindowState(){return this;}}
  static class MapOfProcesses{Map<Integer,WindowProcessController> values=new HashMap<>();Object getProcess(int pid){return values.get(pid);}}
  static class Atm{MapOfProcesses mProcessMap=new MapOfProcesses();}static class Root{Window current;Window getCurrentImeWindow(){return current;}}
- static class Wms{Atm mAtmService=new Atm();Root mRoot=new Root();}static class Display{Wms mWmService=new Wms();Window target;Window getImeInputTarget(){return target;}}
+ static class Wms{Atm mAtmService=new Atm();Root mRoot=new Root();}static class Display{Window getImeWindow(){return mWmService.mRoot.current;}Wms mWmService=new Wms();Window target;Window getImeInputTarget(){return target;}}
  static Configuration cfg(int o,int w,int h,int s){Configuration c=new Configuration();c.orientation=o;c.width=w;c.height=h;c.seq=s;return c;}
  public static void main(String[]args){
   MiStepImeProcessConfiguration owner=new MiStepImeProcessConfiguration();owner.install(ImeProcessConfigurationTest.class.getClassLoader());
@@ -73,6 +73,6 @@ FILES['de/robv/android/xposed/XposedHelpers.java']=helper[:pos]+r'''
 sources=[]
 for name,body in FILES.items():
     p=OUT/name;p.parent.mkdir(parents=True,exist_ok=True);p.write_text(body,encoding='utf-8');sources.append(str(p))
-sources.extend(str(ROOT/'module/src/main/java/com/jiusis/mistep'/name) for name in ['ShellCompat.java','MiStepImeProcessConfiguration.java'])
+sources.extend(str(ROOT/'module/src/main/java/com/jiusis/mistep'/name) for name in ['ShellCompat.java','MiStepImeProcessConfiguration.java','MiStepImeWindow.java'])
 subprocess.run([str(JDK/'javac.exe'),'-encoding','UTF-8','--release','17','-d',str(OUT),*sources],check=True)
 subprocess.run([str(JDK/'java.exe'),'-cp',str(OUT),'com.jiusis.mistep.ImeProcessConfigurationTest'],check=True)

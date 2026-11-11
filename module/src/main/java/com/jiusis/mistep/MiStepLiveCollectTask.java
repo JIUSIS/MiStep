@@ -227,16 +227,16 @@ final class MiStepLiveCollectTask {
                 if (token.equals(XposedHelpers.getObjectField(controller, "mTaskToken"))) {
                     repositoryRegistered = false;
                     try {
-                        XposedHelpers.callMethod(taskViews, "unregisterTaskView", controller);
+                        ShellCompat.call(taskViews, "unregisterTaskView", controller);
                         if (owner(task) == controller) ShellCompat.call(organizer, "removeListener", controller);
                         XposedHelpers.callMethod(controller, "onTaskVanished", task);
                     } finally {
-                        XposedHelpers.callMethod(taskViews, "registerTaskView", controller);
+                        ShellCompat.call(taskViews, "registerTaskView", controller);
                         repositoryRegistered = true;
                     }
                 } else {
                     if (!repositoryRegistered) {
-                        XposedHelpers.callMethod(taskViews, "registerTaskView", controller);
+                        ShellCompat.call(taskViews, "registerTaskView", controller);
                         repositoryRegistered = true;
                     }
                     releaseOriginal();

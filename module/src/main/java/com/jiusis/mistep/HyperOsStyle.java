@@ -16,6 +16,7 @@ import android.view.View;
 
 /* JADX INFO: loaded from: classes.dex */
 final class HyperOsStyle {
+    static final int CONTROL_ACCENT = 0xff3482ff;
     private static final int DARK_PAGE = -15592682;
     private static final int DARK_TEXT = -657672;
     private static final int DARK_TEXT_SECONDARY = -5657163;
@@ -26,6 +27,27 @@ final class HyperOsStyle {
     private static final int LIGHT_TEXT_SECONDARY = -8946814;
 
     private HyperOsStyle() {
+    }
+
+    static int controlFill(Context context, boolean selected) {
+        return selected ? CONTROL_ACCENT : dark(context) ? 0xff363940 : 0xffe5e8ee;
+    }
+
+    static int nativeGlyphFill(Context context, boolean selected) {
+        // OEM QS artwork and the two code symbols use white foreground strokes.
+        return selected ? CONTROL_ACCENT : dark(context) ? 0xff454a54 : 0xff68717e;
+    }
+
+    /** Shared tonal surface and bounded ripple for workspace and settings actions. */
+    static Drawable controlButton(Context context, boolean selected, float radius) {
+        GradientDrawable base = new GradientDrawable();
+        base.setColor(controlFill(context, selected));
+        base.setCornerRadius(dp(context, radius));
+        GradientDrawable mask = new GradientDrawable();
+        mask.setColor(Color.WHITE);
+        mask.setCornerRadius(dp(context, radius));
+        return new RippleDrawable(ColorStateList.valueOf(selected || dark(context)
+                ? 0x24ffffff : 0x12000000), base, mask);
     }
 
     static boolean dark(Context context) {
@@ -200,12 +222,7 @@ final class HyperOsStyle {
     }
 
     static Drawable glassButton(Context context, float f, boolean z) {
-        GradientDrawable gradientDrawable = (GradientDrawable) (z ? glassPill(context, f, true) : glassPill(context, f));
-        GradientDrawable gradientDrawable2 = new GradientDrawable();
-        gradientDrawable2.setShape(0);
-        gradientDrawable2.setCornerRadius(dp(context, f));
-        gradientDrawable2.setColor(-1);
-        return new RippleDrawable(ColorStateList.valueOf(accentSoft(context, dark(context) ? 112 : 74)), gradientDrawable, gradientDrawable2);
+        return controlButton(context, z, f);
     }
 
     static Drawable pressableItem(Context context, float f) {

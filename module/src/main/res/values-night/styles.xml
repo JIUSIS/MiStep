@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.MiStep.Settings" parent="android:style/Theme.Material.NoActionBar">
+        <item name="android:colorAccent">#3482FF</item>
+        <item name="android:colorBackground">#0D0E11</item>
+        <item name="android:windowBackground">#0D0E11</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+    </style>
+</resources>

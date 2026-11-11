@@ -21,7 +21,7 @@ public class SideDismissRegression {
  static int checks; static void check(boolean b,String why){checks++;if(!b)throw new AssertionError(why);}
  static final int SLOT_MAIN=0,SLOT_COUNT=4,CELL_SLOT_COUNT=4,ACTIVE=1;
  int scene=ACTIVE,taps,compactions,returns,clears;long sceneEpoch=1;
- boolean screenOn=true,keyguardLocked,transferBusy,mainOnRight,compactPending,front;
+ boolean screenOn=true,keyguardLocked,transferBusy,taskCellsCovered,mainOnRight,compactPending,front;
  Object promotion,cellMotion; Context ctx=new Context(); Slot[] slots={new Slot(),new Slot(),new Slot(),new Slot()};
  View root=new View();MiStepSideDismiss sideDismiss; Slot sideDismissSlot;MiStepLayout layout=new MiStepLayout();Object wallpaperBackdrop=new Object();int screenW=1080,screenH=2460;
  Object[] sideBackingViews=new Object[4];static class LiveSwapVisualLease{LiveSwapVisualLease(Object b,Object h){}void restore(){}}

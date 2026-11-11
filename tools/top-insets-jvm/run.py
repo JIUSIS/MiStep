@@ -46,7 +46,9 @@ public class TopInsetsTest{
   check(adjust(w,d,source,new Task())==source,"stale token accepted");check(adjust(w,new Display(),source,top)==source,"foreign display accepted");
   top.mode=1;check(adjust(w,d,source,top)==source,"returned main altered");top.mode=6;
   top.translucent=false;check(adjust(w,d,source,top)==source,"native multiwindow altered");top.translucent=true;
-  top.bounds=new Rect(0,0,1080,2460);check(adjust(w,d,source,top)==source,"portrait side altered");
+  top.bounds=new Rect(0,0,1251,2519);top.config.windowConfiguration.bounds=top.bounds;
+  State portrait=(State)adjust(w,d,source,top);check(portrait!=source&&portrait.sources.size()==1&&portrait.sources.get(0)==ime&&portrait.frame.equals(top.bounds),"portrait exact interactive lease retains native IME and its viewport");
+  check(adjust(w,d,source,new Task())==source,"unleased portrait task untouched");
   top.bounds=new Rect(1,0,2965,1707);check(adjust(w,d,source,top)==source,"offset freeform accepted");top.bounds=new Rect(0,0,2964,1707);
   top.config.windowConfiguration.bounds=null;check(adjust(w,d,source,top)==source,"non-full viewport accepted");top.config.windowConfiguration.bounds=top.bounds;
   check(MiStepTopInsets.adjust(null,d,source,t->true)==source,"null window changed state");check(MiStepTopInsets.adjust(w,d,null,t->true)==null,"null state changed");

@@ -20,14 +20,19 @@ import android.content.*;import de.robv.android.xposed.XposedHelpers;
 public class LaunchUsersRegression {
  static int checks;static void check(boolean b,String m){checks++;if(!b)throw new AssertionError(m);}
  static class Info {int userId;Info(int u){userId=u;}}static class Controller {Info mTaskInfo;Controller(int u){mTaskInfo=new Info(u);}}
- static class Slot {int index,taskId=42;boolean occupied=true,parked,frozen,owns=true;Object taskToken=new Object();String pkg="app";Controller controller;Slot(int i,int u){index=i;controller=new Controller(u);}}
+ static class Slot {int index,taskId=42;boolean occupied=true,parked,frozen,owns=true,closing,carrier;Object taskToken=new Object();String pkg="app";Controller controller;Slot(int i,int u){index=i;controller=new Controller(u);}}
  static class QuickApp {ComponentName component=new ComponentName("app");String label="app";}
  static final int ACTIVE=1,SLOT_MAIN=0,SLOT_COUNT=3,SLOT_TOP=4;int scene=ACTIVE,tapped=-1,queued=-1,current;
- boolean transferBusy;Object promotion;Context ctx=new Context();Slot[]slots={new Slot(0,0),new Slot(1,999),new Slot(2,0)};
+ boolean transferBusy,taskCellsCovered;Object promotion;Context ctx=new Context();Slot[]slots={new Slot(0,0),new Slot(1,999),new Slot(2,0)};
  int currentUserId(){return current;}boolean supportsTaskUser(int u){return u==0||u==999;}
- boolean controllerOwns(Slot s,int id,Object token){return s.owns;}void onSlotTapped(int i){tapped=i;}
+ boolean controllerOwns(Slot s,int id,Object token){return s.owns;}
+ static class LiveTask{LiveTask(Slot s){}}
+ static class XposedBridge{static void log(Throwable t){throw new AssertionError(t);}}
+ void restoreCarrierToMain(){throw new AssertionError("unexpected carrier");}void finishPendingSuspend(){}
+ void swapWithMain(int i){tapped=i;}void captureMainIntoEmptySlot(Slot s){tapped=s.index;}
+ void adoptExisting(Slot s,LiveTask task,Runnable done,java.util.function.Consumer<String> failed){tapped=s.index;done.run();}
  void queueSidePromotion(Slot s,boolean desktop){queued=s.index;}void releaseTopTask(boolean front,boolean dismissed,Runnable after){if(!front||!dismissed)throw new AssertionError();tapped=SLOT_TOP;}void scheduleMainCropClear(long t){}static void log(String s){}
-'''+member('private boolean sideTaskMatchesUser(')+member('private void launchQuick(')+member('private void openSettingsInMain(')+member('private void promoteSideTaskForDesktopLaunch(')+'''
+'''+member('private void onSlotTapped(')+member('private boolean sideTaskMatchesUser(')+member('private void launchQuick(')+member('private void openSettingsInMain(')+member('private void promoteSideTaskForDesktopLaunch(')+'''
  public static void main(String[]args){
   var h=new LaunchUsersRegression();h.launchQuick(new QuickApp());check(h.tapped==2&&h.ctx.launches==0,"owner shortcut selected clone or relaunched owner");
   h=new LaunchUsersRegression();h.slots[2].occupied=false;h.launchQuick(new QuickApp());check(h.tapped==-1&&h.ctx.launches==1,"clone captured owner shortcut");
@@ -41,6 +46,10 @@ public class LaunchUsersRegression {
    if(kind==0)s.parked=true;if(kind==1)s.frozen=true;if(kind==2)s.controller=null;if(kind==3)s.taskToken=null;if(kind==4)s.owns=false;
    h.promoteSideTaskForDesktopLaunch("app",999);check(h.queued==-1,"stale side binding admitted "+kind);}
   h=new LaunchUsersRegression();for(Slot s:h.slots)s.pkg="com.android.settings";h.openSettingsInMain();check(h.tapped==2,"settings entry selected wrong user");
+  h=new LaunchUsersRegression();h.taskCellsCovered=true;h.launchQuick(new QuickApp());
+  check(h.tapped==2&&h.ctx.launches==0,"covered top row still accepts an explicit quick-app command using its exact existing task");
+  h=new LaunchUsersRegression();h.taskCellsCovered=true;for(Slot s:h.slots)s.pkg="com.android.settings";h.openSettingsInMain();
+  check(h.tapped==2&&h.ctx.launches==0,"covered top row does not suppress the system-settings command");
   System.out.println("actual Host launch user checks="+checks+" passed");
  }
 }'''

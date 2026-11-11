@@ -50,6 +50,19 @@ final class DeviceProfile {
         return DEFAULT;
     }
 
+    static boolean isTablet(Context context) {
+        try {
+            android.hardware.display.DisplayManager manager = (android.hardware.display.DisplayManager)
+                    context.getSystemService(Context.DISPLAY_SERVICE);
+            android.view.Display display = manager.getDisplay(android.view.Display.DEFAULT_DISPLAY);
+            android.util.DisplayMetrics real = new android.util.DisplayMetrics();
+            display.getRealMetrics(real);
+            return WorkspaceDisplayPolicy.isTablet(real.widthPixels, real.heightPixels, real.densityDpi);
+        } catch (RuntimeException unavailable) {
+            return context.getResources().getConfiguration().smallestScreenWidthDp >= 600;
+        }
+    }
+
     /** 自动识别结果：品牌/机型/设备名/屏幕/密度/状态栏，用于日志与后续补表。 */
     static String describe(Context context) {
         DeviceProfile profile = of(context);

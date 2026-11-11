@@ -265,13 +265,13 @@ final class MiStepLiveTaskPair {
             Object token = XposedHelpers.getObjectField(controller, "mTaskToken");
             if (firstToken.equals(token)) {
                 repositoryRegistered = false;
-                XposedHelpers.callMethod(taskViews, "unregisterTaskView", controller);
+                ShellCompat.call(taskViews, "unregisterTaskView", controller);
                 try {
                     if (owner(a) != controller) throw new IllegalStateException("rollback A owner changed");
                     ShellCompat.call(organizer, "removeListener", controller);
                     XposedHelpers.callMethod(controller, "onTaskVanished", a);
                 } finally {
-                    XposedHelpers.callMethod(taskViews, "registerTaskView", controller);
+                    ShellCompat.call(taskViews, "registerTaskView", controller);
                     repositoryRegistered = true;
                 }
             }
@@ -368,7 +368,7 @@ final class MiStepLiveTaskPair {
             // organizer cache may still lag one callback, so identity/owner checks are enough.
             Object a = info(firstId, firstToken, firstUserId, -1), b = info(secondId, secondToken, secondUserId, -1);
             if (!repositoryRegistered) {
-                XposedHelpers.callMethod(taskViews, "registerTaskView", controller);
+                ShellCompat.call(taskViews, "registerTaskView", controller);
                 repositoryRegistered = true;
             }
             if (!retiredSecond) {
@@ -377,7 +377,7 @@ final class MiStepLiveTaskPair {
                         if (owner(a) != temporaryFirstOwner || owner(b) != controller)
                             throw new IllegalStateException("pair ownership changed before claim");
                         repositoryRegistered = false;
-                        XposedHelpers.callMethod(taskViews, "unregisterTaskView", controller);
+                        ShellCompat.call(taskViews, "unregisterTaskView", controller);
                         try { ShellCompat.call(organizer, "removeListener", controller); }
                         finally { detachedSecond = owner(b) != controller; }
                     }
@@ -386,7 +386,7 @@ final class MiStepLiveTaskPair {
                     finally { retiredSecond = !secondToken.equals(XposedHelpers.getObjectField(controller, "mTaskToken")); }
                 } finally {
                     // Even partially failed native retirement must not strand the repository entry.
-                    XposedHelpers.callMethod(taskViews, "registerTaskView", controller);
+                    ShellCompat.call(taskViews, "registerTaskView", controller);
                     repositoryRegistered = true;
                 }
             }

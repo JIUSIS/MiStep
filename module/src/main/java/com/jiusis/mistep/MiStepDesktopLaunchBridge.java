@@ -41,7 +41,7 @@ final class MiStepDesktopLaunchBridge {
             android.graphics.Rect bounds=row.getParcelable("bounds",android.graphics.Rect.class);
             if(owner==null || !owner.isBinderAlive() || token==null || id<0 || user<0
                     || bounds==null || bounds.left!=0 || bounds.top!=0 || bounds.height()<=0
-                    || bounds.width()<=bounds.height())return false;
+                    || bounds.width()<=0)return false;
             Class<?> type=XposedHelpers.findClass("com.android.server.wm.WindowContainer",service.getClass().getClassLoader());
             Object task=XposedHelpers.callStaticMethod(type,"fromBinder",token);
             Object info=XposedHelpers.callMethod(task,"getTaskInfo");
@@ -102,7 +102,7 @@ final class MiStepDesktopLaunchBridge {
             ArrayList<Bundle> recents = state.getParcelableArrayList("recents", Bundle.class);
             if (recents == null) recents = rows;
             if (owner == null || !owner.isBinderAlive() || sequence < 0
-                    || rows == null || rows.size() > 3 || recents == null || recents.size() > 3) return false;
+                    || rows == null || rows.size() > 4 || recents == null || recents.size() > 4) return false;
             if (current != null && current.owner.equals(owner) && sequence <= current.sequence) return false;
             Registry next = new Registry(owner, sequence, new ArrayList<>(rows), new ArrayList<>(recents));
             next.topInput = state.getBundle("topInput");
@@ -134,7 +134,9 @@ final class MiStepDesktopLaunchBridge {
                 if (current != state) return;
                 uid = -1;
             }
-            NativeRawInputBridge.updateTop(uid, scale);
+            NativeRawInputBridge.updateTop(uid, scale,
+                    uid<10000?0:state.topInput.getFloat("left",0),
+                    uid<10000?0:state.topInput.getFloat("top",0));
         }
     }
 
@@ -164,6 +166,23 @@ final class MiStepDesktopLaunchBridge {
 
     static synchronized boolean recentsLeaseAlive(Object lease) {
         return current == lease && current != null && current.owner.isBinderAlive();
+    }
+
+    /** Launcher main-task queries exclude active TOP without making it a passive IME cell. */
+    static Object runningTaskLease(Object task) {
+        Object lease = recentsLease(task);
+        if (lease != null) return lease;
+        Registry state;
+        synchronized (MiStepDesktopLaunchBridge.class) { state = current; }
+        if (state == null || state.topInput == null
+                || state.topInput.getInt("displayId", -1) != 0 || task == null) return null;
+        try {
+            if (!Integer.valueOf(6).equals(XposedHelpers.callMethod(task, "getWindowingMode"))
+                    || !ownsTopTask(task)) return null;
+            synchronized (MiStepDesktopLaunchBridge.class) {
+                return current == state && state.owner.isBinderAlive() ? state : null;
+            }
+        } catch (Throwable stale) { return null; }
     }
 
     /** Resolve only the current visible TOP registration for a physical pointer DOWN. */

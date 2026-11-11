@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.jiusis.mistep"
-    android:versionCode="1000072"
-    android:versionName="1.0.2">
+    android:versionCode="1000199"
+    android:versionName="1.0.3">
 
-    <uses-sdk android:minSdkVersion="36" android:targetSdkVersion="37" />
+    <uses-sdk android:minSdkVersion="34" android:targetSdkVersion="37" />
 
     <application
         android:hasCode="true"
@@ -12,13 +12,22 @@
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher"
         android:label="Mi Step">
-        <!-- LSPosed module: SystemUI host + system_server magnification. -->
+        <provider
+            android:name=".WorkspaceSettingsProvider"
+            android:authorities="com.jiusis.mistep.settings"
+            android:directBootAware="true"
+            android:exported="true" />
+        <activity
+            android:name=".SettingsActivity"
+            android:exported="true"
+            android:theme="@style/Theme.MiStep.Settings" />
+        <!-- Settings scope provides only the native module settings entry. -->
         <meta-data android:name="xposedmodule" android:value="true" />
         <meta-data android:name="xposeddescription"
             android:value="Mi Step：系统主区域缩放与三个真实副任务。" />
         <meta-data android:name="xposedminversion" android:value="82" />
         <meta-data android:name="xposedscope"
-            android:value="android;com.android.systemui" />
+            android:value="android;com.android.systemui;com.android.settings" />
     </application>
 </manifest>
 

@@ -11,7 +11,7 @@ if (-not $controls.Contains('icon.setVisibility(View.VISIBLE)')) { throw 'Native
 if (-not $controls.Contains('MiStepNativeIconContext.wrap(system)')) { throw 'Native tile must use original APK icon resources.' }
 if (-not $controls.Contains('new MiStepCodeIcon.GlyphView')) { throw 'Payment and transit keep their MiStep action artwork.' }
 $jdk=Join-Path $JavaHome 'bin'
-$android=Join-Path $SdkPath 'platforms\android-36\android.jar'
+$android=Join-Path $SdkPath 'platforms\android-35\android.jar'
 $classes=Join-Path $root 'build\classes'
 if (-not (Test-Path -LiteralPath $classes)) { throw 'Run build.ps1 first.' }
 $env:MISTEP_JAVA_BIN=$jdk

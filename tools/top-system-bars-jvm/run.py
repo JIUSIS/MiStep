@@ -18,6 +18,7 @@ FILES={
 import java.util.*;import android.os.*;
 public class TopBarsRegression {
  static int checks;static void check(boolean v,String why){checks++;if(!v)throw new AssertionError(why);}
+ static class Os2Native {void updateStatusBarAnotherApp(Object transition){}void updateStatusBarToCurrentApp(){}}
  static class Task {Object display,root=this;int mode=6,type=1;boolean translucent=true,visible=true;
   Object getDisplayContent(){return display;}Object getRootTask(){return root;}
   int getWindowingMode(){return mode;}int getActivityType(){return type;}
@@ -37,6 +38,8 @@ public class TopBarsRegression {
   void run(){n.mHandler.runAll();}
  }
  public static void main(String[] args){
+  check(MiStepTopSystemBars.supported(Native.class),"OS3/OS4 task-owner replay capability lost");
+  check(!MiStepTopSystemBars.supported(Os2Native.class),"OS2 transition-only controller admitted to task-owner replay");
   Case ok=new Case();ok.remember();ok.returned();ok.changed();ok.changed();
   check(ok.n.mHandler.queue.size()==1,"duplicate return queued twice");check(ok.n.calls==0,"native API called on WMS caller thread");
   ok.run();check(ok.n.calls==1&&ok.logs.size()==1,"native return not reconciled");ok.changed();ok.focused();ok.run();check(ok.n.calls==1,"completed visit restored twice");

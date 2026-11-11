@@ -6,7 +6,7 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[2]
-SRC = ROOT / 'module/src/main/java/com/jiusis/mistep'
+SRC = Path(os.environ.get('MISTEP_FOCUS_SOURCE', ROOT / 'module/src/main/java/com/jiusis/mistep'))
 OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / 'build/tests/ime-window-focus-jvm'
 JDK = Path(os.environ['MISTEP_JAVA_BIN'])
 host = (SRC / 'HostEntry.java').read_text(encoding='utf-8-sig')
@@ -84,7 +84,8 @@ public class DisplayContent{
    :XposedHelpers.invoke(w,"canReceiveKeys",new Class<?>[0]));if(keys){if(nativeCutoff && mFocusedApp!=null && XposedHelpers.callMethod(mFocusedApp,"getTask")!=w.task)return selected=null;return selected=w;}}
   return selected=null;
  }
- public boolean updateFocusedWindowLocked(int mode,boolean input,int display){for(var w:windows)if(w.mActivityRecord==mFocusedApp){mCurrentFocus=w;return true;}return false;}
+ public int localFocusDisplay=99;
+ public boolean updateFocusedWindowLocked(int mode,boolean input,int display){localFocusDisplay=display;if(display!=-1){mCurrentFocus=null;return false;}for(var w:windows)if(w.mActivityRecord==mFocusedApp){mCurrentFocus=w;return true;}return false;}
  public WindowState findFocusedWindowIfNeeded(int top){return null;}
  public boolean lambda$new$3(WindowState window){return true;}
  public void unrelatedNativeMethod(){}
@@ -151,7 +152,7 @@ public class ImeWindowFocusTest{
   d.windows=new WindowState[]{foreignSide,main};check(scan(d)==foreignSide,"foreign window changed focus in workspace scan");d.windows=new WindowState[]{side,main};
   lease.alive=false;check(scan(d)==side,"expired exact lease changed native focus");lease.alive=true;
   MiStepDesktopLaunchBridge.leases.clear();check(scan(d)==side,"unleased portrait mode6 was suppressed");MiStepDesktopLaunchBridge.leases.put(sideTask,lease);
-  sideTask.bounds=new Rect(0,0,2460,1080);d.mCurrentFocus=null;check(scan(d)==side,"TOP bootstrap required old current focus");
+  sideTask.bounds=new Rect(0,0,2460,1080);d.mCurrentFocus=null;check(scan(d)==main,"landscape passive cell cannot steal focus");
   sideTask.bounds=null;check(scan(d)==side,"unknown bounds were suppressed");sideTask.bounds=new Rect(0,0,1080,2460);
   d.booleanEligibility=true;d.touchEligibility=false;check(scan(d)==main,"direct boolean false path bypassed scan filter");
   main.eligible=false;check(scan(d)==null,"boolean false native rejection was overridden");main.eligible=true;
@@ -176,11 +177,11 @@ public class ImeWindowFocusTest{
   mainApp.visible=false;check(scan(d)==null && d.mFocusedApp==oldApp,"invisible target received Activity focus");mainApp.visible=true;
   mainApp.focusable=false;check(scan(d)==null && d.mFocusedApp==oldApp,"nonfocusable target received Activity focus");mainApp.focusable=true;
   area.selected=sideTask;check(scan(d)==null && d.mFocusedApp==oldApp,"passive fallback received native Activity focus");area.selected=mainTask;
-  sideTask.bounds=new Rect(0,0,2460,1080);check(scan(d)==side && d.mFocusedApp==oldApp,"TOP Activity was redirected before its editor");sideTask.bounds=new Rect(0,0,1080,2460);
+  sideTask.bounds=new Rect(0,0,2460,1080);check(scan(d)==main && d.mFocusedApp==mainApp,"landscape passive Activity is reconciled to main");sideTask.bounds=new Rect(0,0,1080,2460);d.mFocusedApp=oldApp;
   HostEntry.sZoomed=false;check(scan(d)==side && d.mFocusedApp==oldApp,"inactive workspace redirected Activity focus");HostEntry.sZoomed=true;
   int previous=d.appChanges;mainTask.display=foreign;check(scan(d)==null && d.appChanges==previous,"cross-display Activity target admitted");mainTask.display=d;
   d.mFocusedApp=oldApp;check(scan(d)==main && d.appChanges==previous+1,"valid later scan failed native repair");
-  Task upperTask=new Task();upperTask.display=d;upperTask.bounds=new Rect(0,0,2460,1080);
+  Task upperTask=new Task();upperTask.display=d;upperTask.bounds=new Rect(0,0,1251,2519);
   Activity upperApp=new Activity(upperTask,area);WindowState upper=new WindowState(d,upperTask);upper.mActivityRecord=upperApp;
   HostEntry.sZoomTarget=new HostEntry.ZoomTarget();HostEntry.sZoomTarget.display=d;
   MiStepDesktopLaunchBridge.topTask=upperTask;d.windows=new WindowState[]{upper,main};d.nativeCutoff=false;
@@ -190,7 +191,7 @@ public class ImeWindowFocusTest{
   check(keys(upper,true),"explicit TOP user touch was rejected");
   synchronized(HostEntry.sZoomTarget.globalLock){XposedHelpers.invoke(upper,"handleTapOutsideFocusInsideSelf",new Class<?>[0]);}
   check(d.mFocusedApp==upperApp && scan(d)==upper,"explicit TOP tap failed native Activity/window selection");
-  d.mCurrentFocus=upper;check(MiStepImePolicy.isFocusedTopWindow(upper,d),"selected TOP could not control IME");
+  d.mCurrentFocus=upper;check(MiStepImePolicy.isFocusedTopWindow(upper,d,MiStepDesktopLaunchBridge::ownsTopTask),"selected portrait interactive task could not control IME");
   d.setFocusedApp(mainApp);check(scan(d)==main,"later main touch could not release TOP window");
   check(!MiStepImePolicy.isFocusedTopWindow(upper,d),"stale TOP still controlled main IME");
   MiStepDesktopLaunchBridge.topTask=null;
@@ -205,6 +206,7 @@ public class ImeWindowFocusTest{
   check(!MiStepImePolicy.isInactiveTopWindow(upper,foreign,t->true),"foreign TOP window suppressed");
   var dispatcher=new PointerEventDispatcher();var event=new android.view.MotionEvent();d.mFocusedApp=mainApp;d.mCurrentFocus=main;
   XposedHelpers.invoke(dispatcher,"onInputEvent",new Class<?>[]{android.view.MotionEvent.class},event);check(d.mFocusedApp==upperApp&&d.mCurrentFocus==upper,"native pointer DOWN failed TOP focus before edge back");
+  check(d.localFocusDisplay==-1,"local pointer update preselected default display and skipped native focus scan");
   d.mFocusedApp=mainApp;d.mCurrentFocus=main;event.y=700;XposedHelpers.invoke(dispatcher,"onInputEvent",new Class<?>[]{android.view.MotionEvent.class},event);check(d.mFocusedApp==mainApp,"main pointer stole TOP focus");
   event.y=300;event.action=1;XposedHelpers.invoke(dispatcher,"onInputEvent",new Class<?>[]{android.view.MotionEvent.class},event);check(d.mFocusedApp==mainApp,"UP selected TOP");event.action=0;
   event.count=2;XposedHelpers.invoke(dispatcher,"onInputEvent",new Class<?>[]{android.view.MotionEvent.class},event);check(d.mFocusedApp==mainApp,"secondary pointer selected TOP");event.count=1;

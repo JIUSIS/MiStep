@@ -156,13 +156,21 @@ final class MiStepStatusBar {
 
     /** A separate corner swipe is allowed only while the revealed status bar remains shown. */
     static boolean allowsCornerGesture(int width, int height) {
+        return allowsCornerGesture(width, height, false);
+    }
+
+    static boolean allowsCornerGesture(int width, int height, boolean tablet) {
         if(width<=0 || height<=0 || nativePanelExpanded
                 || nativeStateKnown && nativeWindowState!=0)return false;
         if(nativeTransientStatusBar)return nativeStateKnown && nativeWindowState==0;
-        return height>width && !nativeTopAppHidesStatusBar;
+        return (tablet || height>width) && !nativeTopAppHidesStatusBar;
     }
 
     static long cornerGestureContext() { return cornerContext; }
+
+    static boolean allowsBottomGesture(int width, int height, boolean tablet) {
+        return width > 0 && height > 0 && (tablet || height > width) && !nativePanelExpanded;
+    }
 
     /** The bar may retract during the same admitted swipe; a new DOWN still needs it. */
     static boolean keepsCornerGesture(long admittedContext) {

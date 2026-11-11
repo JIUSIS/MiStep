@@ -27,6 +27,10 @@ public final class MiStepLayout {
     public static final int ASSUMED_MIN_APP_DP = 220;
 
     public static final int CELL_COUNT = 3;
+    public static final int MAX_CELL_COUNT = 4;
+    public final boolean tabletLandscape;
+    public final int cellCount;
+    public final int toolHeight;
 
     public static final float TOPBAR_HEADER_TOP_DP = 88f;
     public static final float TOPBAR_HEADER_HEIGHT_DP = 48f;
@@ -51,7 +55,9 @@ public final class MiStepLayout {
     /** 窗口间隔（px）。 */
     public final int gap;
     public final int cellWidth;
-    public final int[] cellHeight = new int[CELL_COUNT];
+    public final int[] cellHeight = new int[MAX_CELL_COUNT];
+    private final int[] cellLeft = new int[MAX_CELL_COUNT];
+    private final int[] cellWidths = new int[MAX_CELL_COUNT];
 
     /** 主区矩形（宿主视图布局区域）。 */
     public final int mainX;
@@ -69,19 +75,36 @@ public final class MiStepLayout {
     /** 格子列 x（无缝：= 主区宽）。 */
     public final int cellX;
     /** 三个格子的起始 y，顺序为从上到下。 */
-    public final int[] cellY = new int[CELL_COUNT];
+    public final int[] cellY = new int[MAX_CELL_COUNT];
 
     private MiStepLayout(int width, int height, boolean mainOnRight, float density) {
+        this(width, height, mainOnRight, density, false);
+    }
+
+    private MiStepLayout(int width, int height, boolean mainOnRight, float density, boolean tablet) {
         this.width = width;
         this.height = height;
+        tabletLandscape = tablet && width > height && width <= 2L * height;
+        cellCount = tabletLandscape ? MAX_CELL_COUNT : CELL_COUNT;
         this.mainOnRight = mainOnRight;
+        toolHeight = tabletLandscape ? Math.round(36f * density) : 0;
 
         this.gap = Math.max(2, Math.round(DESIGN_GAP_DP * density));
         // Fit one full-screen main task and three full-screen side tasks, all with
         // the display's aspect ratio. Solving their shared remaining height gives
         // S = W/4 + gap*(3/4 - W/(2H)). Density controls the gap, never task width.
-        this.sideWidth = Math.round(width / 4f + gap * (0.75f - width / (2f * height)));
-        this.topStrip = Math.round(this.sideWidth / (float) width * height);
+        if (tabletLandscape) {
+            int widestCell = (width - gap * (cellCount - 1) + cellCount - 1) / cellCount;
+            int rowHeight = Math.round(widestCell * (height / (float) width));
+            this.topStrip = toolHeight + gap * 2 + rowHeight;
+            // The toolbar consumes display height, so both task rows must be
+            // solved together instead of shortening only the small task panes.
+            int fittedMainWidth = Math.round((height - topStrip) * (width / (float) height));
+            this.sideWidth = width - fittedMainWidth;
+        } else {
+            this.sideWidth = Math.round(width / 4f + gap * (0.75f - width / (2f * height)));
+            this.topStrip = Math.round(this.sideWidth / (float) width * height);
+        }
 
         // 主区在顶栏下方；交换主副角色时整条主屏可移到右侧，侧栏同时移到左侧。
         this.mainX = mainOnRight ? sideWidth : 0;
@@ -110,7 +133,20 @@ public final class MiStepLayout {
             int h = base + (i < extra ? 1 : 0);
             cellHeight[i] = h;
             cellY[i] = y;
+            cellLeft[i] = cellX;
+            cellWidths[i] = cellWidth;
             y += h + gap;
+        }
+        if (tabletLandscape) {
+            int available = width - gap * (cellCount - 1);
+            int x = 0;
+            for (int i = 0; i < cellCount; i++) {
+                cellLeft[i] = x;
+                cellWidths[i] = available / cellCount + (i < available % cellCount ? 1 : 0);
+                cellY[i] = toolHeight + gap;
+                cellHeight[i] = Math.max(1, topStrip - toolHeight - gap * 2);
+                x += cellWidths[i] + gap;
+            }
         }
     }
 
@@ -138,17 +174,31 @@ public final class MiStepLayout {
         return new MiStepLayout(width, height, mainOnRight, density <= 0f ? 2.75f : density);
     }
 
+    public static MiStepLayout of(int width, int height, boolean right, float density, boolean tablet) {
+        if (width <= 0 || height <= 0) throw new IllegalArgumentException("bad screen size");
+        return new MiStepLayout(width, height, right, density > 0f ? density : 2.75f, tablet);
+    }
+
     public float cellScale(int i) {
-        if (i < 0 || i >= CELL_COUNT) throw new IllegalArgumentException("cell index " + i);
-        return Math.min(cellWidth / (float) width, cellHeight[i] / (float) height);
+        if (i < 0 || i >= cellCount) throw new IllegalArgumentException("cell index " + i);
+        return Math.min(cellWidths[i] / (float) width, cellHeight[i] / (float) height);
     }
 
     /** 第 i 个格子的矩形，顺序即 [左, 上, 右, 下]。 */
     public int[] cellBounds(int i) {
-        if (i < 0 || i >= CELL_COUNT) {
+        if (i < 0 || i >= cellCount) {
             throw new IllegalArgumentException("cell index " + i);
         }
-        return new int[]{cellX, cellY[i], cellX + cellWidth, cellY[i] + cellHeight[i]};
+        return new int[]{cellLeft[i], cellY[i], cellLeft[i] + cellWidths[i], cellY[i] + cellHeight[i]};
+    }
+
+    public int[] interactiveBounds() {
+        return new int[]{cellX, topStrip, cellX + cellWidth, height};
+    }
+
+    public int[] mainGapBounds() {
+        int left = mainOnRight ? cellWidth : mainWidth;
+        return new int[]{left, topStrip, left + gap, height};
     }
 
     public int[] mainBounds() {
@@ -157,6 +207,10 @@ public final class MiStepLayout {
 
     /** 布局是否铺满且不越界（用于离线自检；无缝版应恰好到屏幕底边）。 */
     public boolean fillsScreen() {
+        if (tabletLandscape) return cellBounds(3)[2] == width
+                && mainY + mainHeight == height
+                && (mainOnRight ? cellX == 0 && mainX + mainWidth == width
+                                : mainX == 0 && cellX + cellWidth == width);
         int[] last = cellBounds(CELL_COUNT - 1);
         boolean sideFits = mainOnRight
                 ? cellX == 0 && mainX + mainWidth == width
@@ -198,7 +252,7 @@ public final class MiStepLayout {
                 .append(" gap=").append(gap)
                 .append(" cell=").append(cellWidth).append("x")
                 .append(java.util.Arrays.toString(cellHeight));
-        for (int i = 0; i < CELL_COUNT; i++) {
+        for (int i = 0; i < cellCount; i++) {
             sb.append(" cell").append(i).append('=').append(java.util.Arrays.toString(cellBounds(i)));
         }
         return sb.toString();

@@ -17,9 +17,9 @@ final class NativeFreeformPreview {
         try {
             Class<?> follow = XposedHelpers.findClass(
                     "com.android.wm.shell.multitasking.miuimultiwinswitch.MulWinSwitchFollowAnimManager", cl);
-            XposedHelpers.findAndHookMethod(follow, "filterVisibleTask", List.class, new XC_MethodHook() {
+            XposedBridge.hookAllMethods(follow, "filterVisibleTask", new XC_MethodHook() {
                 @Override protected void afterHookedMethod(MethodHookParam p) {
-                    if (p.hasThrowable() || p.args == null || p.args.length != 1
+                    if (p.hasThrowable() || p.args == null || p.args.length < 1
                             || !(p.args[0] instanceof List<?>)) return;
                     try {
                         prune(p.thisObject, (List<?>) p.args[0], MiStepHost.activeMainTransform());

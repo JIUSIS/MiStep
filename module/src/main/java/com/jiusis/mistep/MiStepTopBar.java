@@ -16,6 +16,8 @@ import java.util.List;
 final class MiStepTopBar extends FrameLayout {
     private final Listener listener;
     private final ControlsHeader header;
+    private ControlsHeader tabletHeader;
+    private WorkspaceOptions options = WorkspaceOptions.DEFAULT;
     private final QuickAppRail quickRail;
     private final QuickAppPicker appPicker = new QuickAppPicker();
     private List<QuickApp> availableApps;
@@ -23,8 +25,14 @@ final class MiStepTopBar extends FrameLayout {
     private boolean mainOnRight;
     private int statusBarInset;
     private TopBarGeometry geometry;
+    private List<Rect> cutoutBounds = java.util.Collections.emptyList();
     private Bitmap glassWallpaper;
     private int glassWidth, glassHeight;
+    private int tabletHeaderHeight;
+    private android.animation.ValueAnimator tabletToolsAnimator;
+    private float tabletToolsProgress = 1f;
+    private boolean tabletToolsExpanded;
+    private boolean taskCellsCovered;
 
     interface Listener {
         void onOpenSettings();
@@ -39,6 +47,7 @@ final class MiStepTopBar extends FrameLayout {
         void onLaunch(QuickApp app);
         boolean canCustomizeApps();
         void onOpenLandscape();
+        default void onTaskCellsCovered(boolean covered) {}
     }
 
     MiStepTopBar(Context context, MiStepLayout layout, List<QuickApp> apps, Listener listener) {
@@ -77,6 +86,108 @@ final class MiStepTopBar extends FrameLayout {
         if (mainOnRight == right) return;
         mainOnRight = right;
         header.swap.setRight(right);
+        if (tabletHeader != null) tabletHeader.swap.setRight(right);
+    }
+
+    void applyOptions(WorkspaceOptions options) {
+        this.options = options;
+        applyHeaderOptions(header);
+        if (tabletHeader != null) applyHeaderOptions(tabletHeader);
+        controlCenter.applyOptions(options);
+    }
+
+    private void applyHeaderOptions(ControlsHeader header) {
+        header.swap.settle(mainOnRight);
+        for (int i = 0; i < header.buttons.length; i++)
+            header.buttons[i].setVisibility(options.visible(WorkspaceOptions.HEADER_IDS[i]) ? View.VISIBLE : View.GONE);
+        header.requestLayout();
+    }
+
+    FrameLayout createTabletHeader(int height, Runnable tools) {
+        clearTabletHeader();
+        tabletHeaderHeight = Math.max(0, height);
+        setBackground(null);
+        header.setVisibility(View.GONE);
+        tabletHeader = new ControlsHeader(getContext(), tools);
+        applyHeaderOptions(tabletHeader);
+        requestLayout();
+        return tabletHeader;
+    }
+
+    void clearTabletHeader() {
+        cancelTabletToolsAnimation();
+        if (tabletHeader != null) tabletHeader.swap.settle(mainOnRight);
+        tabletHeader = null;
+        tabletHeaderHeight = 0;
+        tabletToolsProgress = 1f;
+        if (glassWallpaper != null) setWallpaperBackdrop(glassWallpaper, glassWidth, glassHeight);
+        else setBackground(HyperOsStyle.topBackground(getContext()));
+        renderTabletTools();
+        header.setVisibility(View.VISIBLE);
+        requestLayout();
+    }
+
+    private void cancelTabletToolsAnimation() {
+        android.animation.ValueAnimator old = tabletToolsAnimator;
+        tabletToolsAnimator = null;
+        if (old != null) old.cancel();
+    }
+
+    void setTabletToolsExpanded(boolean expanded, boolean animate) {
+        cancelTabletToolsAnimation();
+        tabletToolsExpanded = expanded;
+        float target = expanded ? 1f : 0f;
+        if (!animate || !isAttachedToWindow() || !isLaidOut()
+                || !android.animation.ValueAnimator.areAnimatorsEnabled()) {
+            tabletToolsProgress = target;
+            renderTabletTools();
+            setVisibility(expanded ? View.VISIBLE : View.INVISIBLE);
+            return;
+        }
+        setVisibility(View.VISIBLE);
+        android.animation.ValueAnimator next = android.animation.ValueAnimator.ofFloat(tabletToolsProgress, target);
+        tabletToolsAnimator = next;
+        next.setDuration(220);
+        next.setInterpolator(new android.view.animation.DecelerateInterpolator());
+        next.addUpdateListener(value -> {
+            if (tabletToolsAnimator != value) return;
+            tabletToolsProgress = (float) value.getAnimatedValue();
+            renderTabletTools();
+        });
+        next.addListener(new android.animation.AnimatorListenerAdapter() {
+            @Override public void onAnimationEnd(android.animation.Animator animation) {
+                if (tabletToolsAnimator != animation) return;
+                tabletToolsAnimator = null;
+                tabletToolsProgress = target;
+                renderTabletTools();
+                setVisibility(expanded ? View.VISIBLE : View.INVISIBLE);
+            }
+        });
+        next.start();
+    }
+
+    private void renderTabletTools() {
+        boolean covered = tabletHeaderHeight > 0 && (tabletToolsExpanded || tabletToolsProgress > 0f);
+        if (taskCellsCovered != covered) {
+            taskCellsCovered = covered;
+            listener.onTaskCellsCovered(covered);
+        }
+        if (tabletHeaderHeight == 0) {
+            setClipBounds(null);
+            controlCenter.setAlpha(1f);
+            quickRail.setAlpha(1f);
+            return;
+        }
+        int top = Math.min(tabletHeaderHeight, getHeight());
+        int bottom = top + Math.round(Math.max(0, getHeight() - top) * tabletToolsProgress);
+        setClipBounds(new Rect(0, top, getWidth(), bottom));
+        controlCenter.setAlpha(tabletToolsProgress);
+        quickRail.setAlpha(tabletToolsProgress);
+    }
+
+    @Override public boolean dispatchTouchEvent(MotionEvent event) {
+        if (tabletHeader != null && (!tabletToolsExpanded || tabletToolsAnimator != null)) return true;
+        return super.dispatchTouchEvent(event);
     }
 
     void stepApp(int direction) { quickRail.stepAndLaunch(direction); }
@@ -98,6 +209,7 @@ final class MiStepTopBar extends FrameLayout {
 
     @Override protected void onSizeChanged(int w, int h, int oldw, int oldh) {
         super.onSizeChanged(w, h, oldw, oldh);
+        renderTabletTools();
         if (oldw > 0 && (w != oldw || h != oldh)) {
             appPicker.close();
             MiStepClipboard.get(getContext()).close();
@@ -107,6 +219,8 @@ final class MiStepTopBar extends FrameLayout {
 
     @Override protected void onDetachedFromWindow() {
         appPicker.close();
+        cancelTabletToolsAnimation();
+        if (tabletHeader != null) tabletHeader.swap.settle(mainOnRight);
         header.swap.settle(mainOnRight);
         MiStepScanner.closeImmediately();
         MiStepClipboard.get(getContext()).close();
@@ -127,11 +241,10 @@ final class MiStepTopBar extends FrameLayout {
     }
 
     @Override public WindowInsets onApplyWindowInsets(WindowInsets insets) {
-        List<Rect> holes = android.os.Build.VERSION.SDK_INT >= 28 && insets.getDisplayCutout() != null
+        cutoutBounds = android.os.Build.VERSION.SDK_INT >= 28 && insets.getDisplayCutout() != null
                 ? insets.getDisplayCutout().getBoundingRects() : java.util.Collections.emptyList();
-        float density = getResources().getDisplayMetrics().density;
-        controlCenter.setCutouts(holes, geometry == null ? Math.round(8 * density) : geometry.edge,
-                geometry == null ? Math.round(14 * density) : geometry.blankTop);
+        FrameLayout.LayoutParams c = (FrameLayout.LayoutParams) controlCenter.getLayoutParams();
+        controlCenter.setCutouts(cutoutBounds, c.leftMargin, c.topMargin);
         return insets;
     }
 
@@ -139,7 +252,7 @@ final class MiStepTopBar extends FrameLayout {
         int width = View.MeasureSpec.getSize(widthSpec);
         int height = View.MeasureSpec.getSize(heightSpec);
         geometry = new TopBarGeometry(width, height, Math.min(statusBarInset, height - 1),
-                getResources().getDisplayMetrics().density);
+                getResources().getDisplayMetrics().density, DeviceProfile.isTablet(getContext()), tabletHeaderHeight);
         FrameLayout.LayoutParams h = (FrameLayout.LayoutParams) header.getLayoutParams();
         h.height = geometry.headerHeight;
         h.topMargin = geometry.headerTop;
@@ -148,10 +261,11 @@ final class MiStepTopBar extends FrameLayout {
         r.topMargin = geometry.railTop;
         r.leftMargin = r.rightMargin = geometry.edge;
         FrameLayout.LayoutParams c = (FrameLayout.LayoutParams) controlCenter.getLayoutParams();
-        c.width = Math.max(1, width - 2 * geometry.edge);
+        c.width = geometry.controlWidth;
         c.height = Math.max(1, geometry.blankBottom - geometry.blankTop);
-        c.leftMargin = geometry.edge;
+        c.leftMargin = (width - c.width) / 2;
         c.topMargin = geometry.blankTop;
+        controlCenter.setCutouts(cutoutBounds, c.leftMargin, c.topMargin);
         super.onMeasure(widthSpec, heightSpec);
     }
 
@@ -159,6 +273,7 @@ final class MiStepTopBar extends FrameLayout {
         if (bitmap == null || bitmap.isRecycled()) return;
         glassWallpaper = bitmap; glassWidth = width; glassHeight = height;
         controlCenter.setWallpaper(bitmap, width, height);
+        if (tabletHeaderHeight > 0) { setBackground(null); return; }
         setBackground(new LayerDrawable(new Drawable[]{
                 new WallpaperCropDrawable(bitmap, width, height, 0, 0,
                         HyperOsStyle.topWallpaperTint(getContext())),
@@ -181,13 +296,21 @@ final class MiStepTopBar extends FrameLayout {
     private final class ControlsHeader extends FrameLayout {
         final TextView title;
         final MiStepIconButton exit, settings, clipboard, previous, next, torch, shot, record;
-        final MiStepIconButton[] buttons;
+        final MiStepIconButton[] buttons, swapButtons;
+        final MiStepIconButton tools;
         final TopBarSwapAnimation swap;
+        private final boolean compact;
+        private int edge, buttonWidth, titleInset;
         private boolean layoutMainOnRight = mainOnRight;
         private Runnable afterSwapLayout;
 
         ControlsHeader(Context context) {
+            this(context, null);
+        }
+
+        ControlsHeader(Context context, Runnable toggleTools) {
             super(context);
+            compact = toggleTools != null;
             setClipChildren(false);
             setClipToPadding(false);
             title = new TextView(context);
@@ -199,7 +322,8 @@ final class MiStepTopBar extends FrameLayout {
             title.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
             title.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
             title.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_YES);
-            title.setContentDescription("Mi Step，双指上下滑动翻转顶部，点按打开横屏窗口");
+            title.setContentDescription(compact ? "Mi Step，点按选择竖向窗口应用"
+                    : "Mi Step，双指上下滑动翻转顶部，点按打开横屏窗口");
             title.setOnClickListener(view->listener.onOpenLandscape());
             addView(title);
             exit = button(MiStepIconButton.EXIT, "退出 Mi Step", listener::onExit);
@@ -211,19 +335,26 @@ final class MiStepTopBar extends FrameLayout {
             shot = button(MiStepIconButton.SCREENSHOT, "截图", listener::onScreenshot);
             record = button(MiStepIconButton.RECORD, "录屏", listener::onScreenRecord);
             buttons = new MiStepIconButton[]{exit, settings, clipboard, previous, next, torch, shot, record};
+            tools = compact ? button(MiStepIconButton.TOOLS, "展开或收起工具", toggleTools) : null;
+            swapButtons = compact
+                    ? new MiStepIconButton[]{exit, settings, clipboard, previous, next, torch, shot, record, tools}
+                    : buttons;
             exit.setExitLeft(mainOnRight);
             swap = new TopBarSwapAnimation(new TopBarSwapAnimation.Target() {
                 public boolean ready() { return isAttachedToWindow() && isLaidOut(); }
                 public void cancel() {
                     afterSwapLayout = null;
-                    for (MiStepIconButton button : buttons) button.animate().cancel();
+                    for (MiStepIconButton button : swapButtons) button.animate().cancel();
                 }
                 public void fade(float alpha, long duration, Runnable finished) {
-                    for (int i = 0; i < buttons.length; i++) {
-                        MiStepIconButton button = buttons[i];
+                    java.util.ArrayList<MiStepIconButton> visible = new java.util.ArrayList<>();
+                    for (MiStepIconButton button : swapButtons) if (button.getVisibility() == View.VISIBLE) visible.add(button);
+                    if (visible.isEmpty()) { finished.run(); return; }
+                    for (int i = 0; i < visible.size(); i++) {
+                        MiStepIconButton button = visible.get(i);
                         button.setEnabled(false);
                         button.animate().alpha(alpha).setStartDelay(0).setDuration(duration)
-                                .withEndAction(i == buttons.length - 1 ? finished : null).start();
+                                .withEndAction(i == visible.size() - 1 ? finished : null).start();
                     }
                 }
                 public void move(boolean right, Runnable laidOut) {
@@ -233,7 +364,7 @@ final class MiStepTopBar extends FrameLayout {
                     requestLayout();
                 }
                 public void finish() {
-                    for (MiStepIconButton button : buttons) {
+                    for (MiStepIconButton button : swapButtons) {
                         button.setAlpha(1f); button.setScaleX(1f); button.setScaleY(1f);
                         button.setEnabled(true);
                     }
@@ -243,6 +374,7 @@ final class MiStepTopBar extends FrameLayout {
 
         private MiStepIconButton button(int icon, String label, Runnable action) {
             MiStepIconButton view = new MiStepIconButton(getContext(), icon, label);
+            view.setTooltipText(label);
             view.setOnClickListener(v -> action.run());
             addView(view);
             return view;
@@ -251,7 +383,18 @@ final class MiStepTopBar extends FrameLayout {
         @Override protected void onMeasure(int widthSpec, int heightSpec) {
             int width = View.MeasureSpec.getSize(widthSpec);
             int height = View.MeasureSpec.getSize(heightSpec);
-            int titleWidth = Math.max(1, width - 2 * geometry.titleInset);
+            if (compact) {
+                float density = getResources().getDisplayMetrics().density;
+                edge = Math.max(2, Math.round(8f * density));
+                buttonWidth = Math.max(1, Math.min(Math.round(44f * density),
+                        (width - 2 * edge - Math.round(100f * density)) / 10));
+                titleInset = edge + 5 * buttonWidth;
+            } else {
+                edge = geometry.edge;
+                buttonWidth = geometry.buttonWidth;
+                titleInset = geometry.titleInset;
+            }
+            int titleWidth = Math.max(1, width - 2 * titleInset);
             float preferred = 21f * getResources().getDisplayMetrics().scaledDensity;
             title.getPaint().setTextSize(preferred);
             float textWidth = title.getPaint().measureText("Mi Step");
@@ -261,25 +404,38 @@ final class MiStepTopBar extends FrameLayout {
             title.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,
                     preferred * Math.min(1f, fit));
             title.measure(View.MeasureSpec.makeMeasureSpec(titleWidth, View.MeasureSpec.EXACTLY), heightSpec);
-            for (MiStepIconButton button : buttons)
-                button.measure(View.MeasureSpec.makeMeasureSpec(geometry.buttonWidth, View.MeasureSpec.EXACTLY), heightSpec);
+            for (MiStepIconButton button : buttons) if (button.getVisibility() != View.GONE)
+                button.measure(View.MeasureSpec.makeMeasureSpec(buttonWidth, View.MeasureSpec.EXACTLY), heightSpec);
+            if (compact) tools.measure(View.MeasureSpec.makeMeasureSpec(buttonWidth, View.MeasureSpec.EXACTLY), heightSpec);
             setMeasuredDimension(width, height);
         }
 
         @Override protected void onLayout(boolean changed, int l, int t, int r, int b) {
             int width = r - l, height = b - t;
-            title.layout(geometry.titleInset, 0, width - geometry.titleInset, height);
-            MiStepIconButton[] left = layoutMainOnRight
+            title.layout(titleInset, 0, width - titleInset, height);
+            MiStepIconButton[] left = compact
+                    ? layoutMainOnRight
+                    ? new MiStepIconButton[]{exit, settings, clipboard, shot}
+                    : new MiStepIconButton[]{tools, previous, next, torch, record}
+                    : layoutMainOnRight
                     ? new MiStepIconButton[]{exit, settings, clipboard, shot}
                     : new MiStepIconButton[]{previous, next, torch, record};
-            MiStepIconButton[] right = layoutMainOnRight
+            MiStepIconButton[] right = compact
+                    ? layoutMainOnRight
+                    ? new MiStepIconButton[]{record, torch, previous, next, tools}
+                    : new MiStepIconButton[]{shot, clipboard, settings, exit}
+                    : layoutMainOnRight
                     ? new MiStepIconButton[]{record, torch, previous, next}
                     : new MiStepIconButton[]{shot, clipboard, settings, exit};
-            for (int i = 0; i < 4; i++) {
-                int x = geometry.edge + i * geometry.buttonWidth;
-                left[i].layout(x, 0, x + geometry.buttonWidth, height);
-                x = width - geometry.edge - (4 - i) * geometry.buttonWidth;
-                right[i].layout(x, 0, x + geometry.buttonWidth, height);
+            int x = edge;
+            for (MiStepIconButton button : left) if (button.getVisibility() != View.GONE) {
+                button.layout(x, 0, x + buttonWidth, height); x += buttonWidth;
+            }
+            int visibleRight = 0;
+            for (MiStepIconButton button : right) if (button.getVisibility() != View.GONE) visibleRight++;
+            x = width - edge - visibleRight * buttonWidth;
+            for (MiStepIconButton button : right) if (button.getVisibility() != View.GONE) {
+                button.layout(x, 0, x + buttonWidth, height); x += buttonWidth;
             }
             // Buttons move only at zero opacity. The fixed title never fades or gets crossed.
             Runnable laidOut = afterSwapLayout;

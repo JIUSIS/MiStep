@@ -35,6 +35,7 @@ public final class TopAdmissionRegression {
  void releaseTopTask(boolean front,boolean dismiss,Runnable after){released++;}
  void updateTopTaskGeometry(){}void applyFullscreenBounds(Slot slot){}void applySlotScale(Slot slot){}
  void publishDesktopSideTasks(){}void preferMainAfterTopChange(){}void revealTopTaskTransition(){}void cancelTopTaskTransition(){}
+ void restoreTabletCoveredMain(TopTaskState.Key key){}
  void finishPendingSuspend(){finished++;}static void log(String text){}
 '''+member('    private boolean topReady(')+member('    private void adoptTopTask(')+member('    private void prepareTopViewport(')+member('    private void adoptTopTaskPrepared(')+member('    private void topAdoptionFailed(')+'''
  static TopCandidate candidate(TopAdmissionRegression h){TopCandidate c=new TopCandidate();c.source=h.slots[1];return c;}
@@ -95,16 +96,19 @@ public final class TopLayerRegression {
  static void check(boolean v,String why){checks++;if(!v)throw new AssertionError(why);}
  static class View {static final int VISIBLE=0,INVISIBLE=4;int visibility=4,raises;
   void setVisibility(int value){visibility=value;}void bringToFront(){raises++;order+="raise;";}}
- static class Bar extends View {int leaves;void leaveLandscapePage(){leaves++;}}
+ static class Bar extends View {int leaves;void leaveLandscapePage(){leaves++;}
+  void setTabletToolsExpanded(boolean expanded,boolean animate){setVisibility(expanded?VISIBLE:INVISIBLE);}}
  static class Pane extends View {boolean occupied;void occupied(boolean v){occupied=v;}}
  static class Root {int layouts;void requestLayout(){layouts++;}}
  static class Slot {boolean occupied,parked;int taskId=42;long taskEpoch=1;Object taskToken="token";}
  static class Roll {int resets;void reset(boolean task){resets++;}}
  static class TopCandidate {boolean landscape;}
+ static class Layout {boolean tabletLandscape;}
+ Layout layout=new Layout();boolean tabletToolsOpen;void updateTopTaskGeometry(){}
  Root root=new Root();Bar topBar=new Bar();Pane topTaskPane=new Pane();Roll topRoll=new Roll();
  Slot[]slots={new Slot(),new Slot(),new Slot(),new Slot(),new Slot()};
  TopTaskState topTaskState=new TopTaskState();TopCandidate current;
- boolean topFromMain=true;Object topOriginalSlot;Boolean mainOccupied=true;int retained,liveTransitions;boolean returnedLive;Runnable liveTransfer;
+ boolean topFromMain=true;Object topOriginalSlot,tabletCoveredMain,tabletReturnedTop;Boolean mainOccupied=true;int retained,liveTransitions;boolean returnedLive;Runnable liveTransfer;
  void cancelTopTaskTransition(){}
  Boolean mainTaskOccupiedBeside(int id){return mainOccupied;}
  void retainTopTaskSnapshot(){retained++;}
@@ -139,6 +143,10 @@ public final class TopLayerRegression {
   h=new TopLayerRegression();h.keyguardLocked=true;h.topRollSettled(false);check(h.topFace&&h.topBar.raises==0&&h.returned==0,"stale locked completion ignored");
   h=new TopLayerRegression();h.topSelectionPending=true;h.resetTopForSuspend();
   check(!h.topFace&&!h.topSelectionPending&&h.topBar.raises==1&&h.topRoll.resets==1,"suspend restores control paint order");
+  h=new TopLayerRegression();h.layout.tabletLandscape=true;h.tabletToolsOpen=true;h.resetTopForSuspend();
+  check(!h.tabletToolsOpen&&h.topBar.visibility==4&&h.topBar.raises==0,"tablet suspend collapses instead of exposing the old control face");
+  h.topBar.visibility=0;h.topRollSettled(false);
+  check(h.topBar.visibility==0,"late tablet roll completion cannot interrupt a closing drawer");
   System.out.println("Production top face/layer/suspend checks="+checks+" passed");
  }
 }'''

@@ -10,7 +10,7 @@ files.pop('com/jiusis/mistep/DesktopRouteRegression.java')
 files['android/os/Bundle.java']=files['android/os/Bundle.java'].replace('Map<String,Object>m=', 'public Bundle getBundle(String k){return (Bundle)m.get(k);}public void putBundle(String k,Bundle b){m.put(k,b);}public void putFloat(String k,float v){m.put(k,v);}public float getFloat(String k,float d){return m.containsKey(k)?(Float)m.get(k):d;} Map<String,Object>m=')
 files['android/os/Binder.java']='''package android.os;import java.util.*;public class Binder implements IBinder {public static int uid=10127;public boolean alive=true;List<DeathRecipient> listeners=new ArrayList<>();public static int getCallingUid(){return uid;}public boolean isBinderAlive(){return alive;}public void linkToDeath(DeathRecipient r,int f){listeners.add(r);}public boolean unlinkToDeath(DeathRecipient r,int f){return listeners.remove(r);}public void die(){alive=false;for(var r:new ArrayList<>(listeners))r.binderDied();}}'''
 files['android/graphics/Rect.java']=(root/'tools/test-stubs/android/graphics/Rect.java').read_text(encoding='utf-8')
-files['com/jiusis/mistep/NativeRawInputBridge.java']='package com.jiusis.mistep;class NativeRawInputBridge {static int uid=-1,calls;static float scale;static void updateTop(int u,float s){uid=u;scale=s;calls++;}}'
+files['com/jiusis/mistep/NativeRawInputBridge.java']='package com.jiusis.mistep;class NativeRawInputBridge {static int uid=-1,calls;static float scale,left,top;static void updateTop(int u,float s){updateTop(u,s,0,0);}static void updateTop(int u,float s,float x,float y){uid=u;scale=s;left=x;top=y;calls++;}}'
 files['com/jiusis/mistep/TopRawRegression.java']='''package com.jiusis.mistep;
 import android.os.*;import android.content.*;import android.graphics.Rect;import java.util.*;import com.android.server.wm.WindowContainer;
 public class TopRawRegression {
@@ -27,6 +27,10 @@ public class TopRawRegression {
  void register(Bundle top,long seq){Bundle state=new Bundle();state.putBinder("owner",owner);state.putLong("sequence",seq);state.putParcelableArrayList("rows",new ArrayList<Bundle>());state.putParcelableArrayList("recents",new ArrayList<Bundle>());state.putBundle("topInput",top);MiStepDesktopLaunchBridge.update(new Intent("update").putExtra("state",state));MiStepDesktopLaunchBridge.refreshTopInput(service);}
  public static void main(String[] args){
   var h=new TopRawRegression();check(h.uid()==10321,"real task UID resolved");
+  h.task.bounds=new Rect(0,0,1251,2519);h.row.putInt("width",1251);h.row.putInt("height",2519);h.row.putFloat("scale",.605f);h.row.putFloat("left",2291);h.row.putFloat("top",508);
+  check(h.uid()==10321,"exact portrait interactive viewport accepted");h.register(h.row,1);
+  check(NativeRawInputBridge.left==2291&&NativeRawInputBridge.top==508&&NativeRawInputBridge.scale==.605f,"right offset reaches native lease");
+  h.row.putFloat("left",Float.NaN);check(h.uid()<0,"nonfinite offset rejected");h=new TopRawRegression();
   h.task.mode=1;check(h.uid()<0,"returned fullscreen rejected");h.task.mode=6;
   h.task.translucent=false;check(h.uid()<0,"foreign native mode6 rejected");h.task.translucent=true;
   h.task.mTaskId++;check(h.uid()<0,"stale task ID rejected");h.task.mTaskId--;
@@ -66,7 +70,8 @@ public class TopRawRegression {
   h.task.info.parent=true;check(!MiStepDesktopLaunchBridge.prepareTop(h.service,request),"nested task early lease accepted");h.task.info.parent=false;
   h.task.info.type=2;check(!MiStepDesktopLaunchBridge.prepareTop(h.service,request),"Home early lease accepted");h.task.info.type=1;
   pending.putInt("taskId",744);check(!MiStepDesktopLaunchBridge.prepareTop(h.service,request),"stale requested task accepted");pending.putInt("taskId",743);
-  pending.putParcelable("bounds",new Rect(0,0,1080,2460));check(!MiStepDesktopLaunchBridge.prepareTop(h.service,request),"portrait pending viewport accepted");
+  pending.putParcelable("bounds",new Rect(0,0,1080,2460));check(MiStepDesktopLaunchBridge.prepareTop(h.service,request),"portrait pending viewport rejected");
+  pending.putParcelable("bounds",new Rect(1,0,1081,2460));check(!MiStepDesktopLaunchBridge.prepareTop(h.service,request),"offset logical viewport accepted");
   System.out.println("actual TOP raw ownership checks="+checks+" passed");
  }
 }'''

@@ -10,7 +10,8 @@ import android.view.View;
 /** Toolbar icons keep their touch target without painting a button plate. */
 final class MiStepIconButton extends View {
     static final int SETTINGS = 0, EXIT = 1, PREVIOUS = 2, NEXT = 3, CLIPBOARD = 4,
-            TORCH = 5, SCREENSHOT = 6, RECORD = 7, CLEAR = 8, DELETE = 9, CLOSE = 10;
+            TORCH = 5, SCREENSHOT = 6, RECORD = 7, CLEAR = 8, DELETE = 9, CLOSE = 10,
+            TOOLS = 11, PORTRAIT_TASK = 12;
     private final int icon;
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private boolean exitLeft;
@@ -43,7 +44,15 @@ final class MiStepIconButton extends View {
         paint.setStyle(Paint.Style.STROKE);
         paint.setColor(HyperOsStyle.textPrimary(getContext()));
         paint.setStrokeWidth(1.8f);
-        if (icon == CLIPBOARD) {
+        if (icon == TOOLS) {
+            for (int row = 0; row < 2; row++) for (int column = 0; column < 2; column++) {
+                float x = 4f + column * 9f, y = 4f + row * 9f;
+                canvas.drawRoundRect(x, y, x + 6f, y + 6f, 1f, 1f, paint);
+            }
+        } else if (icon == PORTRAIT_TASK) {
+            canvas.drawRoundRect(6, 2.5f, 18, 21.5f, 1.5f, 1.5f, paint);
+            canvas.drawLine(10, 18.5f, 14, 18.5f, paint);
+        } else if (icon == CLIPBOARD) {
             // A folded page and a small clamp, all at the same light stroke weight.
             Path page = new Path();
             page.moveTo(8, 4); page.lineTo(5.5f, 4); page.quadTo(4, 4, 4, 5.5f);
@@ -135,7 +144,7 @@ final class MiStepIconButton extends View {
         boolean handled = super.onTouchEvent(event);
         if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {
             animate().cancel();
-            animate().alpha(0.55f).scaleX(0.94f).scaleY(0.94f).setDuration(70).start();
+            animate().scaleX(0.96f).scaleY(0.96f).setDuration(80).start();
         } else if (event.getActionMasked() == MotionEvent.ACTION_UP
                 || event.getActionMasked() == MotionEvent.ACTION_CANCEL) {
             animate().cancel();

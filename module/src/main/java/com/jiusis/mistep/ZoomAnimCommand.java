@@ -8,7 +8,7 @@ package com.jiusis.mistep;
  * 生效的 MagnificationSpec（sZoomScale/Y/X），与 R2 ZoomAnimController 从
  * 当前真实 scale/offset 建 from、复制目标 spec 为 to 的做法一致。
  *
- * 行内不含起始时间：POC 只验证缩放动画本身；与宿主桥接动画的同步另做。
+ * 可选第六字段 at=<uptimeMs> 让宿主与 WM 使用同一单调时钟起点。
  */
 final class ZoomAnimCommand {
 
@@ -22,12 +22,18 @@ final class ZoomAnimCommand {
         final float offsetY;
         final float offsetX;
         final long durationMs;
+        final long startUptimeMs;
 
         Plan(float scale, float offsetY, float offsetX, long durationMs) {
+            this(scale, offsetY, offsetX, durationMs, 0L);
+        }
+
+        Plan(float scale, float offsetY, float offsetX, long durationMs, long startUptimeMs) {
             this.scale = scale;
             this.offsetY = offsetY;
             this.offsetX = offsetX;
             this.durationMs = durationMs;
+            this.startUptimeMs = startUptimeMs;
         }
 
         String describe() {
@@ -49,12 +55,18 @@ final class ZoomAnimCommand {
         if (trimmed.isEmpty() || !trimmed.startsWith("anim")) return null;
         if (modified < started || now - modified > ZoomCommand.ACTIVE_TIMEOUT_MS) return null;
         String[] parts = trimmed.split("\\s+");
-        if (parts.length != 5 || !"anim".equals(parts[0])) return null;
+        if ((parts.length != 5 && parts.length != 6) || !"anim".equals(parts[0])) return null;
         try {
             float scale = Float.parseFloat(parts[1]);
             float offsetY = Float.parseFloat(parts[2]);
             float offsetX = Float.parseFloat(parts[3]);
             long duration = Long.parseLong(parts[4]);
+            long start = 0L;
+            if (parts.length == 6) {
+                if (!parts[5].startsWith("at=")) return null;
+                start = Long.parseLong(parts[5].substring(3));
+                if (start <= 0L) return null;
+            }
             if (!Float.isFinite(scale) || !Float.isFinite(offsetY) || !Float.isFinite(offsetX)) {
                 return null;
             }
@@ -63,7 +75,7 @@ final class ZoomAnimCommand {
                 return null;
             }
             if (duration < MIN_DURATION_MS || duration > MAX_DURATION_MS) return null;
-            return new Plan(scale, offsetY, offsetX, duration);
+            return new Plan(scale, offsetY, offsetX, duration, start);
         } catch (NumberFormatException invalid) {
             return null;
         }

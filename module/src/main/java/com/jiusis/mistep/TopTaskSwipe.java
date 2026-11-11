@@ -9,6 +9,7 @@ final class TopTaskSwipe {
     private long downTime,pairTime;
     private boolean eligible,paired,accepted,blocked,allowHorizontal;
     private int axis;
+    private int outwardDirection;
     float displacement;
 
     void reset() { first=second=-1; eligible=paired=accepted=blocked=allowHorizontal=false; displacement=0;axis=0; }
@@ -23,8 +24,13 @@ final class TopTaskSwipe {
     }
     int event(int action,int count,int id0,int id1,float a,float b,float c,float d,
               long time,int width,int height,float density,boolean horizontalEligible) {
+        return event(action,count,id0,id1,a,b,c,d,time,width,height,density,horizontalEligible,0);
+    }
+    int event(int action,int count,int id0,int id1,float a,float b,float c,float d,
+              long time,int width,int height,float density,boolean horizontalEligible,int outward) {
         if(action==0) {
             reset(); first=id0;firstX=a;firstY=b;downTime=time;
+            outwardDirection=outward;
             allowHorizontal=horizontalEligible;
             threshold=Math.max(1,18*Math.max(.1f,density));
             eligible=count==1 && inside(a,b,width,height); return NONE;
@@ -59,7 +65,7 @@ final class TopTaskSwipe {
         if(time-pairTime>650 || Math.hypot(dx0-dx1,dy0-dy1)>threshold*1.5f) {
             eligible=false;return NONE;
         }
-        if(dy0*dy1>0 && Math.min(Math.abs(dy0),Math.abs(dy1))>=threshold
+        if(outwardDirection==0 && dy0*dy1>0 && Math.min(Math.abs(dy0),Math.abs(dy1))>=threshold
                 && Math.abs(displacement)>Math.max(Math.abs(dx0),Math.abs(dx1))*1.5f) {
             axis=VERTICAL;accepted=true;return ACCEPT;
         }

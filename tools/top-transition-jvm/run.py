@@ -155,6 +155,9 @@ public class TopTransitionRegression {
   reset();AtomicBoolean sourceCurrent=new AtomicBoolean(true);View destination=new View(ctx);
   Object source=new Object();run=make(()->handoffs++);run.collect(source,sourceCurrent::get,destination);
   handoff(run);
+  check(ValueAnimator.all.isEmpty()&&android.view.SurfaceControl.Transaction.last==null,
+   "first overlay draw cannot shrink the source before native Home readiness");
+  run.collectionReady();run.collectionReady();View.drain();
   check(handoffs==0&&ValueAnimator.all.size()==1,"collection waits for actual main task collapse");
   var shrink=ValueAnimator.all.get(0);shrink.step(.5f);
   tx=android.view.SurfaceControl.Transaction.last;
@@ -177,7 +180,7 @@ public class TopTransitionRegression {
   check(SwapPreview.captures==0&&Canvas.colorDraws==0&&Canvas.bitmapDraws==0,"collection renders only actual app surfaces");
   for(int reason=0;reason<5;reason++) {
    reset();sourceCurrent=new AtomicBoolean(true);destination=new View(ctx);source=new Object();
-   run=make(()->handoffs++);run.collect(source,sourceCurrent::get,destination);handoff(run);
+   run=make(()->handoffs++);run.collect(source,sourceCurrent::get,destination);run.collectionReady();handoff(run);
    shrink=ValueAnimator.all.get(0);shrink.step(.4f);
    if(reason==0)run.close();
    else if(reason==1)View.timers.get(0).run();
@@ -190,6 +193,13 @@ public class TopTransitionRegression {
     "collection cancel/timeout/scene-loss/role-change/target-cancel restores original view "+reason);
    if(reason<3)check(android.view.SurfaceControl.Transaction.last.sx==1&&handoffs==0,
     "interrupted source collapse restores fullscreen before any native transfer "+reason);
+  }
+  for(int reason=0;reason<3;reason++) {
+   reset();run=make(()->handoffs++);run.collect(new Object(),()->true,new View(ctx));handoff(run);
+   if(reason==0)run.close();else if(reason==1)View.timers.get(0).run();else valid.set(false);
+   check(!run.collectionReady(),"late/invalid readiness cannot revive a cancelled waiting collection "+reason);
+   View.drain();check(ValueAnimator.all.isEmpty()&&handoffs==0&&finishes==1,
+    "waiting cancellation/timeout/scene loss does not start animation or claim a task "+reason);
   }
   System.out.println("Production upper center transition checks="+checks+" passed (visual timing still needs device)");
  }
@@ -219,10 +229,13 @@ public class MiStepHost {
  android.content.Context ctx=new android.content.Context();FrameLayout root=new FrameLayout(ctx);
  View topBar=new View(ctx),topTaskPane=new View(ctx);Roll topRoll=new Roll();Layout layout=new Layout();
  static class Roll {boolean rolling(){return false;}boolean showingTask(){return true;}}
- static class Layout {int topStrip=622;}
+ static class Layout {int topStrip=622;boolean tabletLandscape;}
  static class TopRollMotion {static class Frame {float frontScale=0,taskScale=1,frontTop,taskTop;}}
- void updateCellSurfaceVisibility(Slot upper){}
- MiStepTopTaskTransition topTransition;TopTaskState topTaskState=new TopTaskState();int opacityWrites;boolean translucent,failOpacity;
+ void updateCellSurfaceVisibility(Slot upper){}void updateTopTaskGeometry(){}
+ MiStepTopTaskTransition topTransition;TopTaskState topTaskState=new TopTaskState();int opacityWrites,homeRequests;boolean translucent,failOpacity,failHome;
+ java.util.List<Object> appliedOrder=java.util.List.of();
+ static class Main {boolean post(Runnable r){r.run();return true;}}Main main=new Main();
+ boolean executeOnShell(Runnable r){r.run();return true;}
  static class Slot {View view;Object controller;boolean occupied;}
  static class Task {int id=42;Object token="token";boolean matches(Object o){return o instanceof Info&&((Info)o).taskId==id&&token.equals(((Info)o).token);}}
  static class TopCandidate {Task task=new Task();TopTaskState.Key key=new TopTaskState.Key(42,0,"token");}
@@ -235,8 +248,13 @@ public class MiStepHost {
   slots[4].controller=c;slots[4].view=new View(ctx);}
  Entry entry(){return ((Organizer)((Controller)slots[4].controller).mTaskOrganizer).mTasks.get(42);}
  Object rootInfo(Task task){return entry().info;}
+ Object homeForCollection(Task task)throws Exception{homeRequests++;if(failHome)throw new Exception("Home unavailable");return "home";}
  boolean applyWct(String what,Object wct){opacityWrites++;if(failOpacity)return false;
+  appliedOrder=new java.util.ArrayList<>(((android.window.WindowContainerTransaction)wct).order);
   translucent=((android.window.WindowContainerTransaction)wct).translucent;return true;}
+ void commitPreparation(){if(MiStepSyncPreparation.wct==null)return;
+  if(applyWct("native-sync",MiStepSyncPreparation.wct))MiStepSyncPreparation.ready.run();
+  else MiStepSyncPreparation.failed.accept(new IllegalStateException("sync failed"));}
  TopCandidate currentTopCandidate(){return selected;}boolean topReady(){return true;}
  boolean ordinaryRoot(Object o,int mode){return o instanceof Info&&((Info)o).mode==mode;}
  boolean mainTaskVisible(Object o){return ((Info)o).visible;}
@@ -246,7 +264,8 @@ public class MiStepHost {
 '''+member('    private void captureMainIntoTop(')
 for signature in ('    private boolean startTopCollectionTransition(',
                   '    private boolean topCollectionSourceCurrent(',
-                  '    private boolean setTopCollectionTranslucent('):
+                  '    private boolean setTopCollectionTranslucent(',
+                  '    private Object topCollectionTransaction('):
     if signature in host:host_body+=member(signature)
 for signature in ('    private boolean startTopTaskTransition(boolean intoTop, Runnable transfer)',
                   '    private boolean startTopTaskTransition(boolean intoTop, boolean liveMainReveal, Runnable transfer)'):
@@ -257,8 +276,13 @@ host_body+=member('    private void renderTopRollFrame(')
 host_body+='''public static void main(String[]args){
  ValueAnimatorReset();MiStepHost h=new MiStepHost();h.captureMainIntoTop();
  check(h.topTransition!=null&&h.claimed==0,"actual main capture starts the live bridge before claiming");
- check(h.translucent&&h.opacityWrites==1,"source reveals the actual underlying task before it is shrunk");
+ check(h.opacityWrites==0,"source does not expose the background before its native sync");
+ check(((android.window.WindowContainerTransaction)MiStepSyncPreparation.wct).order.equals(java.util.List.of("home","token"))&&h.homeRequests==1,
+  "actual Home must be ordered directly behind the retained source in its opacity transaction before shrinking");
  h.ctx.windows.view.draw(new android.graphics.Canvas());View.drain();
+ check(android.animation.ValueAnimator.all.isEmpty()&&h.claimed==0,"production entry still waits after overlay draw");
+ h.commitPreparation();View.drain();
+ check(h.translucent&&h.opacityWrites==1,"background is revealed only by the completed native preparation");
  check(android.animation.ValueAnimator.all.size()==1&&h.claimed==0,"production admission waits for source collapse");
  android.animation.ValueAnimator.all.get(0).end();check(h.claimed==1,"production admission claims exactly once after collapse");
  check(h.slots[4].view.scaleX==0&&h.slots[4].view.scaleY==0,"production handoff keeps target zero size while native admission waits");
@@ -278,30 +302,43 @@ host_body+='''public static void main(String[]args){
    case 5:h.slots[4].view=null;break;}
   h.captureMainIntoTop();check(h.topTransition==null&&android.animation.ValueAnimator.all.isEmpty(),"invalid source cannot acquire an animation surface "+mutation);
  }
- ValueAnimatorReset();h=new MiStepHost();h.captureMainIntoTop();h.ctx.windows.view.draw(new android.graphics.Canvas());View.drain();
+ ValueAnimatorReset();h=new MiStepHost();h.captureMainIntoTop();h.commitPreparation();h.ctx.windows.view.draw(new android.graphics.Canvas());View.drain();
  android.animation.ValueAnimator.all.get(0).step(.4f);h.entry().leash=new Object();
  var tx=android.view.SurfaceControl.Transaction.last;android.animation.ValueAnimator.all.get(0).step(.6f);
  check(h.claimed==0&&h.topTransition==null&&android.view.SurfaceControl.Transaction.last==tx,
   "canonical replacement interrupts before handoff and never resets the replacement");
  check(!h.translucent&&h.opacityWrites==2,"cancelled fullscreen source regains its native opacity even after canonical replacement");
- ValueAnimatorReset();h=new MiStepHost();h.captureMainIntoTop();h.topTransition.close();
+ ValueAnimatorReset();h=new MiStepHost();h.captureMainIntoTop();h.commitPreparation();h.topTransition.close();
  check(!h.translucent&&h.opacityWrites==2,"cancel before first draw restores temporary translucency");
- ValueAnimatorReset();h=new MiStepHost();h.captureMainIntoTop();View.timers.get(0).run();
+ check(h.appliedOrder.isEmpty()&&h.homeRequests==1,"opacity restoration does not reorder Home or another task");
+ ValueAnimatorReset();h=new MiStepHost();h.captureMainIntoTop();h.commitPreparation();View.timers.get(0).run();
  check(!h.translucent&&h.opacityWrites==2,"watchdog restores temporary source translucency");
- ValueAnimatorReset();h=new MiStepHost();h.failOpacity=true;h.captureMainIntoTop();
+ ValueAnimatorReset();h=new MiStepHost();h.failOpacity=true;h.captureMainIntoTop();h.commitPreparation();
  check(h.topTransition==null&&android.animation.ValueAnimator.all.isEmpty(),"failed translucency preparation never starts source shrinking");
+ ValueAnimatorReset();h=new MiStepHost();h.failHome=true;h.captureMainIntoTop();
+ check(h.topTransition==null&&!h.translucent&&h.claimed==0&&android.animation.ValueAnimator.all.isEmpty(),
+  "missing canonical Home rejects shrinking before exposing a different background app");
+ ValueAnimatorReset();h=new MiStepHost();h.captureMainIntoTop();h.topTransition.close();h.commitPreparation();View.drain();
+ check(h.topTransition==null&&!h.translucent&&h.claimed==0&&android.animation.ValueAnimator.all.isEmpty(),
+  "late native completion restores opacity after cancellation without reviving the bridge");
  System.out.println("Production Host collection entry checks="+checks+" passed");
  }
- static void ValueAnimatorReset(){android.animation.ValueAnimator.all.clear();View.frames.clear();View.timers.clear();}
+ static void ValueAnimatorReset(){android.animation.ValueAnimator.all.clear();View.frames.clear();View.timers.clear();MiStepSyncPreparation.wct=null;}
 }'''
 extra={
  'com/jiusis/mistep/MiStepHost.java':host_body,
+ 'com/jiusis/mistep/MiStepSyncPreparation.java':'''package com.jiusis.mistep;
+ class MiStepSyncPreparation {static Object wct;static Runnable ready;static java.util.function.Consumer<Throwable> failed;
+ static void submit(Object c,Object w,java.util.concurrent.Executor ui,Runnable r,java.util.function.Consumer<Throwable> f){
+ wct=w;ready=()->ui.execute(r);failed=e->ui.execute(()->f.accept(e));}}''',
  'android/util/SparseArray.java':'''package android.util;public class SparseArray<T>{
  java.util.Map<Integer,T>m=new java.util.HashMap<>();public T get(int i){return m.get(i);}public void put(int i,T v){m.put(i,v);}}''',
  'android/widget/Toast.java':'''package android.widget;public class Toast {public static final int LENGTH_SHORT=0;
  public static Toast makeText(Object c,String s,int d){return new Toast();}public void show(){}}''',
  'android/window/WindowContainerTransaction.java':'''package android.window;public class WindowContainerTransaction {
- public boolean translucent;public void setForceTranslucent(Object token,boolean value){translucent=value;}}'''
+ public boolean translucent;public java.util.List<Object> order=new java.util.ArrayList<>();
+ public void reorder(Object token,boolean onTop){if(!onTop)throw new AssertionError("unexpected reorder direction");order.add(token);}
+ public void setForceTranslucent(Object token,boolean value){translucent=value;}}'''
 }
 extra_paths=[]
 for name,text in extra.items():

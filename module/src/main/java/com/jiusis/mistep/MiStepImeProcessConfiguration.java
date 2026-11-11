@@ -42,10 +42,7 @@ final class MiStepImeProcessConfiguration {
         Object session = XposedHelpers.getObjectField(window, "mSession");
         int pid = XposedHelpers.getIntField(session, "mPid");
         Object wms = XposedHelpers.getObjectField(display, "mWmService");
-        Object root = XposedHelpers.getObjectField(wms, "mRoot");
-        Object currentIme = ShellCompat.hasMethod(root.getClass(), "getCurrentImeWindow", 0)
-                ? XposedHelpers.callMethod(root, "getCurrentImeWindow")
-                : XposedHelpers.getObjectField(display, "mInputMethodWindow");
+        Object currentIme = MiStepImeWindow.current(display);
         if (currentIme != window) return;
         Object atm = XposedHelpers.getObjectField(wms, "mAtmService");
         Object processes = XposedHelpers.getObjectField(atm, "mProcessMap");

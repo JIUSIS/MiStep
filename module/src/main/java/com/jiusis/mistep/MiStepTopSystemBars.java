@@ -11,6 +11,18 @@ import de.robv.android.xposed.XposedHelpers;
 /** Return the OEM bar-follow owner after our TOP task returns without a Shell transition.
  * All entry points run under the owning WMS global lock. Insets visibility stays native. */
 final class MiStepTopSystemBars {
+    /** OS2's bar controller has a different transition-owned lifecycle. */
+    static boolean supported(Class<?> type) {
+        boolean owner = false, replay = false;
+        for (Class<?> c = type; c != null; c = c.getSuperclass()) {
+            try { c.getDeclaredField("mCurrentTopTask"); owner = true; }
+            catch (NoSuchFieldException absent) { }
+            try { c.getDeclaredMethod("updateStatusBarAnotherApp"); replay = true; }
+            catch (NoSuchMethodException absent) { }
+        }
+        return owner && replay;
+    }
+
     private static final class Visit {
         final Object display;
         long returnedAt;

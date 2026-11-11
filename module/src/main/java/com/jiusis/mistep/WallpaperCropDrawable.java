@@ -19,6 +19,12 @@ final class WallpaperCropDrawable extends Drawable {
     private final Paint bitmapPaint = new Paint(7);
     private final Paint tintPaint = new Paint();
     private final Rect source = new Rect();
+    private RectF mainHole;
+
+    void setMainHole(RectF hole) {
+        mainHole = hole == null ? null : new RectF(hole);
+        invalidateSelf();
+    }
 
     WallpaperCropDrawable(Bitmap bitmap, int i, int i2, int i3, int i4, int i5) {
         this.wallpaper = bitmap;
@@ -49,11 +55,16 @@ final class WallpaperCropDrawable extends Drawable {
         if (bounds.isEmpty() || this.wallpaper == null || this.wallpaper.isRecycled()) {
             return;
         }
+        int saved = canvas.save();
+        if (mainHole != null) canvas.clipOutRect(
+                bounds.left + mainHole.left - screenX, bounds.top + mainHole.top - screenY,
+                bounds.left + mainHole.right - screenX, bounds.top + mainHole.bottom - screenY);
         this.source.set(Math.round((this.screenX * this.wallpaper.getWidth()) / this.screenWidth), Math.round((this.screenY * this.wallpaper.getHeight()) / this.screenHeight), Math.round(((this.screenX + bounds.width()) * this.wallpaper.getWidth()) / this.screenWidth), Math.round(((this.screenY + bounds.height()) * this.wallpaper.getHeight()) / this.screenHeight));
         canvas.drawBitmap(this.wallpaper, this.source, new RectF(bounds), this.bitmapPaint);
         if ((this.tint >>> 24) != 0) {
             canvas.drawRect(bounds, this.tintPaint);
         }
+        canvas.restoreToCount(saved);
     }
 
     @Override // android.graphics.drawable.Drawable

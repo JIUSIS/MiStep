@@ -21,7 +21,7 @@ import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
 
-/** User initiated actions through the exact OS4 SystemUI quick settings implementation. */
+/** User initiated actions through the loaded SystemUI quick settings implementation. */
 final class MiStepSystemActions {
     private static final String HOST =
             "com.android.systemui.qs.pipeline.domain.adapter.MiuiQSHostAdapter";
@@ -45,7 +45,7 @@ final class MiStepSystemActions {
         installed = true;
         MiStepOs4Controls.install(loader);
         try {
-            Class<?> type = XposedHelpers.findClass(HOST, loader);
+            Class<?> type = hostType(loader);
             XposedBridge.hookAllConstructors(type, new XC_MethodHook() {
                 @Override protected void afterHookedMethod(MethodHookParam param) {
                     if (!param.hasThrowable()) host = new WeakReference<>(param.thisObject);
@@ -64,6 +64,20 @@ final class MiStepSystemActions {
         } catch (Throwable error) {
             logFailure("flashlight install", error);
         }
+    }
+
+    private static Class<?> hostType(ClassLoader loader) {
+        for (String name : new String[] { HOST, "com.android.systemui.qs.QSHostAdapter",
+                "com.android.systemui.qs.QSTileHost" }) {
+            Class<?> type = XposedHelpers.findClassIfExists(name, loader);
+            if (type == null) continue;
+            try {
+                if (Collection.class.isAssignableFrom(type.getMethod("getTiles").getReturnType())
+                        && type.getMethod("createTile", String.class).getReturnType() != void.class)
+                    return type;
+            } catch (NoSuchMethodException ignored) {}
+        }
+        throw new IllegalStateException("OEM quick settings host unavailable");
     }
 
     /** Context registration belongs to SystemUIService.onCreate; install still runs early. */

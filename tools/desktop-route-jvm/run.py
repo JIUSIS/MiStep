@@ -92,7 +92,7 @@ public class DesktopRouteRegression {
 '''
 }
 files['android/os/Bundle.java']=files['android/os/Bundle.java'].replace('Map<String,Object>m=', 'public Bundle getBundle(String k){return (Bundle)m.get(k);}public float getFloat(String k,float d){return m.containsKey(k)?(Float)m.get(k):d;} Map<String,Object>m=')
-files['com/jiusis/mistep/NativeRawInputBridge.java']='package com.jiusis.mistep;class NativeRawInputBridge {static void updateTop(int uid,float scale){}}'
+files['com/jiusis/mistep/NativeRawInputBridge.java']='package com.jiusis.mistep;class NativeRawInputBridge {static void updateTop(int uid,float scale){}static void updateTop(int uid,float scale,float left,float top){}}'
 files['com/jiusis/mistep/MiStepTopRawInput.java']='package com.jiusis.mistep;import android.os.Bundle;class MiStepTopRawInput {static int uid(Bundle b,ClassLoader l){return -1;}}'
 for name, text in files.items():
     path=out/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_text(text,encoding='utf8')

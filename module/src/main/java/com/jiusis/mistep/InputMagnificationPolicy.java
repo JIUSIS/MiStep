@@ -13,6 +13,7 @@ final class InputMagnificationPolicy {
 
     static boolean shouldForceMagnification(int windowType, int privateFlags,
             String packageName, CharSequence title) {
+        if (shouldExcludeFromMagnification(windowType, packageName, title)) return false;
         // OS4's real permission capsule, dot, RemoteViews and touch area share
         // this window. Admit the whole native window, without changing its state.
         if (windowType == 2017 && "com.android.systemui".equals(packageName)
@@ -22,5 +23,15 @@ final class InputMagnificationPolicy {
         if (windowType == 2027 && "com.android.systemui".equals(packageName)
                 && title != null && "MiuiBubbles".contentEquals(title)) return true;
         return shouldForceMagnification(windowType, privateFlags);
+    }
+
+    static boolean shouldExcludeFromMagnification(int windowType,
+            String packageName, CharSequence title) {
+        if (!"com.android.systemui".equals(packageName) || title == null) return false;
+        if (windowType == 2018)
+            return "gxzw_icon".contentEquals(title) || "gxzw_touch".contentEquals(title);
+        if (windowType == 2015) return "gxzw_anim".contentEquals(title);
+        if (windowType == 2009) return "MiStepNativeBiometricPrompt".contentEquals(title);
+        return windowType == 2021 && "hbm_overlay".contentEquals(title);
     }
 }

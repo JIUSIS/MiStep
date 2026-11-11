@@ -67,7 +67,7 @@ final class MiStepLiveSwap64 {
             backend = new MiStepLiveSwapSession.ShellBackend(shell, loader); backend.assertShellThread();
             organizer = XposedHelpers.getObjectField(controller, "mTaskOrganizer");
             Object area = ShellCompat.rootArea(organizer);
-            Object areaInfo = XposedHelpers.callMethod(area, "getDisplayAreaInfo", 0);
+            Object areaInfo = ShellCompat.call(area, "getDisplayAreaInfo", 0);
             if (areaInfo == null || XposedHelpers.getIntField(areaInfo, "featureId") != 1
                     || XposedHelpers.getIntField(areaInfo, "displayId") != 0)
                 throw new IllegalStateException("verified display area unavailable");

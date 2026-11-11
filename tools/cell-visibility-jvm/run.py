@@ -15,7 +15,7 @@ package com.jiusis.mistep;
 import android.view.SurfaceControl;
 import de.robv.android.xposed.XposedHelpers;
 public class CellVisibilityRegression {
- static int checks;static final int SLOT_TOP=4;boolean topFace;Roll topRoll;
+ static int checks;static final int SLOT_TOP=4,CELL_SLOT_COUNT=4;boolean topFace,taskCellsCovered;Roll topRoll;
  static class Roll{boolean moving,task;boolean rolling(){return moving;}boolean showingTask(){return task;}}
  static void check(boolean b,String why){checks++;if(!b)throw new AssertionError(why);}
  float workspaceAlpha=1f;Object cellMotion;Promotion promotion;boolean owns=true;
@@ -59,10 +59,16 @@ public class CellVisibilityRegression {
   check(s.view.alpha==1&&surface.shown,"last live frame stays visible before settled callback updates topFace");
   h.topRoll.task=false;h.updateCellSurfaceVisibility(s);
   check(s.view.alpha==0&&!surface.shown,"controls settled frame hides real task without stale screenshot");
+  s.index=1;h.taskCellsCovered=true;h.updateCellSurfaceVisibility(s);
+  check(s.view.alpha==0&&!surface.shown&&s.occupied,"expanded controls hide real cell presentation without releasing its task");
+  h.taskCellsCovered=false;h.updateCellSurfaceVisibility(s);
+  check(s.view.alpha==1&&surface.shown,"drawer close restores the same live task");
+  s.index=SLOT_TOP;h.topFace=true;h.taskCellsCovered=true;h.updateCellSurfaceVisibility(s);
+  check(s.view.alpha==1&&surface.shown,"independent interactive pane is not hidden by top-row controls");
   System.out.println("Actual Host cell visibility checks="+checks+" passed");
  }
 }
-'''.replace('__METHODS__','\n'.join(method(s) for s in ['    private void updateCellSurfaceVisibility(', '    private void prepareCellSurface(']))
+'''.replace('__METHODS__','\n'.join(method(s) for s in ['    private boolean ownsCellPresentation(', '    private boolean cellPresentationVisible(', '    private void updateCellSurfaceVisibility(', '    private void prepareCellSurface(']))
 files={
 'com/jiusis/mistep/CellVisibilityRegression.java':body,
 'android/view/SurfaceControl.java':r'''package android.view;import java.util.*;
@@ -83,6 +89,11 @@ for sig,anchor in [('    private void startLiveCollect(','statusBar.runAfterHidd
     assert 'prepareCellSurface(slot);' in source
     assert source.index('prepareCellSurface(slot);')<source.index(anchor)
 assert 'for (Slot cell : slots)' in method('    private void restoreLiveSwapVisual(')
+created=method('    private void onTaskViewCreated(')
+assert 'slot.hint.setOnClickListener(v -> { if (!taskCellsCovered)' in created
+assert 'view.setOnClickListener(v -> { if (!taskCellsCovered)' in created
+# Explicit shortcut/settings commands must still reuse the existing task dispatcher.
+assert 'taskCellsCovered' not in method('    private void onSlotTapped(')
 jdk=Path(os.environ["MISTEP_JAVA_BIN"])
 subprocess.run([str(jdk/'javac.exe'),'-encoding','UTF-8','-d',str(out),*[str(out/p) for p in files]],check=True)
 subprocess.run([str(jdk/'java.exe'),'-cp',str(out),'com.jiusis.mistep.CellVisibilityRegression'],check=True)

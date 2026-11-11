@@ -10,18 +10,32 @@ final class MiStepImePolicy {
 
     /** A passive side task is not an IME layer target; a touched TOP editor is. */
     static boolean isFocusedTopWindow(Object window, Object display) {
+        return isFocusedTopWindow(window,display, task -> {
+            Rect b=(Rect)XposedHelpers.callMethod(task,"getBounds");
+            return b!=null && b.width()>b.height();
+        });
+    }
+
+    static boolean isFocusedTopWindow(Object window, Object display, Predicate<Object> lease) {
         if (window == null || display == null
                 || XposedHelpers.callMethod(window, "getDisplayContent") != display) return false;
-        return isFocusedTopTask(XposedHelpers.callMethod(window, "getTask"), display);
+        return isFocusedTopTask(XposedHelpers.callMethod(window, "getTask"), display, lease);
     }
 
     static boolean isFocusedTopTask(Object task, Object display) {
+        return isFocusedTopTask(task,display,t -> {
+            Rect b=(Rect)XposedHelpers.callMethod(t,"getBounds");
+            return b!=null && b.width()>b.height();
+        });
+    }
+
+    static boolean isFocusedTopTask(Object task, Object display, Predicate<Object> lease) {
         if (display == null || task == null || !Integer.valueOf(6).equals(
                 XposedHelpers.callMethod(task, "getWindowingMode"))
                 || !Boolean.TRUE.equals(XposedHelpers.callMethod(task, "isForceTranslucent"))) return false;
         Rect bounds = (Rect) XposedHelpers.callMethod(task, "getBounds");
         if (bounds == null || bounds.left != 0 || bounds.top != 0
-                || bounds.height() <= 0 || bounds.width() <= bounds.height()) return false;
+                || bounds.height() <= 0 || bounds.width() <= 0 || !lease.test(task)) return false;
         Object focused = XposedHelpers.getObjectField(display, "mCurrentFocus");
         return focused != null
                 && XposedHelpers.callMethod(focused, "getDisplayContent") == display
@@ -44,7 +58,7 @@ final class MiStepImePolicy {
         if (!MiStepSideRoleChange.isSide(task) || !topLease.test(task)) return false;
         Rect bounds = (Rect) XposedHelpers.callMethod(task, "getBounds");
         return bounds != null && bounds.left == 0 && bounds.top == 0
-                && bounds.height() > 0 && bounds.width() > bounds.height()
+                && bounds.height() > 0 && bounds.width() > 0
                 && !isTopAppFocused(task, display);
     }
 
@@ -56,7 +70,7 @@ final class MiStepImePolicy {
         if (!MiStepSideRoleChange.isSide(task) || !topLease.test(task)) return false;
         Rect bounds = (Rect) XposedHelpers.callMethod(task, "getBounds");
         if (bounds == null || bounds.left != 0 || bounds.top != 0
-                || bounds.height() <= 0 || bounds.width() <= bounds.height()) return false;
+                || bounds.height() <= 0 || bounds.width() <= 0) return false;
         Object activity = XposedHelpers.getObjectField(window, "mActivityRecord");
         if (activity == null || XposedHelpers.callMethod(activity, "getTask") != task
                 || XposedHelpers.callMethod(activity, "getDisplayContent") != display
@@ -80,7 +94,7 @@ final class MiStepImePolicy {
                 || !Boolean.TRUE.equals(XposedHelpers.callMethod(task, "isForceTranslucent"))) return false;
         Rect bounds = (Rect) XposedHelpers.callMethod(task, "getBounds");
         return bounds != null && bounds.width() > 0 && bounds.height() > 0
-                && bounds.width() <= bounds.height() && liveSideLease.test(task);
+                && liveSideLease.test(task);
     }
 
     /** A late side lease must reconcile native Activity focus before WM's Z-order cutoff. */

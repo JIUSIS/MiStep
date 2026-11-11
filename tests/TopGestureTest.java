@@ -48,6 +48,17 @@ public final class TopGestureTest {
         swipe.event(0,1,7,12,400,300,0,0,0,1080,622,2,true);
         swipe.event(5,2,7,12,400,300,650,300,40,1080,622,2,true);
         ok(swipe.event(2,2,7,12,400,200,650,200,100,1080,622,2,true)==TopTaskSwipe.ACCEPT&&!swipe.horizontal());
+        for(int sign:new int[]{-1,1}) {
+            for(int motion=0;motion<4;motion++) {
+                swipe.event(0,1,7,12,400,600,0,0,0,904,1426,2.5f,true,sign);
+                swipe.event(5,2,7,12,400,600,650,600,40,904,1426,2.5f,true,sign);
+                float dx=motion==0?sign*80:motion==1?-sign*80:motion==3?80:0;
+                float dy=motion==2?100:0;
+                int result=swipe.event(2,2,7,12,400+dx,600+dy,
+                        motion==3?570:650+dx,600+dy,100,904,1426,2.5f,true,sign);
+                ok(result==(motion<=1?TopTaskSwipe.ACCEPT:TopTaskSwipe.NONE));
+            }
+        }
         TopRollMotion m=new TopRollMotion();m.reset(false);m.begin(600);m.move(-420,100);
         ok(Math.abs(m.phase-.7f)<.001 && m.destination(false)==1);
         // One face per gesture: a long drag clamps to the adjacent face and never shows a third.

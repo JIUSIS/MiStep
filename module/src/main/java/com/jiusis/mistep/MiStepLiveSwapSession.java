@@ -28,6 +28,7 @@ final class MiStepLiveSwapSession {
         void close(Object transaction);
         void committed(Object transaction, Runnable completion);
         void await(BooleanSupplier condition, long timeout, Consumer<Boolean> completion);
+        default boolean canAbortWaiting(Object token) { return true; }
         void abortWaiting(Object token);
         Animation animate(long duration, Consumer<Double> frame, Runnable end);
     }
@@ -144,9 +145,20 @@ final class MiStepLiveSwapSession {
                 } else if (state == State.RUNNING) {
                     finish(true, new IllegalStateException("pending live swap cancelled"));
                 } else if (state == State.WAITING) {
-                    backend.abortWaiting(token);
-                    // A removed/unknown Shell pending may have no handler notification.
-                    if (state == State.WAITING) onConsumed(token, true, null);
+                    if (backend.canAbortWaiting(token)) {
+                        backend.abortWaiting(token);
+                        // A removed/unknown Shell pending may have no handler notification.
+                        if (state == State.WAITING) onConsumed(token, true, null);
+                    } else {
+                        // OS2 cannot abort a request before Ready. Keep our handler
+                        // until it receives Ready and finishes the confirmed inverse.
+                        backend.await(() -> state != State.WAITING, 1500L, delivered -> {
+                            if (!delivered && state == State.WAITING) {
+                                state = State.FAILED;
+                                complete(new IllegalStateException("native cancellation Ready not delivered"));
+                            }
+                        });
+                    }
                 }
                 } catch (Throwable error) { state = State.FAILED; complete(error); }
             });
@@ -324,7 +336,10 @@ final class MiStepLiveSwapSession {
             executor = XposedHelpers.getObjectField(transitions, "mMainExecutor");
             transactionClass = Class.forName("android.view.SurfaceControl$Transaction");
         }
-        @Override public void assertShellThread() { XposedHelpers.callMethod(executor, "assertCurrentThread"); }
+        @Override public void assertShellThread() {
+            if (ShellCompat.hasMethod(executor.getClass(), "assertCurrentThread", 0))
+                XposedHelpers.callMethod(executor, "assertCurrentThread");
+        }
         @Override public Object startTransition(Object wct, Handler handler) {
             try {
                 Class<?> type = Class.forName("com.android.wm.shell.transition.Transitions$TransitionHandler", false, loader);
@@ -400,8 +415,15 @@ final class MiStepLiveSwapSession {
             // Let organizer callbacks queued by the synchronous reverse-WCT call run first.
             XposedHelpers.callMethod(executor, "executeDelayed", probe, 16L);
         }
+        @Override public boolean canAbortWaiting(Object token) {
+            if (ShellCompat.hasMethod(transitions.getClass(), "abortTransition", 2)) return true;
+            Object known = XposedHelpers.callMethod(XposedHelpers.getObjectField(transitions,
+                    "mKnownTransitions"), "get", token);
+            return known == null || XposedHelpers.getObjectField(known, "mInfo") != null;
+        }
         @Override public void abortWaiting(Object token) {
-            XposedHelpers.callMethod(transitions, "abortTransition", token, 0);
+            if (ShellCompat.hasMethod(transitions.getClass(), "abortTransition", 2))
+                XposedHelpers.callMethod(transitions, "abortTransition", token, 0);
             Object known = XposedHelpers.callMethod(XposedHelpers.getObjectField(transitions,
                     "mKnownTransitions"), "get", token);
             if (known != null && XposedHelpers.getObjectField(known, "mInfo") != null

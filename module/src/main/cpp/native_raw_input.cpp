@@ -60,7 +60,12 @@ int find_and_hook(dl_phdr_info* info, size_t, void*) {
     if (info->dlpi_name == nullptr
             || std::strcmp(info->dlpi_name, "/system/lib64/libinputflinger.so") != 0) return 0;
     struct Profile { uintptr_t rva; const char* name; uint32_t prologue[16]; };
-    constexpr Profile profiles[] = {{0x420434,"17PM-d5287b73",{
+    constexpr Profile profiles[] = {{0x153e30,"xaga-os2-938f55e1",{
+        0xfc1a0fe8,0xa900fbfd,0xf9000ffc,0xa90267fa,
+        0xa9035ff8,0xa90457f6,0xa9054ff4,0x910023fd,
+        0xd12643ff,0xd53bd057,0xaa0203f4,0xf94016e8,
+        0xaa0103f3,0xaa0003f6,0x910423e0,0x2a1f03e1
+    }},{0x420434,"17PM-d5287b73",{
         0xd503233f, 0xfc1a0fe8, 0xa9017bfd, 0xa90267fc,
         0xa9035ff8, 0xa90457f6, 0xa9054ff4, 0x910043fd,
         0xd12603ff, 0xf90003ff, 0xaa0203f4, 0xaa0103f3,
@@ -91,7 +96,8 @@ int find_and_hook(dl_phdr_info* info, size_t, void*) {
     const int result = hook_function(address, reinterpret_cast<void*>(replacement_publish),
             reinterpret_cast<void**>(&original_publish));
     installed.store(result == 0 && original_publish != nullptr, std::memory_order_release);
-    top_uid_layout.store(installed.load() && (rva == 0x431a70 || rva == 0x420434 || rva == 0x21fc00),
+    top_uid_layout.store(installed.load() && (rva == 0x153e30 || rva == 0x431a70
+                    || rva == 0x420434 || rva == 0x21fc00),
             std::memory_order_release);
     __android_log_print(ANDROID_LOG_INFO, "MiStepRawInput",
             "publish hook installed=%d result=%d profile=%s",
@@ -149,12 +155,13 @@ Java_com_jiusis_mistep_NativeRawInputBridge_updateNative(JNIEnv*, jclass,
 
 extern "C" JNIEXPORT jboolean JNICALL
 Java_com_jiusis_mistep_NativeRawInputBridge_updateTopNative(JNIEnv*, jclass,
-        jint uid, jfloat scale) {
+        jint uid, jfloat scale, jfloat left, jfloat top) {
     pthread_mutex_lock(&config_lock);
     active_top = top_uid_layout.load(std::memory_order_acquire)
             && active_zoom.scale > 0 && active_zoom.scale < 1
             && uid >= 10000 && std::isfinite(scale) && scale > 0 && scale < 1
-            ? mistep::TopInput{uid, scale} : mistep::TopInput{};
+            && std::isfinite(left) && std::isfinite(top) && left>=0 && top>=0
+            ? mistep::TopInput{uid, scale, left, top} : mistep::TopInput{};
     pthread_mutex_unlock(&config_lock);
     return installed.load(std::memory_order_acquire)
             && top_uid_layout.load(std::memory_order_acquire) ? JNI_TRUE : JNI_FALSE;

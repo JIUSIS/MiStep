@@ -50,6 +50,7 @@ final class MiStepNativeMedia extends FrameLayout {
     private static final Object NO_SCOPE = new Object();
     private static WeakReference<Object> source = new WeakReference<>(null);
     private static boolean installed;
+    private static boolean legacy;
     private final TextView empty, lyrics;
     private MediaController lyricController;
     private MediaController.Callback lyricCallback;
@@ -74,6 +75,11 @@ final class MiStepNativeMedia extends FrameLayout {
         installed = true;
         MediaLyricLookup.setDiagnostics(message -> XposedBridge.log("[Mi Step] lyric " + message));
         try {
+            if (XposedHelpers.findClassIfExists(CONTROLLER, loader) == null) {
+                MiStepLegacyMedia.install(loader, () -> MAIN.post(MiStepNativeMedia::notifyPages));
+                legacy = true;
+                return;
+            }
             Class<?> provider = XposedHelpers.findClass(
                     "com.android.systemui.dagger.DaggerReferenceGlobalRootComponent$ReferenceSysUIComponentImpl$SwitchingProvider", loader);
             XC_MethodHook factoryHook = new XC_MethodHook() {
@@ -152,6 +158,13 @@ final class MiStepNativeMedia extends FrameLayout {
         } catch (Throwable e) { MiStepOs4Controls.failed("native music hooks", e); }
     }
 
+    private static void notifyPages() {
+        for (WeakReference<MiStepNativeMedia> ref : new ArrayList<>(listeners)) {
+            MiStepNativeMedia page = ref.get();
+            if (page != null && page.active) page.update();
+        }
+    }
+
     MiStepNativeMedia(Context context) {
         super(context);
         setClipChildren(true);
@@ -197,7 +210,9 @@ final class MiStepNativeMedia extends FrameLayout {
         if (!active || !isAttachedToWindow()) return;
         try {
             Object original = source.get();
-            Object data = original == null ? null : XposedHelpers.getObjectField(original, "topMediaData");
+            Object[] selected = legacy ? MiStepLegacyMedia.selected() : null;
+            Object data = legacy ? (selected == null ? null : selected[0])
+                    : original == null ? null : XposedHelpers.getObjectField(original, "topMediaData");
             if (data == null) {
                 unbind();
                 if (player == null) createPlayer();
@@ -209,9 +224,16 @@ final class MiStepNativeMedia extends FrameLayout {
             if (!bound) {
                 enablePlayer();
                 bound = true;
-                XposedHelpers.callMethod(controller, "attach", XposedHelpers.getAdditionalInstanceField(player, "mistep.media.holder"));
+                XposedHelpers.callMethod(controller, legacy ? "attachPlayer" : "attach",
+                        XposedHelpers.getAdditionalInstanceField(player, "mistep.media.holder"));
             }
-            XposedHelpers.callMethod(controller, "bindMediaData", data);
+            if (legacy) {
+                MiStepLegacyMedia.measure(controller, Math.max(nativeWidth,
+                        Math.round(300 * getResources().getDisplayMetrics().density)));
+                XposedHelpers.callMethod(controller, "bindPlayer", data, selected[1]);
+                MiStepLegacyMedia.measure(controller, Math.max(nativeWidth,
+                        Math.round(300 * getResources().getDisplayMetrics().density)));
+            } else XposedHelpers.callMethod(controller, "bindMediaData", data);
             try { syncLyricController(); }
             catch (Throwable e) {
                 clearLyricController();
@@ -229,6 +251,10 @@ final class MiStepNativeMedia extends FrameLayout {
     }
 
     private void createController() throws Exception {
+        if (legacy) {
+            controller = MiStepLegacyMedia.create();
+            return;
+        }
         Object provider = factory;
         if (provider == null) throw new IllegalStateException("OS4 media factory not ready");
         ClassLoader loader = getContext().getClassLoader();
@@ -246,6 +272,16 @@ final class MiStepNativeMedia extends FrameLayout {
 
     private void createPlayer() throws Exception {
         ClassLoader loader = getContext().getClassLoader();
+        if (legacy) {
+            View root = LayoutInflater.from(getContext()).inflate(resource("layout", "media_session_view"), this, false);
+            Object holder = XposedHelpers.newInstance(XposedHelpers.findClass(
+                    "com.android.systemui.media.controls.ui.view.MediaViewHolder", loader), root);
+            XposedHelpers.setAdditionalInstanceField(root, "mistep.media.holder", holder);
+            player = root;
+            seekBar = root.requireViewById(resource("id", "media_progress_bar"));
+            addView(root, 0, new LayoutParams(-1, -2));
+            return;
+        }
         View root = LayoutInflater.from(getContext()).inflate(resource("layout", "miui_media_session"), this, false);
         Object holder = allocate(XposedHelpers.findClass(BASE + "MiuiMediaViewHolder", loader));
         XposedHelpers.setObjectField(holder, "player", root);
@@ -274,7 +310,7 @@ final class MiStepNativeMedia extends FrameLayout {
 
     private void syncLyricController() {
         // Follow exactly the player selected by SystemUI, without a package allowlist.
-        Object value = XposedHelpers.getObjectField(controller, "mediaController");
+        Object value = XposedHelpers.getObjectField(controller, legacy ? "mController" : "mediaController");
         MediaController next = value instanceof MediaController ? (MediaController) value : null;
         // Native bindMediaData may create another controller for the same session.
         // Keep our callback and in-flight lookup until the actual session changes.
@@ -457,7 +493,7 @@ final class MiStepNativeMedia extends FrameLayout {
     private void enablePlayer() {
         player.setEnabled(true);
         player.setAlpha(1f);
-        ImageView album = (ImageView) child("album_art_image");
+        ImageView album = (ImageView) child(legacy ? "album_art" : "album_art_image");
         album.setImageTintList(null);
         album.setBackgroundColor(android.graphics.Color.TRANSPARENT);
         album.setScaleType(ImageView.ScaleType.CENTER_CROP);
@@ -479,14 +515,18 @@ final class MiStepNativeMedia extends FrameLayout {
         player.setOnClickListener(null);
         player.setClickable(false);
         player.setEnabled(false);
-        applyConstraints(player, "miui_media_session_normal");
-        anchorHeader(player);
-        applyConstraints(child("album_art"), "miui_media_session_album_normal");
+        if (legacy) {
+            applyConstraints(player, "media_session_expanded");
+        } else {
+            applyConstraints(player, "miui_media_session_normal");
+            anchorHeader(player);
+            applyConstraints(child("album_art"), "miui_media_session_album_normal");
+        }
         ((TextView) child("header_title")).setText("暂无播放内容");
         ((TextView) child("header_artist")).setText("");
         ((TextView) child("media_elapsed_time")).setText("00:00");
         ((TextView) child("media_total_time")).setText("00:00");
-        ImageView album = (ImageView) child("album_art_image");
+        ImageView album = (ImageView) child(legacy ? "album_art" : "album_art_image");
         album.setImageResource(resource("drawable", "ic_music_note"));
         album.setImageTintList(android.content.res.ColorStateList.valueOf(0x99ffffff));
         album.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
@@ -503,6 +543,8 @@ final class MiStepNativeMedia extends FrameLayout {
             action.setImageDrawable(i < icons.length ? getContext().getDrawable(resource("drawable", icons[i])) : null);
             action.setImageTintList(android.content.res.ColorStateList.valueOf(0xffffffff));
         }
+        if (legacy) for (String name : new String[] {"actionPrev", "actionPlayPause", "actionNext"})
+            child(name).setVisibility(View.GONE);
         View output = child("media_seamless_button");
         output.setVisibility(View.GONE);
         output.setEnabled(false);
@@ -579,7 +621,13 @@ final class MiStepNativeMedia extends FrameLayout {
         clearLyricController();
         if (bound) {
             bound = false;
-            try { XposedHelpers.callMethod(controller, "detach"); }
+            try {
+                if (legacy) {
+                    Object own = controller;
+                    controller = null;
+                    MiStepLegacyMedia.release(own);
+                } else XposedHelpers.callMethod(controller, "detach");
+            }
             catch (Throwable e) { MiStepOs4Controls.failed("native music detach", e); }
         }
         if (player != null) player.setVisibility(View.GONE);
@@ -593,6 +641,7 @@ final class MiStepNativeMedia extends FrameLayout {
             removeView(player);
         }
         player = seekBar = null;
+        if (legacy) MiStepLegacyMedia.release(controller);
         controller = null;
         if (scope != null && scope != NO_SCOPE) try {
             XposedHelpers.callStaticMethod(XposedHelpers.findClass("kotlinx.coroutines.CoroutineScopeKt", getContext().getClassLoader()),
@@ -633,12 +682,20 @@ final class MiStepNativeMedia extends FrameLayout {
             int leftWidth = panel.playerWidth;
             int minimum = Math.round(300 * getResources().getDisplayMetrics().density);
             nativeWidth = Math.max(leftWidth,minimum);
-            fitHeader(nativeWidth);
+            if (legacy) {
+                if (bound) MiStepLegacyMedia.measure(controller, nativeWidth);
+                else MiStepLegacyMedia.measurePlaceholder(player, nativeWidth);
+            }
+            if (!legacy) fitHeader(nativeWidth);
             player.measure(MeasureSpec.makeMeasureSpec(nativeWidth, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED));
             nativeHeight = Math.max(1, player.getMeasuredHeight());
             fit = Math.max(.001f,Math.min(leftWidth / (float)nativeWidth, h / (float) nativeHeight));
             nativeWidth = Math.max(minimum, Math.round(leftWidth / fit));
-            fitHeader(nativeWidth);
+            if (legacy) {
+                if (bound) MiStepLegacyMedia.measure(controller, nativeWidth);
+                else MiStepLegacyMedia.measurePlaceholder(player, nativeWidth);
+            }
+            if (!legacy) fitHeader(nativeWidth);
             player.measure(MeasureSpec.makeMeasureSpec(nativeWidth, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED));
             nativeHeight = Math.max(1, player.getMeasuredHeight());
             fit = Math.min(leftWidth / (float) nativeWidth, h / (float) nativeHeight);

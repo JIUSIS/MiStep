@@ -7,6 +7,13 @@ final class TopTaskGeometry {
     final float scale;
     final int densityDpi;
     static final int DISPLAY_DPI = 242;
+    TopTaskGeometry(int[] region, float density) {
+        left=region[0];top=region[1];right=region[2];bottom=region[3];
+        densityDpi=Math.max(1,Math.round((Float.isFinite(density)&&density>0f?density:1f)*160f));
+        scale=Math.min(.9f,DISPLAY_DPI/(float)densityDpi);
+        logicalWidth=Math.max(1,Math.round((right-left)/scale));
+        logicalHeight=Math.max(1,Math.round((bottom-top)/scale));
+    }
     TopTaskGeometry(int width, int height, int strip, int inset, float density) {
         left=top=0;right=Math.max(1,width);bottom=Math.max(1,strip);
         int longEdge=Math.max(1,Math.max(width,height));

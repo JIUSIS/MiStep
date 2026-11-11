@@ -22,7 +22,7 @@ public final class LiveSwapSessionTest {
         Consumer<Double> frame;
         Runnable end;
         int starts, cancels, aborts;
-        boolean failPaint, holdAwait;
+        boolean failPaint, holdAwait, noPendingAbort;
         Consumer<Boolean> awaited;
         final List<Tx> owned = new ArrayList<>();
         @Override public void assertShellThread() {}
@@ -46,6 +46,7 @@ public final class LiveSwapSessionTest {
         @Override public void await(BooleanSupplier condition, long timeout, Consumer<Boolean> completion) {
             if (holdAwait || !condition.getAsBoolean()) awaited = completion; else completion.accept(true);
         }
+        @Override public boolean canAbortWaiting(Object token) { return !noPendingAbort; }
         @Override public void abortWaiting(Object token) { aborts++; handler.consumed(token, true, null); }
         @Override public MiStepLiveSwapSession.Animation animate(long duration, Consumer<Double> frame, Runnable end) {
             this.frame = frame; this.end = end;
@@ -222,6 +223,27 @@ public final class LiveSwapSessionTest {
                 "late Ready after timeout escaped to a competing default animator");
         check(cancelTimeout.callbacks == 1 && cancelTimeout.scene.completions == 1,
                 "late Ready repeated completion or stranded native finish");
+        Fixture legacyCancel = new Fixture(); legacyCancel.backend.noPendingAbort = true;
+        legacyCancel.session.start(new Object()); legacyCancel.session.cancel();
+        check(legacyCancel.backend.aborts == 0 && legacyCancel.scene.completions == 0,
+                "legacy pending cancellation released ownership before native Ready");
+        check(legacyCancel.backend.handler.start("ours", new Object(), legacyCancel.start,
+                legacyCancel.finish, wct -> { legacyCancel.callbacks++; legacyCancel.finish.committed(); }),
+                "legacy cancellation Ready escaped to another animator");
+        check(legacyCancel.callbacks == 1 && legacyCancel.scene.completions == 1
+                && legacyCancel.scene.prepares == 0 && legacyCancel.scene.failed,
+                "legacy Ready did not finish the confirmed inverse exactly once");
+        Fixture legacyTimeout = new Fixture(); legacyTimeout.backend.noPendingAbort = true;
+        legacyTimeout.session.start(new Object()); legacyTimeout.session.cancel();
+        legacyTimeout.backend.awaited.accept(false);
+        check(legacyTimeout.backend.aborts == 0 && legacyTimeout.scene.completions == 1
+                && legacyTimeout.session.state() == MiStepLiveSwapSession.State.FAILED,
+                "legacy missing Ready held cancellation forever");
+        check(legacyTimeout.backend.handler.start("ours", new Object(), legacyTimeout.start,
+                legacyTimeout.finish, wct -> { legacyTimeout.callbacks++; legacyTimeout.finish.committed(); }),
+                "legacy late Ready lost its native finish owner");
+        check(legacyTimeout.callbacks == 1 && legacyTimeout.scene.completions == 1,
+                "legacy late Ready repeated completion");
         Fixture resolveFailure = new Fixture(); resolveFailure.scene.failResolve = true;
         check(resolveFailure.begin(), "resolve failure escaped to another animator");
         check(resolveFailure.scene.finalError != null && resolveFailure.scene.finalError.getCause() != null

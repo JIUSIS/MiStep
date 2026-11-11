@@ -23,7 +23,7 @@ public class SideTouchRegression {
  static class XC_MethodHook {static class MethodHookParam {Object thisObject;boolean returned;void setResult(Object result){returned=true;}}protected void beforeHookedMethod(MethodHookParam p){}}
  static class XposedHelpers {static XC_MethodHook hook;static Class<?>findClass(String n,ClassLoader cl){return Object.class;}static Object findAndHookMethod(Class<?>c,String n,Object...args){hook=(XC_MethodHook)args[args.length-1];return hook;}}
  static SideTouchRegression sInstance;static final int SLOT_MAIN=0,SLOT_COUNT=4,CELL_SLOT_COUNT=4;Slot[]slots={new Slot(),new Slot(),new Slot(),new Slot()};static class Context{Context getResources(){return this;}Context getDisplayMetrics(){return this;}float density=1;}Context ctx=new Context();int taps,transfers,compactions;boolean compactPending;
- static class Dismiss{void follow(float dx){}void settle(boolean done){}}Dismiss sideDismiss;Object promotion,cellMotion;Slot sideDismissSlot;boolean transferBusy,mainOnRight=true;long sceneEpoch=1;
+ static class Dismiss{void follow(float dx){}void settle(boolean done){}}Dismiss sideDismiss;Object promotion,cellMotion;Slot sideDismissSlot;boolean transferBusy,taskCellsCovered,mainOnRight=true;long sceneEpoch=1;
  boolean followSideDismiss(Slot s,MotionEvent e){return true;}
  boolean beginSideDismiss(Slot s,MotionEvent e){return false;}
  void dismissSideToBackground(Slot s){}void log(String s){}void onSlotTapped(int i){taps++;}void compactCells(){compactions++;}void transferTouchToTask(Slot s,long t){transfers++;}
@@ -35,6 +35,8 @@ public class SideTouchRegression {
  void event(int a,float y){onSlotTouch(1,new MotionEvent(a,10,y));}
  public static void main(String[]args){
   var h=new SideTouchRegression();h.event(0,10);h.event(1,10);check(h.taps==1&&h.transfers==0,"tap promotes exactly once");check(h.slots[1].bufferedDown==null&&!h.slots[1].injecting,"tap releases gesture ownership");
+  h=new SideTouchRegression();h.taskCellsCovered=true;h.event(0,10);h.event(1,10);
+  check(h.taps==0&&h.slots[1].bufferedDown==null,"covered native cells cannot receive taps through transparent control space");
   h=new SideTouchRegression();h.compactPending=true;h.event(0,100);h.event(2,30);h.event(2,10);h.event(1,10);check(h.transfers==0&&h.taps==0,"vertical drag neither scrolls real side app nor promotes");check(h.compactions==1&&h.slots[1].bufferedDown==null&&!h.slots[1].injecting,"drag completion releases pending compaction");
   h=new SideTouchRegression();h.event(0,10);h.event(2,14);h.event(1,14);check(h.taps==1&&h.transfers==0,"small finger jitter remains a tap");
   h=new SideTouchRegression();h.event(0,10);h.event(3,10);check(h.taps==0&&h.slots[1].bufferedDown==null,"cancel cannot promote");

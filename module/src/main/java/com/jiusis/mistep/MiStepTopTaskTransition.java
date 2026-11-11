@@ -36,6 +36,7 @@ final class MiStepTopTaskTransition {
     private boolean liveSurfaceAtEnd;
     private ValueAnimator animator;
     private boolean attached, closed, firstDraw, collapsed, revealing;
+    private boolean collectionPrepared, collectionStarted;
     private final Runnable timeout=this::close;
     private final View.OnAttachStateChangeListener attachment=new View.OnAttachStateChangeListener() {
         @Override public void onViewAttachedToWindow(View view) {}
@@ -89,6 +90,29 @@ final class MiStepTopTaskTransition {
     void setNativeRestore(Runnable restore) {
         if(closed)restore.run();
         else nativeRestore=restore;
+    }
+
+    /** The source stays full size until the native background sync is committed. */
+    boolean collectionReady() {
+        if(closed || collectionView==null)return false;
+        if(!current.getAsBoolean() || !validLiveSurface()) {close();return false;}
+        collectionPrepared=true;
+        startCollectionIfReady();
+        return true;
+    }
+
+    private void startCollectionIfReady() {
+        if(closed || !firstDraw || !collectionPrepared || collectionStarted)return;
+        collectionStarted=true;
+        face.postOnAnimation(()->{
+            if(closed)return;
+            if(!current.getAsBoolean() || !validLiveSurface()) {close();return;}
+            animate(1f,0f,160L,()->{
+                applyCollectionScale(0f);
+                log.accept("upper live main collapsed; collection handoff");
+                handoff();
+            });
+        });
     }
 
     /** Keep geometry refreshes from exposing the destination before native admission. */
@@ -222,15 +246,9 @@ final class MiStepTopTaskTransition {
         @Override protected void onDraw(Canvas canvas) {
             super.onDraw(canvas);
             if(!firstDraw) {
-                firstDraw=true;postOnAnimation(()->{
-                    if(closed)return;
-                    if(collectionView==null)handoff();
-                    else MiStepTopTaskTransition.this.animate(1f,0f,160L,()->{
-                        applyCollectionScale(0f);
-                        log.accept("upper live main collapsed; collection handoff");
-                        handoff();
-                    });
-                });
+                firstDraw=true;
+                if(collectionView!=null)startCollectionIfReady();
+                else postOnAnimation(()->{if(!closed)handoff();});
             }
         }
     }

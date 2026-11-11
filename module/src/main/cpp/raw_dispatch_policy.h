@@ -25,6 +25,8 @@ struct Zoom {
 struct TopInput {
     int uid = -1;
     float scale = 1;
+    float offset_x = 0;
+    float offset_y = 0;
 };
 
 template <typename T> inline T read(const void* address, size_t offset) {
@@ -121,7 +123,7 @@ inline int publish(Publish original, void* dispatcher, void* connection, void* e
             // A dialog has a moving local origin, so preserve raw's absolute origin.
             const bool upper = top_uid_layout && top.uid >= 10000
                     && read<int32_t>(entry, 0x84) == top.uid
-                    && corrected_raw({top.scale, 0, 0}, local, raw, corrected);
+                    && corrected_raw({top.scale, top.offset_y, top.offset_x}, local, raw, corrected);
             if (upper || corrected_raw(zoom, local, raw, corrected)) {
                 auto* target = static_cast<uint8_t*>(entry) + 0x44;
                 std::memcpy(target, &corrected, sizeof(corrected));

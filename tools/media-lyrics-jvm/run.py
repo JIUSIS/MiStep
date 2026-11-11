@@ -68,13 +68,17 @@ public final class MediaLyricsBindingTest {
         check(page.lyricController == null && !page.inFlight, "removed session releases binding and request");
         current.onSessionDestroyed();
         check(page.lyricController == null, "destroyed stale session does not recreate binding");
+        page.legacy = true;
+        page.controller.mController = new MediaController("os2-session");
+        page.sync();
+        check(page.lyricController == page.controller.mController, "OS2 follows its native mController");
         System.out.println("MediaLyricsBinding: " + checks + " checks passed (500 same-session wrappers)");
     }
 }
 class MiStepNativeMedia {
     final Holder controller = new Holder();
     static final Object MAIN = new Object();
-    boolean active = true, bound = true, inFlight;
+    boolean active = true, bound = true, inFlight, legacy;
     int clears, prepares, refreshes;
     MediaController lyricController;
     MediaController.Callback lyricCallback;
@@ -88,8 +92,10 @@ class MiStepNativeMedia {
     static String readLyrics(MediaMetadata metadata, Bundle extras) {return metadata!=null?metadata.lyrics:extras!=null?extras.lyrics:"";}
 __PRODUCTION_METHOD__
 }
-class Holder {MediaController mediaController;}
-class XposedHelpers {static Object getObjectField(Object holder,String name) {return ((Holder)holder).mediaController;}}
+class Holder {MediaController mediaController, mController;}
+class XposedHelpers {static Object getObjectField(Object holder,String name) {
+    return name.equals("mController") ? ((Holder)holder).mController : ((Holder)holder).mediaController;
+}}
 class MediaMetadata {final String lyrics; MediaMetadata(String value){lyrics=value;}}
 class Bundle {final String lyrics; Bundle(String value){lyrics=value;}}
 class PlaybackState {}

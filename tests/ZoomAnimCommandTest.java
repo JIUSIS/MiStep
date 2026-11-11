@@ -57,6 +57,12 @@ public final class ZoomAnimCommandTest {
                 1100, 1000, 1100, null, null, null, null);
         expectParse("extra field", "anim 0.5 0 0 300 7",
                 1100, 1000, 1100, null, null, null, null);
+        expectParse("shared start", "anim 0.5 0 0 300 at=12345",
+                1100, 1000, 1100, .5f, 0f, 0f, 300L);
+        if (ZoomAnimCommand.parse("anim 0.5 0 0 300 at=12345",1100,1000,1100).startUptimeMs!=12345)
+            throw new AssertionError("shared monotonic start lost");
+        expectParse("negative start", "anim 0.5 0 0 300 at=-1",
+                1100, 1000, 1100, null, null, null, null);
         expectParse("duration too short", "anim 0.5 0 0 39",
                 1100, 1000, 1100, null, null, null, null);
         expectParse("duration too long", "anim 0.5 0 0 2001",

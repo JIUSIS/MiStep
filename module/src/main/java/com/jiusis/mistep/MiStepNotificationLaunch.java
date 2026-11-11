@@ -5,6 +5,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ResolveInfo;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import de.robv.android.xposed.XC_MethodHook;
@@ -23,8 +24,17 @@ final class MiStepNotificationLaunch {
                 if (eligible(method, "startNotificationIntentPublic")) hasPublic = true;
             }
             String name = hasPublic ? "startNotificationIntentPublic" : "startNotificationIntent";
+            Class<?> implementation = starter;
+            boolean abstractTarget = false;
+            for (Method method : starter.getDeclaredMethods())
+                if (eligible(method, name) && Modifier.isAbstract(method.getModifiers()))
+                    abstractTarget = true;
+            if (abstractTarget) {
+                implementation = XposedHelpers.findClass(
+                        "com.android.systemui.statusbar.phone.MiuiStatusBarNotificationActivityStarter", loader);
+            }
             int count = 0;
-            for (Method method : starter.getDeclaredMethods()) {
+            for (Method method : implementation.getDeclaredMethods()) {
                 if (!eligible(method, name)) continue;
                 int pendingIndex = -1;
                 Class<?>[] types = method.getParameterTypes();
@@ -60,7 +70,8 @@ final class MiStepNotificationLaunch {
                 });
                 count++;
             }
-            log("notification activity dispatch hooks=" + count + " method=" + name);
+            log("notification activity dispatch hooks=" + count + " method="
+                    + implementation.getSimpleName() + "#" + name);
         } catch (Throwable unavailable) {
             log("notification activity dispatch unavailable: " + unavailable);
         }

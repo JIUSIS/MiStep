@@ -31,6 +31,17 @@ public final class TopBarFitTest {
         TopBarGeometry target = new TopBarGeometry(1200, 661, 144, 3f);
         check(target.buttonWidth < 48 * 3, "button pitch is tighter than 56 baseline");
         check(target.headerTop + target.headerHeight < target.railTop, "no toolbar overlap on 17PM");
+        for (int[] screen : new int[][]{{3048,2032},{2560,1600},{1280,800}})
+            for (float density : new float[]{1f,1.5f,2.5f}) {
+                MiStepLayout tablet = MiStepLayout.of(screen[0],screen[1],false,density,true);
+                TopBarGeometry g = new TopBarGeometry(screen[0],tablet.topStrip,0,density,true,tablet.toolHeight);
+                check(g.blankTop >= tablet.toolHeight + g.edge,
+                        "expanded tablet controls leave the independent title row clear");
+                check(g.blankBottom + g.edge <= g.railTop,
+                        "expanded tablet control/music area stays above the quick app rail");
+                check(g.blankBottom > g.blankTop && g.controlWidth == screen[0]-2*g.edge,
+                        "combined tablet controls use available width with positive content height");
+            }
         System.out.println("TopBarFit: " + checks + " checks passed");
     }
 }

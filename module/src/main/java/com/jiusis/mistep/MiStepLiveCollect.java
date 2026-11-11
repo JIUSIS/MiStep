@@ -78,7 +78,7 @@ final class MiStepLiveCollect implements MiStepLiveSwapSession.Scene {
         backend = new MiStepLiveSwapSession.ShellBackend(shell, loader); backend.assertShellThread();
         Object organizer = XposedHelpers.getObjectField(controller, "mTaskOrganizer");
         Object area = ShellCompat.rootArea(organizer);
-        Object areaInfo = XposedHelpers.callMethod(area, "getDisplayAreaInfo", 0);
+        Object areaInfo = ShellCompat.call(area, "getDisplayAreaInfo", 0);
         if (areaInfo == null || XposedHelpers.getIntField(areaInfo, "featureId") != 1
                 || XposedHelpers.getIntField(areaInfo, "displayId") != 0 || !MiStepLiveHomeTask.valid(hostRoot))
             throw new IllegalStateException("collect real parent unavailable");

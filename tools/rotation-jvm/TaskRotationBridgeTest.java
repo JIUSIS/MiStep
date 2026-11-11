@@ -16,7 +16,8 @@ public class TaskRotationBridgeTest {
         int rotationForOrientation(int request, int previous) { resolutions++; return proposed; }
         boolean updateRotationUnchecked(boolean force) throws Exception {
             forced++; lastForce = force;
-            int desired = (Boolean) field("sFullscreenRotationActive").get(null) ? 0 : proposed;
+            int desired = (Boolean) field("sFullscreenRotationActive").get(null)
+                    ? (Integer) field("sHeldDisplayRotation").get(null) : proposed;
             boolean changed = physical != desired; physical = desired; return changed;
         }
     }
@@ -45,6 +46,9 @@ public class TaskRotationBridgeTest {
         void finishFixedRotationTransform() { finishes++; transformed = false; rotation = 0; }
     }
     static class Display {
+        static class Info { int logicalWidth=1080, logicalHeight=2460, logicalDensityDpi=440; }
+        Info info = new Info();
+        Info getDisplayInfo() { return info; }
         Rotation mDisplayRotation = new Rotation();
         Activity top;
         int configurations, launches;
@@ -216,6 +220,62 @@ public class TaskRotationBridgeTest {
         check(XposedBridge.errors == 1, "only deliberate failure reached exception path");
         check(!(Boolean) field("sUpdatingTaskRotation").get(null), "reentrancy guard released");
         check(display.launches == 0, "bridge never emits a display fixed-rotation launch");
+        call("endFixedMainRotationLocked", new Class[]{Object.class}, display);
+        display.failStart = false;
+        display.info.logicalWidth=3048; display.info.logicalHeight=2032; display.info.logicalDensityDpi=400;
+        for (int rotation : new int[]{1,3,0,2}) {
+            field("sNativeLandscapeState").set(null, NativeLandscapePolicy.INACTIVE);
+            display.top = null;
+            display.mDisplayRotation.physical=rotation;
+            display.mDisplayRotation.proposed=rotation;
+            call("beginFixedMainRotationLocked", new Class[]{Object.class}, display);
+            check((Integer) field("sHeldDisplayRotation").get(null) == rotation,
+                    "tablet retains native entry rotation " + rotation);
+            check(display.mDisplayRotation.physical == rotation, "tablet display is not forced portrait");
+            if ((rotation & 1) == 1) {
+                for (boolean zoomed : new boolean[]{false, true}) {
+                    field("sZoomed").set(null, zoomed);
+                    for (int request : new int[]{-1, 2, 4, 10, 13, 3, 5, 14}) {
+                        Activity tabletApp = new Activity(request);
+                        tabletApp.configuration.orientation = 1;
+                        display.top = tabletApp;
+                        check(Boolean.FALSE.equals(apply(display, tabletApp)),
+                                "tablet automatic task needs no local rotation request=" + request);
+                        check(!tabletApp.transformed && tabletApp.starts == 0,
+                                "tablet task keeps landscape resources request=" + request);
+                        check((Integer) field("sNativeLandscapeState").get(null)
+                                        == NativeLandscapePolicy.INACTIVE,
+                                "tablet landscape entry does not suspend its workspace");
+                        TaskWindowState tabletState = (TaskWindowState)
+                                ((Map<?,?>) field("sTaskWindowStates").get(null)).get(tabletApp.task);
+                        check(tabletState.appliedRotation == rotation,
+                                "task state records the actual landscape workspace direction");
+                    }
+                }
+                field("sZoomed").set(null, true);
+                Activity portraitApp = new Activity(1);
+                portraitApp.mDisplayContent = display;
+                display.top = portraitApp;
+                check(Boolean.TRUE.equals(apply(display, portraitApp)) && portraitApp.rotation == 0,
+                        "explicit portrait direction remains local to the application");
+                call("beforeApplicationOrientationRequest",
+                        new Class[]{Object.class, int.class}, portraitApp, 13);
+                portraitApp.request = 13;
+                check(Boolean.FALSE.equals(apply(display, portraitApp))
+                                && !portraitApp.transformed && owned().isEmpty(),
+                        "returning to automatic direction releases the old portrait transform");
+                portraitApp.task.mode = 6;
+                check(Boolean.FALSE.equals(apply(display, portraitApp)) && !portraitApp.transformed,
+                        "ordinary landscape side role does not restore stale portrait rotation");
+            }
+            int configurationsBeforeExit = display.configurations;
+            call("endFixedMainRotationLocked", new Class[]{Object.class}, display);
+            check(display.mDisplayRotation.physical == rotation
+                            && display.configurations == configurationsBeforeExit,
+                    "tablet exit does not trigger a redundant display rotation");
+            check(owned().isEmpty(), "tablet exit leaves no task transform");
+        }
+        field("sZoomed").set(null, false);
         System.out.println("TaskRotationBridge checks=" + checks + " passed (fake WM; no device rendering)");
     }
     static Object apply(Display display, Activity activity) throws Exception {

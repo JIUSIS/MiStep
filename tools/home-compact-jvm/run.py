@@ -13,7 +13,7 @@ def method(t,s):
   i+=1
  return t[a:i]
 host=(src/'MiStepHost.java').read_text(encoding='utf-8-sig')
-parts=['    private void completeHomePromotion(', '    private void clearSlot(', '    private void compactCells()', '    private static final class CellMovePlan', '    private void syncSlotWindowState(', '    private void onTaskIdKnown(', '    private void queueSidePromotion(', '    private void retrySidePromotion(', '    private void beginExternalPromotion(', '    private boolean externalPromotionCurrent(', '    private void afterExternalTransitionIdle(']
+parts=['    private void completeHomePromotion(', '    private void clearSlot(', '    private void compactCells()', '    private void compactCellsAfterCollection()', '    private static final class CellMovePlan', '    private void syncSlotWindowState(', '    private void onTaskIdKnown(', '    private void queueSidePromotion(', '    private void retrySidePromotion(', '    private void beginExternalPromotion(', '    private boolean externalPromotionCurrent(', '    private void afterExternalTransitionIdle(']
 methods='\n'.join(method(host,s) for s in parts)+'\n'+method(host,'    private static final class PendingSidePromotion')
 body=r"""
 package com.jiusis.mistep;
@@ -47,13 +47,13 @@ public class HomeCompactRegression {
  static class Promotion{Slot slot;boolean cancelled,cancelRequested,externalLaunch,previousMainOnRight,targetMainOnRight;long sceneEpoch,bindingEpoch;int taskId;Object token;Home homeBeforeCover=new Home();Promotion(Slot s,Slot[] slots){this(s);}Promotion(Slot s){slot=s;taskId=s.taskId;token=s.taskToken;}}
  static class Home{int id=1;Object token=new Object();}
  static class HomeTaskReturn{int app;HomeTaskReturn(int a,Object b,int c,Object d){app=a;}}
- static class Layout{int[]cellBounds(int i){return new int[]{0,100+i*100,100,200+i*100};}}
+ static class Layout{boolean tabletLandscape;int[]cellBounds(int i){return new int[]{0,100+i*100,100,200+i*100};}}
  static class CellMovePreview {
   static class Move{Move(Rect a,Rect b,View c){}}
   CellMovePreview(Root r,Bitmap b,Rect x,List<Move>m){}void close(){}void setOnClosed(Runnable r){}
  }
  static class Main{List<Runnable>queue=new ArrayList<>();void postDelayed(Runnable r,long d){queue.add(r);}void post(Runnable r){queue.add(r);}}
- final int SLOT_COUNT=4,CELL_SLOT_COUNT=4,SLOT_TOP=4,SLOT_MAIN=0;Slot[]slots=new Slot[4];Root root=new Root();Layout layout=new Layout();
+ int SLOT_COUNT=4,CELL_SLOT_COUNT=4,SLOT_TOP=4;final int SLOT_MAIN=0;Slot[]slots=new Slot[4];Root root=new Root();Layout layout=new Layout();
  static class TopState {Object owner(){return null;}void release(Object key,boolean dismissed){}}
  TopState topTaskState=new TopState();Slot topOriginalSlot;
  Promotion promotion;HomeTaskReturn coveredHome;CellMovePreview cellMovePreview;boolean compactPending;Slot launchCurrentSlot;Object cellMotion;
@@ -80,6 +80,9 @@ public class HomeCompactRegression {
  void failPromotion(Promotion p,String why){failures++;}
 
  boolean controllerOwns(Slot s,int id,Object token){return s.taskId==id&&(token==null||token==s.taskToken);}
+ boolean legacyTaskInfoCallbacks;int taskInfoCalls;Object lastInfo;
+ static class ShellCompat {static Object info;static Object currentTaskInfo(Object c,int id){return info;}static Object call(Object o,String n,Object...a){return XposedHelpers.callMethod(o,n,a);}}
+ void onTaskInfo(int slot,Object info){taskInfoCalls++;lastInfo=info;}
  void bindTask(Slot s,int id,Object token){s.taskId=id;s.taskToken=token;}
  void scheduleSideModeResolution(Slot s,int id){}
  __METHODS__
@@ -102,6 +105,53 @@ public class HomeCompactRegression {
   onTaskIdKnown(retired.index,oldId);check(!retired.occupied,"late retired task callback cannot resurrect it in tail");
  }
  public static void main(String[]args){
+  for(int selected=1;selected<=4;selected++){
+   var tablet=new HomeCompactRegression();tablet.layout.tabletLandscape=true;
+   tablet.SLOT_COUNT=6;tablet.CELL_SLOT_COUNT=5;tablet.SLOT_TOP=5;tablet.slots=new Slot[6];
+   for(int i=0;i<6;i++){
+    Slot s=tablet.slots[i]=new Slot(i);s.rect=tablet.layout.cellBounds(i-1);
+    s.occupied=i==selected||i==5;s.taskId=200+i;s.taskToken=new Object();
+    s.controller=new Controller(s.taskToken);s.pkg="tablet"+i;
+   }
+   Slot chosen=tablet.slots[selected],upper=tablet.slots[5];
+   tablet.compactCellsAfterCollection();
+   check(tablet.slots[1]==chosen&&chosen.index==1,
+     "new tablet collection immediately fills the first empty cell");
+   check(tablet.slots[5]==upper&&upper.occupied,
+     "collection keeps the independent portrait pane fixed");
+   if(selected>1){
+    tablet.transferBusy=true;tablet.compactCells();
+    check(tablet.compactPending&&tablet.slots[1]==chosen,
+      "a removal during collection waits for the active transfer");
+    tablet.transferBusy=false;tablet.compactCellsAfterCollection();
+    check(!tablet.compactPending&&tablet.slots[1]==chosen&&chosen.index==1,
+      "collection completion must not drop pending removal compaction");
+   }
+  }
+  for(int gap=1;gap<=4;gap++){
+   var tablet=new HomeCompactRegression();tablet.layout.tabletLandscape=true;
+   tablet.SLOT_COUNT=6;tablet.CELL_SLOT_COUNT=5;tablet.SLOT_TOP=5;tablet.slots=new Slot[6];
+   for(int i=0;i<6;i++){
+    Slot s=tablet.slots[i]=new Slot(i);s.rect=tablet.layout.cellBounds(i-1);
+    s.occupied=i>0;s.taskId=200+i;s.taskToken=new Object();
+    s.controller=new Controller(s.taskToken);s.pkg="tablet"+i;
+   }
+   Slot[] original=tablet.slots.clone();
+   Slot chosen=original[gap],upper=original[5];
+   tablet.clearSlot(chosen);
+   tablet.compactPending=true;tablet.compactCells();
+   int write=1;
+   for(int originalIndex=1;originalIndex<=4;originalIndex++) if(originalIndex!=gap){
+    check(tablet.slots[write]==original[originalIndex]
+      && tablet.slots[write].index==write,
+      "tablet top-row task fills the first available gap");
+    write++;
+   }
+   check(tablet.slots[write]==chosen&&!chosen.occupied&&chosen.index==write,
+     "tablet cleared task moves to the tail of the top row");
+   check(tablet.slots[5]==upper&&upper.occupied&&!tablet.compactPending,
+     "tablet independent portrait pane stays fixed and compaction settles");
+  }
   for(int i=1;i<=3;i++)new HomeCompactRegression().selection(i);
   var h=new HomeCompactRegression();Slot gap=h.slots[1],moving=h.slots[2];h.clearSlot(gap);Object gesture=new Object();moving.bufferedDown=gesture;
   h.compactCells();check(h.compactPending&&h.slots[2]==moving&&moving.bufferedDown==gesture,"compaction waits without discarding active DOWN");
@@ -118,6 +168,13 @@ public class HomeCompactRegression {
   check(h.promotion==null&&moving.pendingSidePromotion!=null&&!h.main.queue.isEmpty(),"early Launcher notice waits for actual native mode1");
   moving.windowMode=1;h.main.queue.remove(0).run();check(h.promotion!=null&&h.promotion.externalLaunch,"same binding mode1 consumes early notice");
   Runnable late=h.observed;h.clearSlot(moving);late.run();check(h.transitions.queue.isEmpty(),"late finish for retired task cannot affect a replacement binding");
+  h=new HomeCompactRegression();h.legacyTaskInfoCallbacks=true;ShellCompat.info=new Object();
+  h.onTaskIdKnown(1,h.slots[1].taskId);
+  check(h.taskInfoCalls==1&&h.lastInfo==ShellCompat.info,"legacy creation did not seed task state");
+  h=new HomeCompactRegression();h.legacyTaskInfoCallbacks=false;h.onTaskIdKnown(1,h.slots[1].taskId);
+  check(h.taskInfoCalls==0,"modern listener got duplicate initial task state");
+  h=new HomeCompactRegression();h.legacyTaskInfoCallbacks=true;ShellCompat.info=null;h.onTaskIdKnown(1,h.slots[1].taskId);
+  check(h.taskInfoCalls==0,"missing canonical info fabricated task state");
   System.out.println("actual Host Home/retirement/compaction/external checks="+checks+" passed");
  }
 }

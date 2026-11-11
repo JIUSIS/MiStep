@@ -4,12 +4,14 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.IdentityHashMap;
 import java.util.List;
 import de.robv.android.xposed.XposedHelpers;
 
 /** Equivalent operations for the inspected OS3 Shell, retaining its existing organizer. */
 final class ShellCompat {
     static volatile Object rootTaskDisplayArea;
+    private static final IdentityHashMap<Object, Object[]> suspendedTaskViews = new IdentityHashMap<>();
 
     private ShellCompat() {}
 
@@ -96,7 +98,79 @@ final class ShellCompat {
             return true;
         }
         switch (name) {
+            case "isIdle": {
+                // OS2's processReadyQueue uses these same gates before draining
+                // mRunWhenIdleQueue, after the native finish transaction is applied.
+                if (!((List<?>) XposedHelpers.getObjectField(receiver, "mPendingTransitions")).isEmpty()
+                        || !((List<?>) XposedHelpers.getObjectField(receiver, "mReadyDuringSync")).isEmpty()) return false;
+                for (Object track : (List<?>) XposedHelpers.getObjectField(receiver, "mTracks"))
+                    if (XposedHelpers.getObjectField(track, "mActiveTransition") != null
+                            || !((List<?>) XposedHelpers.getObjectField(track, "mReadyTransitions")).isEmpty()) return false;
+                return true;
+            }
+            case "runOnIdle": {
+                Runnable action = (Runnable) args[0];
+                if (Boolean.TRUE.equals(call(receiver, "isIdle"))) action.run();
+                else {
+                    @SuppressWarnings("unchecked")
+                    List<Runnable> queue = (List<Runnable>) XposedHelpers.getObjectField(receiver, "mRunWhenIdleQueue");
+                    queue.add(action);
+                }
+                return null;
+            }
+            case "getDisplayAreaInfo":
+                return XposedHelpers.callMethod(XposedHelpers.getObjectField(receiver, "mDisplayAreasInfo"), "get", args[0]);
+            case "unregisterTaskView": {
+                Object views = XposedHelpers.getObjectField(receiver, "mTaskViews");
+                Object state = XposedHelpers.callMethod(views, "get", args[0]);
+                if (state == null) throw new IllegalStateException("Native task view is not registered");
+                synchronized (suspendedTaskViews) {
+                    if (suspendedTaskViews.containsKey(args[0]))
+                        throw new IllegalStateException("Native task view is already suspended");
+                    suspendedTaskViews.put(args[0], new Object[]{receiver, state});
+                    XposedHelpers.callMethod(views, "remove", args[0]);
+                }
+                return null;
+            }
+            case "registerTaskView": {
+                Object views = XposedHelpers.getObjectField(receiver, "mTaskViews");
+                synchronized (suspendedTaskViews) {
+                    Object[] saved = suspendedTaskViews.get(args[0]);
+                    Object existing = XposedHelpers.callMethod(views, "get", args[0]);
+                    if (saved == null) {
+                        if (existing == null) throw new IllegalStateException("Native task view state is unavailable");
+                    } else {
+                        if (saved[0] != receiver || (existing != null && existing != saved[1]))
+                            throw new IllegalStateException("Native task view registration changed");
+                        XposedHelpers.callMethod(views, "put", args[0], saved[1]);
+                        suspendedTaskViews.remove(args[0]);
+                    }
+                }
+                return null;
+            }
+            case "prepareOpenAnimation":
+                return prepareLegacyTaskView(receiver, args);
+            case "getPendingInfo":
+                // OS2 exposes the pending task as a field, without the newer getter.
+                return XposedHelpers.getObjectField(receiver, "mPendingInfo");
             case "startRootTask": {
+                // AOSP14/OS2 predates prepareOpenAnimation. It registers a
+                // pending task without binding it. A CHANGE only reparents an
+                // already bound task, so prepare its live binding first.
+                if (!hasMethod(receiver.getClass(), "prepareOpenAnimation", 7)) {
+                    Object tx;
+                    try { tx = construct(Class.forName("android.view.SurfaceControl$Transaction", false,
+                            receiver.getClass().getClassLoader())); }
+                    catch (ClassNotFoundException error) { throw new IllegalStateException(error); }
+                    try {
+                        if (!Boolean.TRUE.equals(call(receiver, "prepareOpenAnimation", args[0], true,
+                                tx, null, args[1], args[2], args[3])))
+                            throw new IllegalStateException("Native destination surface unavailable");
+                        XposedHelpers.callMethod(tx, "apply");
+                        enqueueTransition(receiver, args[3], args[0], 6);
+                    } finally { XposedHelpers.callMethod(tx, "close"); }
+                    return null;
+                }
                 // The OS4 helper is absent in OS3. Keep its native prepare/open
                 // and CHANGE transition sequence with a locally owned transaction.
                 Object tx;
@@ -134,8 +208,108 @@ final class ShellCompat {
             case "updateTaskListenerIfNeeded":
                 return transfer(args[0], args[1], args[2], args[3]);
             case "lambda$moveTaskViewToFullscreen$5":
-                enqueueFullscreen(receiver, args[0], args[1]); return null;
+                enqueueTransition(receiver, args[0], args[1], 6);
+                try {
+                    Object task = XposedHelpers.getObjectField(args[1], "mTaskInfo");
+                    if (task != null) XposedHelpers.callMethod(args[1], "notifyTaskRemovalStarted", task);
+                } catch (Throwable ignored) { }
+                return null;
             default: throw new IllegalStateException("Unsupported native Shell operation: " + name);
+        }
+    }
+
+    static Object taskLeash(Object organizer, int taskId) {
+        Method getter = method(organizer, "getTaskLeash", new Object[]{taskId});
+        if (getter != null) return invoke(getter, organizer, new Object[]{taskId});
+        synchronized (XposedHelpers.getObjectField(organizer, "mLock")) {
+            Object appeared = XposedHelpers.callMethod(XposedHelpers.getObjectField(organizer, "mTasks"), "get", taskId);
+            return appeared == null ? null : XposedHelpers.callMethod(appeared, "getLeash");
+        }
+    }
+
+    private static void setField(Object receiver, String name, Object value) {
+        for (Class<?> c = receiver.getClass(); c != null; c = c.getSuperclass()) {
+            try {
+                java.lang.reflect.Field field = c.getDeclaredField(name);
+                field.setAccessible(true); field.set(receiver, value); return;
+            } catch (NoSuchFieldException absent) { }
+            catch (ReflectiveOperationException error) { throw new IllegalStateException(name, error); }
+        }
+        throw new IllegalStateException("Native field unavailable: " + name);
+    }
+
+    /** OS2 inlines this binding in TaskViewTransitions.startAnimation. Shell main only. */
+    private static boolean prepareLegacyTaskView(Object views, Object[] args) {
+        Object controller = args[0], task = args[4], canonical = args[5], wct = args[6];
+        Object token = XposedHelpers.getObjectField(task, "token");
+        Object oldToken = XposedHelpers.getObjectField(controller, "mTaskToken");
+        if (oldToken != null && !oldToken.equals(token))
+            throw new IllegalStateException("Refuse to overwrite an occupied native task view");
+        Object state = XposedHelpers.callMethod(XposedHelpers.getObjectField(views, "mTaskViews"), "get", controller);
+        if (state == null) throw new IllegalStateException("Native task view state is unavailable");
+        boolean visible = Boolean.TRUE.equals(XposedHelpers.getObjectField(controller, "mSurfaceCreated"));
+        Object base = XposedHelpers.getObjectField(controller, "mTaskViewBase");
+        Object bounds = visible ? XposedHelpers.callMethod(base, "getCurrentBoundsOnScreen") : null;
+        Object leash = XposedHelpers.getObjectField(controller, "mTaskLeash");
+        if (leash == null || leash == canonical || !Boolean.TRUE.equals(XposedHelpers.callMethod(leash, "isValid"))
+                || !XposedHelpers.callMethod(leash, "getLayerId").equals(XposedHelpers.callMethod(canonical, "getLayerId")))
+            leash = construct(canonical.getClass(), canonical, "MiStepOs2TaskView");
+        setField(controller, "mPendingInfo", null);
+        setField(controller, "mTaskInfo", task);
+        setField(controller, "mTaskToken", token);
+        setField(controller, "mTaskLeash", leash);
+        XposedHelpers.setBooleanField(state, "mVisible", visible);
+        if (visible) {
+            Object parent = XposedHelpers.getObjectField(controller, "mSurfaceControl");
+            XposedHelpers.callMethod(args[2], "reparent", leash, parent);
+            XposedHelpers.callMethod(args[2], "show", leash);
+            if (args[3] != null) {
+                XposedHelpers.callMethod(args[3], "reparent", leash, parent);
+                XposedHelpers.callMethod(args[3], "setPosition", leash, 0f, 0f);
+                XposedHelpers.callMethod(args[3], "setWindowCrop", leash,
+                        XposedHelpers.callMethod(bounds, "width"), XposedHelpers.callMethod(bounds, "height"));
+            }
+            XposedHelpers.callMethod(XposedHelpers.getObjectField(state, "mBounds"), "set", bounds);
+            XposedHelpers.callMethod(wct, "setBounds", token, bounds);
+            XposedHelpers.callMethod(controller, "applyCaptionInsetsIfNeeded");
+        } else XposedHelpers.callMethod(wct, "setHidden", token, true);
+        boolean fresh = Boolean.TRUE.equals(args[1]);
+        if (fresh) call(XposedHelpers.getObjectField(controller, "mTaskOrganizer"),
+                "setInterceptBackPressedOnTaskRoot", token, true);
+        Object description = XposedHelpers.getObjectField(task, "taskDescription");
+        if (description != null) XposedHelpers.callMethod(base, "setResizeBgColor", args[2],
+                XposedHelpers.callMethod(description, "getBackgroundColor"));
+        Object listener = XposedHelpers.getObjectField(controller, "mListener");
+        if (listener != null) {
+            Object id = XposedHelpers.getObjectField(task, "taskId");
+            Object activity = XposedHelpers.getObjectField(task, "baseActivity");
+            ((java.util.concurrent.Executor) XposedHelpers.getObjectField(controller, "mListenerExecutor")).execute(() -> {
+                if (fresh) XposedHelpers.callMethod(listener, "onTaskCreated", id, activity);
+                if (!fresh || !visible) XposedHelpers.callMethod(listener, "onTaskVisibilityChanged", id, visible);
+            });
+        }
+        return visible;
+    }
+
+    static Object taskViewController(Object taskView) {
+        Method getter = method(taskView, "getController", new Object[0]);
+        if (getter != null) return invoke(getter, taskView, new Object[0]);
+        // AOSP14/OS2 keeps this as a package-private field with no getter.
+        return XposedHelpers.getObjectField(taskView, "mTaskViewTaskController");
+    }
+
+    /** Canonical initial state for TaskView listeners predating onTaskInfoChanged. */
+    static Object currentTaskInfo(Object controller, int taskId) {
+        Object organizer = XposedHelpers.getObjectField(controller, "mTaskOrganizer");
+        synchronized (XposedHelpers.getObjectField(organizer, "mLock")) {
+            Object tasks = XposedHelpers.getObjectField(organizer, "mTasks");
+            Object appeared = XposedHelpers.callMethod(tasks, "get", taskId);
+            if (appeared == null) return null;
+            Object info = XposedHelpers.callMethod(appeared, "getTaskInfo");
+            Object token = XposedHelpers.getObjectField(controller, "mTaskToken");
+            return info != null && token != null
+                    && Integer.valueOf(taskId).equals(XposedHelpers.getObjectField(info, "taskId"))
+                    && token.equals(XposedHelpers.getObjectField(info, "token")) ? info : null;
         }
     }
 
@@ -197,6 +371,13 @@ final class ShellCompat {
         if (name.equals("setInterceptBackPressedOnTaskRoot")) {
             call(organizer, name, token, value); return transaction;
         }
+        // Android 15/OS2 has no per-task launch-adjacent flag. Its fullscreen
+        // inverse already restores ordinary bounds/focus, so a false reset is
+        // safely a no-op when the method is absent.
+        if (name.equals("setDisableLaunchAdjacent") && Boolean.FALSE.equals(value)) return transaction;
+        // OS2 likewise has no per-task recents-trimmable bit; fullscreen
+        // restoration already owns the task lifecycle in this generation.
+        if (name.equals("setTaskTrimmableFromRecents")) return transaction;
         // OS3 has no persistent per-task PIP-disable/exclude flags. A false reset on a
         // task proven to be an ordinary non-bubble root therefore needs no inverse.
         if (Boolean.FALSE.equals(value)
@@ -230,32 +411,40 @@ final class ShellCompat {
         shell.execute(() -> {
             try {
                 ClassLoader loader = factory.getClass().getClassLoader();
-                Object transitions = XposedHelpers.getObjectField(owner, "mTaskViewController");
+                Object transitions;
+                try { transitions = XposedHelpers.getObjectField(owner, "mTaskViewController"); }
+                catch (NoSuchFieldError legacy) {
+                    transitions = XposedHelpers.getObjectField(owner, "mTaskViewTransitions");
+                }
                 Object controller = construct(Class.forName("com.android.wm.shell.taskview.TaskViewTaskController", false, loader),
                         context, XposedHelpers.getObjectField(owner, "mTaskOrganizer"), transitions,
                         XposedHelpers.getObjectField(owner, "mSyncQueue"));
-                Object view = construct(Class.forName("com.android.wm.shell.taskview.TaskView", false, loader),
-                        context, transitions, controller);
-                callback.execute(() -> consumer.accept(view));
+                Class<?> viewType = Class.forName("com.android.wm.shell.taskview.TaskView", false, loader);
+                Object view;
+                try {
+                    view = construct(viewType, context, controller);
+                } catch (IllegalStateException newer) {
+                    view = construct(viewType, context, transitions, controller);
+                }
+                final Object created = view;
+                callback.execute(() -> consumer.accept(created));
             } catch (ClassNotFoundException error) { throw new IllegalStateException("Native task view unavailable", error); }
         });
     }
 
-    private static void enqueueFullscreen(Object taskViews, Object wct, Object controller) {
+    private static void enqueueTransition(Object taskViews, Object wct, Object controller, int type) {
         try {
-            Class<?> type = Class.forName(taskViews.getClass().getName() + "$PendingTransition", false,
+            Class<?> pendingType = Class.forName(taskViews.getClass().getName() + "$PendingTransition", false,
                     taskViews.getClass().getClassLoader());
             Constructor<?> constructor = null;
-            for (Constructor<?> candidate : type.getDeclaredConstructors())
+            for (Constructor<?> candidate : pendingType.getDeclaredConstructors())
                 if (candidate.getParameterCount() == 4) constructor = candidate;
             if (constructor == null) throw new IllegalStateException("Native pending transition constructor missing");
             constructor.setAccessible(true);
-            Object pending = constructor.newInstance(6, wct, controller, null);
+            Object pending = constructor.newInstance(type, wct, controller, null);
             @SuppressWarnings("unchecked") List<Object> queue = (List<Object>) XposedHelpers.getObjectField(taskViews, "mPending");
             queue.add(pending);
             XposedHelpers.callMethod(taskViews, "startNextTransition");
-            Object task = XposedHelpers.getObjectField(controller, "mTaskInfo");
-            if (task != null) XposedHelpers.callMethod(controller, "notifyTaskRemovalStarted", task);
         } catch (ReflectiveOperationException error) {
             throw new IllegalStateException("Native fullscreen transition unavailable", error);
         }

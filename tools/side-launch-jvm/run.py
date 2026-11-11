@@ -37,6 +37,7 @@ public class SideLaunchReplay {
  }
  static class Handler{Runnable timeout;void postDelayed(Runnable r,long ms){timeout=r;}}
  static class SystemClock{static long uptimeMillis(){return 1234;}}
+ static class Build{static class VERSION{static int SDK_INT=36;}}
  static class XposedBridge{static void log(Throwable t){throw new AssertionError(t);}}
  static class Rect{int left,top,right,bottom;Rect(int l,int t,int r,int b){left=l;top=t;right=r;bottom=b;}}
  static class Component{String getPackageName(){return "test.app";}}
@@ -46,7 +47,7 @@ public class SideLaunchReplay {
   void addFlags(int f){flags|=f;}
  }
  static class ActivityOptions {
-  static final int MODE_BACKGROUND_ACTIVITY_START_ALLOW_IF_VISIBLE=4;
+  static final int MODE_BACKGROUND_ACTIVITY_START_ALLOWED=1;
   int creator,sender,mode;boolean remove=true;
   static ActivityOptions makeBasic(){return new ActivityOptions();}
   ActivityOptions setPendingIntentCreatorBackgroundActivityStartMode(int v){creator=v;return this;}
@@ -86,6 +87,11 @@ public class SideLaunchReplay {
   check(slot.pkg.equals("test.app")&&slot.modeAdmissionPending,"launch admission missing");
   check(host.launchCurrentSlot==slot&&host.main.timeout!=null,"watchdog missing");
   host.main.timeout.run();check(!slot.launching&&host.launchCurrentSlot==null,"launch timeout leaks busy state");
+  Build.VERSION.SDK_INT=35;
+  SideLaunchReplay legacy=new SideLaunchReplay();Slot old=new Slot();
+  legacy.startSlot(old,new Intent(),"api35");
+  check(old.view.starts==1&&old.view.pi.options.get("creator")==1&&old.view.opts.sender==1,
+    "API35 must explicitly opt in using its supported mode, never unknown mode 4");
   for(int gate=0;gate<3;gate++){
    SideLaunchReplay stopped=new SideLaunchReplay();Slot s=new Slot();int before=PendingIntent.creations;
    if(gate==0)stopped.scene=0;if(gate==1)s.promoting=true;if(gate==2)s.index=7;
@@ -93,6 +99,8 @@ public class SideLaunchReplay {
    check(s.view.starts==0&&PendingIntent.creations==before,"inactive launch was authorized");
    check(!s.launching,"inactive launch remains busy");
   }
+  Build.VERSION.SDK_INT=37;
+  check(visibleHostBackgroundStartMode()==4,"new Android versions must retain visible-only mode");
   System.out.println("actual Host side launch boundary checks="+checks+" passed; native BAL/device validation separate");
  }
 }

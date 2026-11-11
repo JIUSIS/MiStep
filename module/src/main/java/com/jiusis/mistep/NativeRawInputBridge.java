@@ -55,7 +55,14 @@ final class NativeRawInputBridge {
                 "eb6c4d8163d6d4e1eb708da7fdf4820a1fdef27ef3b9d3b8a680e538a6f9cedd")
                 && matches("/system/lib64/libui.so",
                 "23706afbedb5d735330bf971705884694b6b86e09796d2e4478d250f690b068e");
-        return xagaOs3 ? "xaga-os3-3.0.301" : null;
+        if (xagaOs3) return "xaga-os3-3.0.301";
+        boolean xagaOs2 = matches("/system/lib64/libinputflinger.so",
+                "938f55e1fd457c9a4c3d096480b3044630cb807683973b50011565ba24e3bcb1")
+                && matches("/system/lib64/libinput.so",
+                "0807cee7785ea259923d8de741a4b24b572723dddd8327a245f4c723b4a12733")
+                && matches("/system/lib64/libui.so",
+                "11d33bcf1613a43b2ba898295dec6fafeb55d0c6675c79c1093f993e35415472");
+        return xagaOs2 ? "xaga-os2-2.0.208" : null;
     }
 
     static void update(float scale, float offsetY, float offsetX) {
@@ -88,12 +95,16 @@ final class NativeRawInputBridge {
     }
 
     static void updateTop(int uid, float scale) {
+        updateTop(uid,scale,0,0);
+    }
+
+    static void updateTop(int uid, float scale, float left, float top) {
         if (!loaded) return;
-        try { updateTopNative(uid, scale); }
+        try { updateTopNative(uid, scale, left, top); }
         catch (Throwable error) { XposedBridge.log("MiStepProbe: top raw update unavailable " + error); }
     }
 
-    private static native boolean updateTopNative(int uid, float scale);
+    private static native boolean updateTopNative(int uid, float scale, float left, float top);
 
     private static native boolean updateNative(float scale, float offsetY, float offsetX,
             int width, int height, int rotation);

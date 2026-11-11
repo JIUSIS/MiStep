@@ -13,8 +13,8 @@ files = {
 'android/graphics/ColorFilter.java': 'package android.graphics; public class ColorFilter {}',
 'android/graphics/Paint.java': 'package android.graphics; public class Paint {public int color,alpha=255;public Paint(){}public Paint(int f){}public void setColor(int c){color=c;}public void setAlpha(int a){alpha=a;}public void setColorFilter(ColorFilter f){} }',
 'android/graphics/Rect.java': 'package android.graphics; public class Rect { public int left,top,right,bottom;public Rect(){}public Rect(int a,int b,int c,int d){set(a,b,c,d);}public void set(int a,int b,int c,int d){left=a;top=b;right=c;bottom=d;}public int width(){return right-left;}public int height(){return bottom-top;}public boolean isEmpty(){return width()<=0||height()<=0;} }',
-'android/graphics/RectF.java': 'package android.graphics; public class RectF {public RectF(Rect r){} }',
-'android/graphics/Canvas.java': 'package android.graphics; public class Canvas {public Rect source;public int tint,alpha;public void drawBitmap(Bitmap b,Rect r,RectF d,Paint p){source=new Rect(r.left,r.top,r.right,r.bottom);alpha=p.alpha;}public void drawRect(Rect r,Paint p){tint=p.color;} }',
+'android/graphics/RectF.java': 'package android.graphics; public class RectF {public float left,top,right,bottom;public RectF(Rect r){this(r.left,r.top,r.right,r.bottom);}public RectF(RectF r){this(r.left,r.top,r.right,r.bottom);}public RectF(float a,float b,float c,float d){left=a;top=b;right=c;bottom=d;} }',
+'android/graphics/Canvas.java': 'package android.graphics; public class Canvas {public Rect source;public RectF excluded;public int depth,tint,alpha;public int save(){return ++depth;}public void restoreToCount(int v){depth=v-1;}public boolean clipOutRect(float a,float b,float c,float d){excluded=new RectF(a,b,c,d);return true;}public void drawBitmap(Bitmap b,Rect r,RectF d,Paint p){source=new Rect(r.left,r.top,r.right,r.bottom);alpha=p.alpha;}public void drawRect(Rect r,Paint p){tint=p.color;} }',
 'android/graphics/drawable/Drawable.java': 'package android.graphics.drawable; import android.graphics.*;public abstract class Drawable {private Rect bounds=new Rect();public int invalidations;public Rect getBounds(){return bounds;}public void setBounds(int a,int b,int c,int d){bounds.set(a,b,c,d);}public void invalidateSelf(){invalidations++;}public abstract void draw(Canvas c);public abstract void setAlpha(int a);public abstract void setColorFilter(ColorFilter f);public abstract int getOpacity(); }',
 'WallpaperCropRegression.java': r'''package com.jiusis.mistep;
 import android.graphics.*;
@@ -43,6 +43,12 @@ public class WallpaperCropRegression {
    at(d,b[0],b[1],()->{at(d,a[0],a[1],()->{});Canvas nested=new Canvas();d.draw(nested);equal(expected,nested,"nested rendering restores its enclosing source");});
    check(d.invalidations==0,"offscreen origin changes must not schedule live Host frames");
   }
+  var d=new WallpaperCropDrawable(new Bitmap(),3048,2032,2144,606,0x1fffffff);
+  d.setBounds(0,0,904,1426);var hole=new RectF(1000,300,3048,2032);d.setMainHole(hole);hole.left=0;
+  Canvas c=new Canvas();d.draw(c);
+  check(c.excluded.left==-1144&&c.excluded.top==-306,"physical moving-main hole converts to local wallpaper origin and owns its copy");
+  check(c.depth==0&&c.alpha==255,"background exclusion preserves opaque wallpaper and restores canvas state");
+  d.setMainHole(null);c=new Canvas();d.draw(c);check(c.excluded==null,"portrait clears moving-main exclusion");
   System.out.println("actual wallpaper sampling checks="+checks+" passed");
  }
 }'''

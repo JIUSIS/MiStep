@@ -13,7 +13,9 @@ final class MiStepTopRawInput {
         int width = row.getInt("width", 0), height = row.getInt("height", 0);
         IBinder binder = row.getBinder("task");
         if (binder == null || !Float.isFinite(scale) || scale <= 0 || scale >= 1
-                || width <= height || height <= 0 || row.getInt("displayId", -1) != 0
+                || width <= 0 || height <= 0 || row.getInt("displayId", -1) != 0
+                || !Float.isFinite(row.getFloat("left",0)) || row.getFloat("left",0)<0
+                || !Float.isFinite(row.getFloat("top",0)) || row.getFloat("top",0)<0
                 || row.getInt("taskId", -1) < 0 || row.getInt("userId", -1) < 0) return -1;
         Object task = XposedHelpers.callStaticMethod(XposedHelpers.findClass(
                 "com.android.server.wm.WindowContainer", loader), "fromBinder", binder);

@@ -1,6 +1,6 @@
 package com.jiusis.mistep;
 
-/** Rotation policy for the portrait Mi Step workspace and its main task. */
+/** Rotation policy for the Mi Step workspace and its application tasks. */
 final class FullscreenRotationPolicy {
     private static final int DISPLAY_PORTRAIT = 0;
     private static final int DISPLAY_LANDSCAPE = 1;
@@ -9,7 +9,9 @@ final class FullscreenRotationPolicy {
     private static final int ORIENTATION_LANDSCAPE = 0;
     private static final int ORIENTATION_PORTRAIT = 1;
     private static final int ORIENTATION_USER = 2;
+    private static final int ORIENTATION_BEHIND = 3;
     private static final int ORIENTATION_SENSOR = 4;
+    private static final int ORIENTATION_NOSENSOR = 5;
     private static final int ORIENTATION_SENSOR_LANDSCAPE = 6;
     private static final int ORIENTATION_SENSOR_PORTRAIT = 7;
     private static final int ORIENTATION_REVERSE_LANDSCAPE = 8;
@@ -78,6 +80,13 @@ final class FullscreenRotationPolicy {
 
     static int taskRotation(int overrideOrientation, int resolvedRotation,
             boolean rotationLocked, int windowingMode, int rememberedFullscreenRotation) {
+        return taskRotation(overrideOrientation, resolvedRotation, rotationLocked,
+                windowingMode, rememberedFullscreenRotation, DISPLAY_PORTRAIT);
+    }
+
+    static int taskRotation(int overrideOrientation, int resolvedRotation,
+            boolean rotationLocked, int windowingMode, int rememberedFullscreenRotation,
+            int workspaceRotation) {
         switch (overrideOrientation) {
             case ORIENTATION_LANDSCAPE:
                 return DISPLAY_LANDSCAPE;
@@ -94,6 +103,18 @@ final class FullscreenRotationPolicy {
             case ORIENTATION_USER_PORTRAIT:
                 return DISPLAY_PORTRAIT;
             default:
+                if (isLandscape(workspaceRotation)
+                        && (usesSensorOrUserRotation(overrideOrientation)
+                                || overrideOrientation == ORIENTATION_BEHIND
+                                || overrideOrientation == ORIENTATION_NOSENSOR
+                                || overrideOrientation == ORIENTATION_LOCKED)) {
+                    // A landscape tablet must not inherit the phone's portrait default
+                    // or a portrait configuration captured before this task's first layout.
+                    if (rotationLocked && overrideOrientation != ORIENTATION_LOCKED)
+                        return workspaceRotation;
+                    return resolvedRotation >= 0 && resolvedRotation <= 3
+                            ? resolvedRotation : workspaceRotation;
+                }
                 if (rotationLocked && usesSensorOrUserRotation(overrideOrientation)) {
                     return isLandscape(rememberedFullscreenRotation)
                             ? rememberedFullscreenRotation : DISPLAY_PORTRAIT;

@@ -18,6 +18,9 @@ def extract(signature):
 actual = '\n'.join(extract(s) for s in (
     '    private static final class RenderBinding {',
     '    private void appendRetainedSurfaces(',
+    '    private void appendWorkspaceSurfaces(',
+    '    private void appendHiddenKeyguardSurfaces(',
+    '    private void restoreRetainedWorkspaceSurfaces(',
     '    private void reassertSideTaskViews('))
 stub = r'''package android.view;
 import java.util.*;
@@ -38,14 +41,15 @@ public class SurfaceControl {
 body = r'''package com.jiusis.mistep;
 import java.util.*;import android.view.SurfaceControl.Leash;import android.view.SurfaceControl.Transaction;
 public class SideParentRegression {
- static final int SLOT_MAIN=0,SLOT_TOP=4,ACTIVE=2,RESUMING=1;int scene=ACTIVE;long sceneEpoch=7;boolean screenOn=true,topFace;Object root=new Object();
+ static final int SLOT_MAIN=0,SLOT_TOP=4,ACTIVE=2,RESUMING=1;int scene=ACTIVE;long sceneEpoch=7;boolean screenOn=true,topFace,keyguardLocked,retainedForLock,keyguardWindowHidden;Object root=new Object();
  static class Controller {Object mTaskLeash,mSurfaceControl;int task;Object token;}
  static class Slot {int index,taskId;long taskEpoch=3;Object taskToken=new Object(),crop=new Object();Controller controller=new Controller();boolean occupied=true,promoting,launching,frozen,parked,render=true,writable=true;float scale=.247f;Slot(int i){index=i;taskId=100+i;controller.task=taskId;controller.token=taskToken;controller.mTaskLeash=new Leash();controller.mSurfaceControl=new Object();}}
  final Slot[] slots={new Slot(0),new Slot(1),new Slot(2),new Slot(3),new Slot(4)};
  final Queue<Runnable> shell=new ArrayDeque<>();static class Main {Queue<Runnable> q=new ArrayDeque<>();void post(Runnable r){q.add(r);}}final Main main=new Main();int scales;boolean queueAvailable=true;
  public static class Transitions {int calls;public void setTaskViewVisible(Controller c,boolean visible){calls++;/* OEM no-op: already visible */}}final Transitions transitions=new Transitions();
  boolean executeOnShell(Runnable r){if(!queueAvailable)return false;shell.add(r);return true;}
- boolean canRender(Slot s){return s.render;}boolean mayWriteSideSurface(Slot s){return s.writable;}
+ boolean canRender(Slot s){return s.render&&!keyguardLocked&&!s.parked;}boolean mayWriteSideSurface(Slot s){return s.writable;}
+ boolean isActive(Slot s){return s.render;}
  boolean controllerOwns(Slot s,int id,Object token){return s.controller!=null&&s.controller.task==id&&Objects.equals(s.controller.token,token);}
  Object getSurfaceField(Controller c,String n){return n.equals("mTaskLeash")?c.mTaskLeash:c.mSurfaceControl;}
  Object logicalBounds(Slot s){return s.crop;}float scaleFor(Slot s){return s.scale;}void reapplyScale(Slot s){scales++;}void log(String s){}
@@ -70,6 +74,30 @@ public class SideParentRegression {
   h=fresh();h.reassertSideTaskViews("old scene");h.sceneEpoch++;h.drain();check(Transaction.all.isEmpty()&&h.transitions.calls==0,"queued repair cannot cross scene epoch");
   stale(x->x.sceneEpoch++,"stale scene binding");stale(x->x.slots[3].taskEpoch++,"stale task binding");stale(x->x.slots[3].taskId++,"replaced task id");stale(x->x.slots[3].taskToken=new Object(),"replaced token");stale(x->x.slots[3].controller.mTaskLeash=new Leash(),"retired leash");stale(x->x.slots[3].controller.mSurfaceControl=new Object(),"retired parent");stale(x->x.slots[3].writable=false,"surface ownership gate");stale(x->x.slots[3].controller.task=999,"owner changed before append");
   h=fresh();var s=h.slots[3];var f=new RenderBinding(s,h.sceneEpoch,s.controller.mTaskLeash,s.controller.mSurfaceControl);var tx=new Transaction();h.appendRetainedSurfaces(tx,List.of(f,f));check(tx.ops.size()==7,"same slot appended only once");
+  h=fresh();h.retainedForLock=true;h.keyguardWindowHidden=true;
+  h.restoreRetainedWorkspaceSurfaces();
+  check(Transaction.all.size()==1&&Transaction.all.get(0).applies==1&&Transaction.all.get(0).closes==1,"unlock surface transaction applied and closed synchronously");
+  for(int i=1;i<4;i++)check(((Leash)h.slots[i].controller.mTaskLeash).parent==h.slots[i].controller.mSurfaceControl,"live canonical parents ready before Shell queue or overlay reveal");
+  check(h.shell.isEmpty()&&h.transitions.calls==0,"surface preparation does not enqueue native TaskView transitions");
+  for(int gate=0;gate<6;gate++){
+   h=fresh();h.retainedForLock=true;h.keyguardWindowHidden=true;
+   if(gate==0)h.keyguardLocked=true;if(gate==1)h.screenOn=false;if(gate==2)h.root=null;
+   if(gate==3)h.scene=0;if(gate==4)h.retainedForLock=false;if(gate==5)h.keyguardWindowHidden=false;
+   h.restoreRetainedWorkspaceSurfaces();check(Transaction.all.isEmpty(),"locked, absent, inactive or already-visible host not restored");
+  }
+  h=fresh();h.retainedForLock=true;h.keyguardWindowHidden=true;h.keyguardLocked=true;h.screenOn=false;
+  var hidden=new Transaction();h.appendHiddenKeyguardSurfaces(hidden,List.of(h.sceneEpoch));
+  check(hidden.applies==0,"hidden geometry is appended to native transaction, never separately applied");
+  hidden.apply();
+  for(int i=1;i<4;i++)check(((Leash)h.slots[i].controller.mTaskLeash).parent==h.slots[i].controller.mSurfaceControl,"native start and finish cannot expose canonical task fullscreen");
+  check(h.keyguardLocked&&h.keyguardWindowHidden&&!h.screenOn,"hidden parent repair never grants unlock or reveals Host");
+  for(int gate=0;gate<7;gate++){
+   h=fresh();h.retainedForLock=true;h.keyguardWindowHidden=true;var nativeTx=new Transaction();
+   if(gate==0)h.retainedForLock=false;if(gate==1)h.keyguardWindowHidden=false;if(gate==2)h.root=null;
+   if(gate==3)h.scene=0;if(gate==4)h.sceneEpoch++;if(gate==5)for(var item:h.slots)item.controller.task=999;
+   if(gate==6)for(var item:h.slots)item.frozen=true;
+   h.appendHiddenKeyguardSurfaces(nativeTx,List.of(7L));check(nativeTx.ops.isEmpty(),"hidden repair requires exact retained Host, scene and task owner");
+  }
   System.out.println("actual side parent repair checks="+checks+" passed");
  }
 }'''.replace('ACTUAL', actual)

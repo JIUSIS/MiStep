@@ -10,7 +10,7 @@ final class MiStepIdleTaskView {
         Object organizer = XposedHelpers.getObjectField(controller, "mTaskOrganizer");
         synchronized (XposedHelpers.getObjectField(organizer, "mLock")) {
             if (XposedHelpers.getObjectField(controller, "mTaskToken") != null
-                    || XposedHelpers.callMethod(controller, "getPendingInfo") != null) return;
+                    || ShellCompat.call(controller, "getPendingInfo") != null) return;
             Object listeners = XposedHelpers.getObjectField(organizer, "mTaskListeners");
             Object tasks = XposedHelpers.getObjectField(organizer, "mTasks");
             ArrayList<Integer> retired = new ArrayList<>();

@@ -113,13 +113,13 @@ final class MiStepLiveHomeTask {
             Object b = app(-1); home();
             if (transitionApp == null) throw new IllegalStateException("Home app transition not resolved");
             if (retired) return;
-            XposedHelpers.callMethod(taskViews, "unregisterTaskView", controller);
+            ShellCompat.call(taskViews, "unregisterTaskView", controller);
             try {
                 if (owner(b) != controller) throw new IllegalStateException("Home app owner changed");
                 ShellCompat.call(organizer, "removeListener", controller);
                 try { XposedHelpers.callMethod(controller, "onTaskVanished", transitionApp); }
                 finally { retired = !request.app.token.equals(XposedHelpers.getObjectField(controller, "mTaskToken")); }
-            } finally { XposedHelpers.callMethod(taskViews, "registerTaskView", controller); }
+            } finally { ShellCompat.call(taskViews, "registerTaskView", controller); }
         }
     }
     boolean roles(boolean original) {

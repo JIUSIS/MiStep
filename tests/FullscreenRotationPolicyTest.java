@@ -65,6 +65,35 @@ final class FullscreenRotationPolicyTest {
         check(FullscreenRotationPolicy.observedTaskRotation(2, 8, 0) == 3,
                 "pre-step reverse landscape configuration is preserved");
 
+        for (int workspace : new int[]{1, 3}) {
+            for (int mode : new int[]{1, 6}) {
+                for (int request : new int[]{-1, 2, 4, 10, 13, 3, 5}) {
+                    for (int history : new int[]{-1, 0, 1, 3}) {
+                        check(FullscreenRotationPolicy.taskRotation(request, workspace, true,
+                                        mode, history, workspace) == workspace,
+                                "landscape workspace overrides stale task history under lock");
+                        check(FullscreenRotationPolicy.taskRotation(request, workspace, false,
+                                        mode, history, workspace) == workspace,
+                                "unlocked landscape workspace accepts native WM direction");
+                        check(FullscreenRotationPolicy.taskRotation(request, 0, false,
+                                        mode, history, workspace) == 0,
+                                "unlocked native portrait resolution is still respected");
+                    }
+                }
+                for (int request : new int[]{1, 7, 9, 12}) {
+                    check(FullscreenRotationPolicy.taskRotation(request, workspace, true,
+                                    mode, workspace, workspace) == 0,
+                            "explicit portrait application retains its direction");
+                }
+                check(FullscreenRotationPolicy.taskRotation(14, workspace, true,
+                                mode, 0, workspace) == workspace,
+                        "application LOCKED uses native resolved direction on tablet");
+                check(FullscreenRotationPolicy.taskRotation(13, -1, false,
+                                mode, 0, workspace) == workspace,
+                        "unavailable native resolution falls back to the actual workspace");
+            }
+        }
+
         for (int[] size : new int[][]{{1200, 2608}, {1080, 2460}, {1440, 3200}}) {
             for (boolean right : new boolean[]{false, true}) {
                 MiStepLayout portrait = workspace(size[0], size[1], right);

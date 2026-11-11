@@ -108,7 +108,8 @@ public class LiveHostRegression {
  void setLiveSwapInputBlocked(boolean b){inputPass=b;}
  void scheduleDisplayGeometryRefresh(){}
  void finishPendingSuspend(){suspends++;}
- int compactions;void requestCompaction(){compactions++;}
+ // Placement versus retirement policy is exercised by home-compact-jvm.
+ int compactions;void compactCellsAfterCollection(){compactions++;}
  void clearSlot(Slot s){clears++;s.taskId=-1;s.taskToken=null;s.taskEpoch++;}
  void bindTask(Slot s,int id,Object t){binds++;s.taskId=id;s.taskToken=t;s.taskEpoch++;ownedTasks.putIfAbsent(t,new OwnedTask(t));}
  void writeZoom(boolean on){}
@@ -128,7 +129,9 @@ public class LiveHostRegression {
   focus.run();
   check(promotion==null&&p.slot.occupied&&!p.slot.promoting&&!p.slot.frozen,"collected binding not released for next tap");
   check(!p.previousMainCandidate.recoveryCandidate&&!inputPass&&statusBar.finishes==1,"collection final cleanup missing");
-  check(compactions==1,"real collection settles before requesting gap compaction");
+  check(compactions==0&&main.queue.size()==1,"collection queues placement reconciliation after cleanup");
+  main.flush();
+  check(compactions==1,"real collection settles before reconciling cell placement");
   finishLiveCollect(p,new MiStepLiveSwap.Result(true,true,null));check(statusBar.finishes==1,"collection completed twice");
  }
  void collectCancellation(){
