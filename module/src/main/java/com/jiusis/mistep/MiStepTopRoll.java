@@ -29,9 +29,13 @@ final class MiStepTopRoll extends View {
         stopAnimator();dragging=false;target=task;motion.reset(task);frame();
     }
     void show(boolean task) {
+        show(task, null);
+    }
+    void show(boolean task, Runnable onSettled) {
+        dragging=false;
         int nearest=Math.round(motion.phase);
         int destination=TopRollMotion.taskFace(nearest)==task?nearest:nearest+(task?1:-1);
-        animateTo(destination);
+        animateTo(destination, onSettled);
     }
     void beginGesture() {
         stopAnimator();dragging=true;motion.begin(getHeight());frame();
@@ -42,9 +46,9 @@ final class MiStepTopRoll extends View {
     }
     void finishGesture(boolean cancelled) {
         if(!dragging)return;
-        dragging=false;animateTo(motion.destination(cancelled));
+        dragging=false;animateTo(motion.destination(cancelled), null);
     }
-    private void animateTo(int quarter) {
+    private void animateTo(int quarter, Runnable onSettled) {
         stopAnimator();target=TopRollMotion.taskFace(quarter);
         float remaining=Math.abs(motion.phase-quarter);
         ValueAnimator next=ValueAnimator.ofFloat(motion.phase,quarter);
@@ -55,7 +59,9 @@ final class MiStepTopRoll extends View {
         next.addListener(new android.animation.AnimatorListenerAdapter() {
             @Override public void onAnimationEnd(android.animation.Animator animation) {
                 if(animator!=animation)return;
-                animator=null;motion.reset(target);frame();settled.accept(target);
+                animator=null;motion.reset(target);frame();
+                if (onSettled != null) onSettled.run();
+                else settled.accept(target);
             }
         });
         next.start();

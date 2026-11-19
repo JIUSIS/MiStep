@@ -187,12 +187,26 @@ public class TopReturnBridgeRegression {
  static final int SLOT_TOP=4;static int checks;
  static void check(boolean v,String s){checks++;if(!v)throw new AssertionError(s);}
  static class Slot {boolean occupied=true,promoting;int taskId=7;long taskEpoch=1;Object taskToken="upper";}
- Slot[] slots={null,null,null,null,new Slot()};boolean suspendRequested,ready=true,accept=true;
- Object topTransition;int nativeCalls,animations,cancels;boolean nativeFront,nativeLive;Runnable pending;
+ Slot[] slots={null,null,null,null,new Slot()};boolean suspendRequested,ready=true,accept=true,topFace=true;
+ static class MiStepTopTaskTransition {}
+ static class Layout {boolean tabletLandscape;}
+ final Layout layout=new Layout();
+ class Roll {
+  void show(boolean task,Runnable done){check(!task&&prepared,"the existing live roll brings the real controls forward");settled=done;}
+  void reset(boolean task){if(!task)throw new AssertionError("cancelled return restores the TOP face");}
+ }
+ final Roll topRoll=new Roll();
+ MiStepTopTaskTransition topTransition;
+ int nativeCalls,animations,cancels;boolean nativeFront,nativeLive,prepared;Runnable pending,settled;
  boolean topReady(){return ready;}
- boolean startLiveMainRevealTransition(Runnable r){animations++;pending=r;return accept;}
+ void prepareLiveTopRoll(){prepared=true;}
+ boolean startLiveMainRevealTransition(Runnable r){
+  animations++;pending=r;
+  if(accept)topTransition=new MiStepTopTaskTransition();
+  return accept;
+ }
  void releaseTopTaskNow(boolean front,boolean dismissed,Runnable after,boolean live){nativeCalls++;nativeFront=front;nativeLive=live;}
- void cancelTopTaskTransition(){cancels++;}
+ void cancelTopTaskTransition(){cancels++;topTransition=null;}
 '''+member('    private void releaseTopTask(',0)+member('    private void releaseTopTask(',1)+'''
  public static void main(String[]args){
   var h=new TopReturnBridgeRegression();h.releaseTopTask(false,true,null,true);
@@ -201,9 +215,21 @@ public class TopReturnBridgeRegression {
   check(h.animations==0&&h.nativeCalls==1&&!h.nativeLive,"non-live roll return hands back directly");
   h=new TopReturnBridgeRegression();h.releaseTopTask(true,true,null);
   check(h.animations==1&&h.nativeCalls==0,"explicit return waits for transparent live handoff");h.pending.run();
+  check(h.nativeCalls==0&&h.settled!=null,"native resize must wait for the control face to be visible");
+  h.releaseTopTask(true,true,null);
+  check(h.nativeCalls==0&&h.animations==1,"a second tap cannot bypass the live roll");
+  h.settled.run();
   check(h.nativeCalls==1&&h.nativeFront&&h.nativeLive,"explicit native handback always uses the actual task surface");
   h=new TopReturnBridgeRegression();h.releaseTopTask(true,true,null);h.slots[4].taskEpoch++;h.pending.run();
-  check(h.nativeCalls==0&&h.cancels==1,"late collapse cannot return a changed task binding");
+  check(h.nativeCalls==0&&h.cancels==1&&h.settled==null,"late collapse cannot turn a changed binding away");
+  h=new TopReturnBridgeRegression();h.releaseTopTask(true,true,null);h.pending.run();h.slots[4].taskEpoch++;h.settled.run();
+  check(h.nativeCalls==0&&h.cancels==1,"a task replaced mid-roll cannot be handed back");
+  h=new TopReturnBridgeRegression();h.releaseTopTask(true,true,null);h.pending.run();h.cancelTopTaskTransition();h.settled.run();
+  check(h.nativeCalls==0,"a roll completion cannot revive a cancelled bridge");
+  h=new TopReturnBridgeRegression();h.layout.tabletLandscape=true;h.releaseTopTask(true,true,null);h.pending.run();
+  check(h.nativeCalls==1&&h.settled==null,"the tablet drawer still transfers without a phone roll");
+  h=new TopReturnBridgeRegression();h.topFace=false;h.releaseTopTask(true,true,null);h.pending.run();
+  check(h.nativeCalls==1&&h.settled==null,"the hidden phone face is already past the roll");
   h=new TopReturnBridgeRegression();h.suspendRequested=true;h.releaseTopTask(true,true,null);
   check(h.animations==0&&h.nativeCalls==1,"suspend/recovery bypasses decorative delay");
   System.out.println("Production upper return animation scope checks="+checks+" passed");

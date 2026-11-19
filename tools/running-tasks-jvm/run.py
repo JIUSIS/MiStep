@@ -19,7 +19,7 @@ files['android/os/Bundle.java'] = files['android/os/Bundle.java'].replace(
 files['com/jiusis/mistep/NativeRawInputBridge.java'] = 'package com.jiusis.mistep;class NativeRawInputBridge {static void updateTop(int u,float s){}static void updateTop(int u,float s,float l,float t){}}'
 files['com/jiusis/mistep/MiStepTopRawInput.java'] = 'package com.jiusis.mistep;import android.os.Bundle;class MiStepTopRawInput {static int uid(Bundle b,ClassLoader l){return -1;}}'
 files['android/content/pm/PackageManager.java'] = '''package android.content.pm;
-public class PackageManager {public boolean fail;public String[] getPackagesForUid(int uid){
+public class PackageManager {public ActivityInfo getActivityInfo(android.content.ComponentName c,int f){return new ActivityInfo();}public boolean fail;public String[] getPackagesForUid(int uid){
  if(fail)throw new IllegalStateException();return new String[]{uid==100?"com.miui.home":"other"};}}
 '''
 files['de/robv/android/xposed/XC_MethodHook.java'] = '''package de.robv.android.xposed;
@@ -216,7 +216,7 @@ for name, source in files.items():
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(source, encoding='utf-8')
 jdk = Path(os.environ['MISTEP_JAVA_BIN'])
-production = ['MiStepDesktopLaunchBridge.java', 'DesktopIconLaunchPolicy.java', 'MiStepSideRoleChange.java',
+production = ['MiStepDesktopLaunchBridge.java', 'DesktopIconLaunchPolicy.java', 'TaskLaunchIdentity.java', 'MiStepSideRoleChange.java',
               'MiStepImePolicy.java', 'ZoomChannelState.java', 'ZoomCommand.java', 'ZoomAnimCommand.java']
 subprocess.run([str(jdk / 'javac.exe'), '-encoding', 'UTF-8', '--release', '17', '-d', str(OUT)]
                + [str(OUT / name) for name in files] + [str(SRC / name) for name in production], check=True)

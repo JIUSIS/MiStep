@@ -2,6 +2,7 @@ package com.jiusis.mistep;
 
 import java.util.IdentityHashMap;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import de.robv.android.xposed.XposedHelpers;
 
 /** Independent native system-window rotation inside the portrait workspace. */
@@ -18,6 +19,9 @@ final class MiStepSystemUiRotation {
                 && title != null && "FlaresView".contentEquals(title);
     }
     private static boolean imeWindow(Object window) {
+        Object attrs = XposedHelpers.getObjectField(window, "mAttrs");
+        int type = XposedHelpers.getIntField(attrs, "type");
+        if (type == 2011 || type == 2012) return true;
         try {
             // MIUI/Android marks both the INPUT_METHOD root and visible child
             // panels (for example a floating candidate PopupWindow) as IME
@@ -28,9 +32,9 @@ final class MiStepSystemUiRotation {
         try {
             Object parent = XposedHelpers.getObjectField(window, "mParentWindow");
             if (parent == null) return false;
-            Object attrs = XposedHelpers.getObjectField(parent, "mAttrs");
-            int type = XposedHelpers.getIntField(attrs, "type");
-            return type == 2011 || type == 2012;
+            Object parentAttrs = XposedHelpers.getObjectField(parent, "mAttrs");
+            int parentType = XposedHelpers.getIntField(parentAttrs, "type");
+            return parentType == 2011 || parentType == 2012;
         } catch (Throwable ignored) { return false; }
     }
     private static boolean systemWindow(Object window) {
@@ -99,6 +103,73 @@ final class MiStepSystemUiRotation {
             log.accept("main system UI rotation configured token=" + token);
         } finally { updating = false; }
     }
+
+    /**
+     * Rotate only the real IME token with the currently focused, host-owned app.
+     * The display API builds full physical-display configuration and geometry.
+     */
+    Object updatePhoneIme(Object window, Object display, Predicate<Object> ownsRotationActivity,
+            Predicate<Object> ownsFocusedTopWindow, Consumer<String> log) {
+        if (updating || window == null || display == null || !imeWindow(window)
+                || XposedHelpers.callMethod(window, "getDisplayContent") != display) return null;
+        Object token = XposedHelpers.getObjectField(window, "mToken");
+        if (token == null) return null;
+        updating = true;
+        try {
+            Object inputTarget = XposedHelpers.callMethod(display, "getImeInputTarget");
+            Object targetWindow = inputTarget == null ? null
+                    : XposedHelpers.callMethod(inputTarget, "getWindowState");
+            Object activity = targetWindow == null ? null
+                    : XposedHelpers.getObjectField(targetWindow, "mActivityRecord");
+            Object activityState = activity == null ? null : state(activity);
+            Object task = targetWindow == null ? null
+                    : XposedHelpers.callMethod(targetWindow, "getTask");
+            boolean selected = activity != null && activityState != null
+                    && ownsRotationActivity != null && ownsRotationActivity.test(activity)
+                    && XposedHelpers.callMethod(activity, "getDisplayContent") == display;
+            if (selected && task != null) {
+                int mode = ((Number) XposedHelpers.callMethod(task, "getWindowingMode")).intValue();
+                selected = mode == 1
+                        ? MiStepImePolicy.isTopAppFocused(task, display)
+                        : mode == 6 && ownsFocusedTopWindow != null
+                                && ownsFocusedTopWindow.test(targetWindow);
+            } else {
+                selected = false;
+            }
+
+            Lease lease = owned.get(token);
+            if (lease != null && state(token) != lease.state) {
+                owned.remove(token);
+                lease = null;
+            }
+            if (!selected || activityState == null) {
+                release(token);
+                return null;
+            }
+            if (lease != null && lease.mainState == activityState) return activity;
+            if (lease == null && state(token) != null) return null;
+            if (lease != null) release(token);
+            if (XposedHelpers.callMethod(token, "getParent") == null) return null;
+
+            Object activityConfig = XposedHelpers.getObjectField(
+                    activityState, "mRotatedOverrideConfiguration");
+            Object windowConfig = XposedHelpers.getObjectField(activityConfig, "windowConfiguration");
+            int rotation = ((Number) XposedHelpers.callMethod(windowConfig, "getDisplayRotation"))
+                    .intValue();
+            XposedHelpers.callMethod(display, "startFixedRotationTransform", token, rotation);
+            Object installed = state(token);
+            if (installed == null || installed == activityState)
+                throw new IllegalStateException("phone IME fixed rotation was not independently installed");
+            owned.put(token, new Lease(installed, activityState));
+            Object controller = XposedHelpers.getObjectField(token, "mTransitionController");
+            if (Boolean.TRUE.equals(XposedHelpers.callMethod(controller, "useShellTransitionsRotation")))
+                XposedHelpers.callMethod(token, "getOrCreateFixedRotationLeash",
+                        XposedHelpers.callMethod(token, "getPendingTransaction"));
+            log.accept("focused app IME native rotation configured rotation=" + rotation);
+            return activity;
+        } finally { updating = false; }
+    }
+
     private void release(Object token) {
         Lease lease = owned.get(token);
         if (lease == null) return;

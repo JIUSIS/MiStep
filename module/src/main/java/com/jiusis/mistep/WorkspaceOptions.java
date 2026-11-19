@@ -16,7 +16,7 @@ final class WorkspaceOptions {
     private static final int KNOWN_BUTTONS = (1 << 19) - 1;
     static final WorkspaceOptions DEFAULT = new WorkspaceOptions(0, GROW_IN_PLACE, STATUS_BAR_INWARD);
     final int hiddenButtons, swapMode, entryGesture;
-    final boolean keepOnLock;
+    final boolean keepOnLock, scrollSideTasks;
 
     WorkspaceOptions(int hiddenButtons, int swapMode) {
         this(hiddenButtons, swapMode, STATUS_BAR_INWARD);
@@ -27,11 +27,17 @@ final class WorkspaceOptions {
     }
 
     WorkspaceOptions(int hiddenButtons, int swapMode, int entryGesture, boolean keepOnLock) {
+        this(hiddenButtons, swapMode, entryGesture, keepOnLock, false);
+    }
+
+    WorkspaceOptions(int hiddenButtons, int swapMode, int entryGesture, boolean keepOnLock,
+            boolean scrollSideTasks) {
         this.hiddenButtons = hiddenButtons & KNOWN_BUTTONS;
         this.swapMode = swapMode == FIXED_MAIN ? FIXED_MAIN : GROW_IN_PLACE;
         this.entryGesture = entryGesture == BOTTOM_CENTER_OUTWARD
                 ? BOTTOM_CENTER_OUTWARD : STATUS_BAR_INWARD;
         this.keepOnLock = keepOnLock;
+        this.scrollSideTasks = scrollSideTasks;
     }
 
     boolean visible(int button) {
@@ -42,12 +48,21 @@ final class WorkspaceOptions {
     WorkspaceOptions withVisible(int button, boolean visible) {
         visible(button);
         return new WorkspaceOptions(visible ? hiddenButtons & ~(1 << button)
-                : hiddenButtons | (1 << button), swapMode, entryGesture, keepOnLock);
+                : hiddenButtons | (1 << button), swapMode, entryGesture, keepOnLock, scrollSideTasks);
     }
 
-    WorkspaceOptions withSwapMode(int mode) { return new WorkspaceOptions(hiddenButtons, mode, entryGesture, keepOnLock); }
-    WorkspaceOptions withEntryGesture(int mode) { return new WorkspaceOptions(hiddenButtons, swapMode, mode, keepOnLock); }
-    WorkspaceOptions withKeepOnLock(boolean keep) { return new WorkspaceOptions(hiddenButtons, swapMode, entryGesture, keep); }
+    WorkspaceOptions withSwapMode(int mode) {
+        return new WorkspaceOptions(hiddenButtons, mode, entryGesture, keepOnLock, scrollSideTasks);
+    }
+    WorkspaceOptions withEntryGesture(int mode) {
+        return new WorkspaceOptions(hiddenButtons, swapMode, mode, keepOnLock, scrollSideTasks);
+    }
+    WorkspaceOptions withKeepOnLock(boolean keep) {
+        return new WorkspaceOptions(hiddenButtons, swapMode, entryGesture, keep, scrollSideTasks);
+    }
+    WorkspaceOptions withScrollSideTasks(boolean enabled) {
+        return new WorkspaceOptions(hiddenButtons, swapMode, entryGesture, keepOnLock, enabled);
+    }
 
     boolean mainOnRightAfterSwap(boolean currentRight) {
         return swapMode == FIXED_MAIN ? currentRight : !currentRight;

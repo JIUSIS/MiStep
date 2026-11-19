@@ -23,7 +23,11 @@ public class TopInsetsTest{
  static class Config{WC windowConfiguration=new WC();}
  static class Task{int mode=6;boolean translucent=true;Rect bounds=new Rect(0,0,2964,1707);Config config=new Config();
   int getWindowingMode(){return mode;}boolean isForceTranslucent(){return translucent;}Rect getBounds(){return bounds;}Config getConfiguration(){return config;}}
- static class Window{Object display;Task task;int notifications;Window(Object d,Task t){display=d;task=t;}Object getDisplayContent(){return display;}Object getTask(){return task;}void notifyInsetsChanged(){notifications++;}}
+ static class Token{Object asActivityRecord(){return null;}}
+ static class App extends Token{Rect rotated;Object display;Task task;App(Object d,Task t){display=d;task=t;}
+  @Override Object asActivityRecord(){return this;}Object getDisplayContent(){return display;}Object getTask(){return task;}
+  boolean hasFixedRotationTransform(){return rotated!=null;}Rect getFixedRotationTransformDisplayBounds(){return rotated;}}
+ static class Window{App mActivityRecord;Object display;Task task;int notifications;Window(Object d,Task t){display=d;task=t;}Object getDisplayContent(){return display;}Object getTask(){return task;}void notifyInsetsChanged(){notifications++;}}
  static class Display{Window[] windows;void forAllWindows(java.util.function.Consumer<Object> c,boolean top){for(Window w:windows)c.accept(w);}}
  static class Source{int id,type;boolean visible=true;Source(int i,int t){id=i;type=t;}int getType(){return type;}int getId(){return id;}}
  static class State{
@@ -43,6 +47,20 @@ public class TopInsetsTest{
   check(result.frame.equals(top.bounds)&&result.frame!=top.bounds,"virtual frame absent or shared");
   check(result.cutout==android.view.DisplayCutout.NO_CUTOUT&&result.round==android.view.RoundedCorners.NO_ROUNDED_CORNERS,"phone cutout or corners leaked");
   check(result.roundFrame.equals(top.bounds),"rounded frame not virtual");
+  w.mActivityRecord=new App(d,top);w.mActivityRecord.rotated=new Rect(0,0,1707,2964);State rotated=(State)adjust(w,d,source,top);
+  check(rotated.frame.equals(w.mActivityRecord.rotated)&&rotated.sources.get(0)==ime,"rotated viewport retains native IME");w.mActivityRecord=null;
+  App metricsToken=new App(d,top);metricsToken.rotated=new Rect(0,0,1707,2964);
+  State metrics=(State)MiStepTopInsets.adjustMetrics(metricsToken,d,source,t->t==top);
+  check(metrics!=source&&metrics.frame.equals(metricsToken.rotated),"native metrics ActivityRecord token viewport");
+  check(metrics.sources.size()==1&&metrics.sources.get(0)==ime,"metrics changed native IME");
+  check(source.sources.size()==9&&source.frame==frame,"metrics mutated raw physical state");
+  metricsToken.rotated=null;State horizontalMetrics=(State)MiStepTopInsets.adjustMetrics(metricsToken,d,source,t->t==top);
+  check(horizontalMetrics.frame.equals(top.bounds),"metrics native landscape frame absent");
+  check(MiStepTopInsets.adjustMetrics(new Token(),d,source,t->true)==source,"non-activity token changed");
+  check(MiStepTopInsets.adjustMetrics(null,d,source,t->true)==source,"null token changed");
+  check(MiStepTopInsets.adjustMetrics(metricsToken,new Display(),source,t->t==top)==source,"foreign metrics display changed");
+  check(MiStepTopInsets.adjustMetrics(metricsToken,d,source,t->false)==source,"expired metrics lease changed");
+  top.mode=1;check(MiStepTopInsets.adjustMetrics(metricsToken,d,source,t->t==top)==source,"main metrics token changed");top.mode=6;
   check(adjust(w,d,source,new Task())==source,"stale token accepted");check(adjust(w,new Display(),source,top)==source,"foreign display accepted");
   top.mode=1;check(adjust(w,d,source,top)==source,"returned main altered");top.mode=6;
   top.translucent=false;check(adjust(w,d,source,top)==source,"native multiwindow altered");top.translucent=true;

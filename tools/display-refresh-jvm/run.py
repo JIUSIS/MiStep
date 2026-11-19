@@ -33,7 +33,7 @@ public class DisplayRefreshRegression {
  static class Promotion {boolean nativeSwap=true;}
  static class CellMotion {int finishes;void finish(){finishes++;}}
  CellMotion cellMotion;
- static class Slot {int index,taskId;int[] rect;boolean carrier,promoting,launching,occupied,parked;View carrierTapView;}
+ static class Slot {int index,taskId,sideRow=-1;int[] rect;boolean carrier,promoting,launching,occupied,parked;View carrierTapView;}
  static class Layout {
   int topStrip,sideWidth,mainWidth,mainDispWidth,mainDispHeight,mainOffsetX,mainOffsetY;
   int cellCount=3;boolean mainOnRight,tabletLandscape;int[] cellBounds(int i){return new int[4];}String describe(){return "layout";}
@@ -47,6 +47,7 @@ public class DisplayRefreshRegression {
   static final int SLOT_COUNT=4,SLOT_MAIN=0,SLOT_TOP=5,ACTIVE=0,SUSPENDED=4;
  int CELL_SLOT_COUNT=4,suspends;void suspendSession(String s){suspends++;scene=SUSPENDED;}
  void clearSlot(Slot s){s.parked=false;s.occupied=false;}void configureTabletTools(){}void updateTopTaskGeometry(){}
+ final java.util.List<Slot> sideOrder=java.util.List.of();boolean ensureSideViewport(){return true;}
  int screenW=1200,screenH=2608,displayRotation=0;
  int sampleW=screenW,sampleH=screenH,sampleRotation=displayRotation,reads,cancels,rebuilds,writes;
   int geometryRefreshDeferrals,scene,carrierSlotIndex=-1,resumes;boolean geometryRefreshAfterLive,landscapeSuspended,transferBusy,mainOnRight,keyguardLocked,screenOn=true;

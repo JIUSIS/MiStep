@@ -27,7 +27,8 @@ public final class SettingsActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         try {
-            systemSettingsResources = getPackageManager().getResourcesForApplication("com.android.settings");
+            systemSettingsResources = createPackageContext("com.android.settings", 0)
+                    .createConfigurationContext(getResources().getConfiguration()).getResources();
         } catch (android.content.pm.PackageManager.NameNotFoundException ignored) { }
 
         TypedValue background = new TypedValue();
@@ -88,6 +89,14 @@ public final class SettingsActivity extends Activity {
         }
     }
 
+    @Override
+    public void onConfigurationChanged(Configuration configuration) {
+        super.onConfigurationChanged(configuration);
+        // These size/direction changes are handled by this Activity. Keep the
+        // real Window and log controller while rebuilding the responsive page.
+        if (settings != null) settings.refreshLayout();
+    }
+
     void setPageTitle(String title) {
         pageTitle.setText(title);
     }
@@ -136,8 +145,20 @@ public final class SettingsActivity extends Activity {
     }
 
     @Override
+    protected void onStart() {
+        super.onStart();
+        settings.setStarted(true);
+    }
+
+    @Override
+    protected void onStop() {
+        settings.setStarted(false);
+        super.onStop();
+    }
+
+    @Override
     protected void onDestroy() {
-        if (settings != null) settings.closeDialogs();
+        if (settings != null) settings.close();
         if (runtimeLogs != null) runtimeLogs.close();
         super.onDestroy();
     }

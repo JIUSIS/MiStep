@@ -21,7 +21,7 @@ import android.content.res.Configuration;import android.graphics.Rect;
 public class TopActivityConfigRegression {
  static int checks;static void check(boolean x,String why){checks++;if(!x)throw new AssertionError(why);}
  public static class Task {int mode=6;boolean translucent=true;Rect bounds=new Rect(0,0,2964,1707);public int getWindowingMode(){return mode;}public boolean isForceTranslucent(){return translucent;}public Rect getBounds(){return bounds;}}
- public static class Activity {Configuration resolved=new Configuration();public Configuration getResolvedOverrideConfiguration(){return resolved;}}
+ public static class Activity {public boolean hasFixedRotationTransform(){return false;}Configuration resolved=new Configuration();public Configuration getResolvedOverrideConfiguration(){return resolved;}}
  static Configuration parent(){Configuration c=new Configuration();c.windowConfiguration.setBounds(new Rect(0,0,2964,1707));c.windowConfiguration.setAppBounds(new Rect(0,0,2964,1707));c.densityDpi=440;c.screenWidthDp=1078;c.screenHeightDp=621;c.smallestScreenWidthDp=621;c.orientation=2;c.screenLayout=35;return c;}
  static Activity cropped(){Activity a=new Activity();a.resolved.windowConfiguration.setAppBounds(new Rect(0,122,1080,939));a.resolved.windowConfiguration.setMaxBounds(new Rect(0,0,1080,2460));a.resolved.screenWidthDp=592;a.resolved.screenHeightDp=448;a.resolved.seq=7;return a;}
  public static void main(String[]args){Task t=new Task();Configuration p=parent();Activity a=cropped();
@@ -41,6 +41,18 @@ public class TopActivityConfigRegression {
   check(!MiStepTopConfiguration.apply(a,t,p)&&a.resolved.densityDpi==440&&a.resolved.screenWidthDp==393,"return reintroduced upper metrics");
   check(a.resolved.windowConfiguration.getMaxBounds().equals(new Rect(0,0,1080,2460)),"fullscreen lost native maximum bounds");
   check(!MiStepTopConfiguration.apply(a,null,p)&&!MiStepTopConfiguration.apply(null,t,p)&&!MiStepTopConfiguration.apply(a,t,null),"detached Activity or Task accepted");
+  t=new Task();a=cropped();Configuration local=new Configuration();local.windowConfiguration.setBounds(new Rect(0,0,1707,2964));local.densityDpi=770;local.screenWidthDp=355;local.screenHeightDp=616;local.smallestScreenWidthDp=355;local.orientation=1;local.screenLayout=18;
+  a.resolved.screenWidthDp=338;a.resolved.screenHeightDp=607;Rect nativeApp=a.resolved.windowConfiguration.getAppBounds();Rect nativeMax=a.resolved.windowConfiguration.getMaxBounds();
+  check(MiStepTopConfiguration.applyRotated(a,t,local),"owned local portrait resource config accepted");
+  check(a.resolved.smallestScreenWidthDp==355&&a.resolved.densityDpi==770&&a.resolved.orientation==1&&a.resolved.screenLayout==18,"wide parent sw621/tablet qualifiers leak into portrait page");
+  check(a.resolved.screenWidthDp==338&&a.resolved.screenHeightDp==607,"native inset dp lost");
+  check(a.resolved.seq==7&&a.resolved.windowConfiguration.getAppBounds()==nativeApp&&a.resolved.windowConfiguration.getMaxBounds()==nativeMax,"native geometry/sequence changed");
+  Configuration merged=parent();merged.smallestScreenWidthDp=a.resolved.smallestScreenWidthDp;check(merged.smallestScreenWidthDp<600,"parent merge reintroduced tablet resources");
+  a.resolved.screenWidthDp=0;a.resolved.screenHeightDp=0;check(MiStepTopConfiguration.applyRotated(a,t,local)&&a.resolved.screenWidthDp==355&&a.resolved.screenHeightDp==616,"undefined local dimensions inherit wide parent");
+  local.windowConfiguration.setBounds(new Rect(0,0,1707,2900));check(!MiStepTopConfiguration.applyRotated(a,t,local),"stale local carrier accepted");
+  local.windowConfiguration.setBounds(new Rect(0,0,1707,2964));t.mode=1;check(!MiStepTopConfiguration.applyRotated(a,t,local),"local density leaks on return to fullscreen");
+  t.mode=6;local.smallestScreenWidthDp=0;check(!MiStepTopConfiguration.applyRotated(a,t,local),"incomplete local resources accepted");
+  check(!MiStepTopConfiguration.applyRotated(null,t,local)&&!MiStepTopConfiguration.applyRotated(a,null,local)&&!MiStepTopConfiguration.applyRotated(a,t,null),"detached rotated config accepted");
   System.out.println("Production upper Activity config/Display metrics/role checks="+checks+" passed");
  }
 }

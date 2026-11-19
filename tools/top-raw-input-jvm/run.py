@@ -78,5 +78,5 @@ public class TopRawRegression {
 for name,content in files.items():
  p=out/name;p.parent.mkdir(parents=True,exist_ok=True);p.write_text(content,encoding='utf-8')
 jdk=Path(os.environ['MISTEP_JAVA_BIN'])
-subprocess.run([str(jdk/'javac.exe'),'-encoding','UTF-8','--release','17','-d',str(out)]+[str(out/n) for n in files]+[str(src/n) for n in ['MiStepTopRawInput.java','MiStepDesktopLaunchBridge.java','MiStepSideRoleChange.java','DesktopIconLaunchPolicy.java']],check=True)
+subprocess.run([str(jdk/'javac.exe'),'-encoding','UTF-8','--release','17','-d',str(out)]+[str(out/n) for n in files]+[str(src/n) for n in ['MiStepTopRawInput.java','MiStepDesktopLaunchBridge.java','MiStepSideRoleChange.java','DesktopIconLaunchPolicy.java','TaskLaunchIdentity.java']],check=True)
 subprocess.run([str(jdk/'java.exe'),'-cp',str(out),'com.jiusis.mistep.TopRawRegression'],check=True)

@@ -9,7 +9,8 @@ import android.os.Bundle;
 final class WorkspaceSettingsStore {
     static final Uri URI = Uri.parse("content://com.jiusis.mistep.settings/options");
     static final String READ = "read", HIDDEN = "hidden_buttons", SWAP = "swap_mode",
-            ENTRY_GESTURE = "entry_gesture", KEEP_ON_LOCK = "keep_on_lock";
+            ENTRY_GESTURE = "entry_gesture", KEEP_ON_LOCK = "keep_on_lock",
+            SCROLL_SIDE_TASKS = "scroll_side_tasks";
     private WorkspaceSettingsStore() {}
 
     private static SharedPreferences preferences(Context context) {
@@ -21,7 +22,8 @@ final class WorkspaceSettingsStore {
         SharedPreferences preferences = preferences(context);
         return new WorkspaceOptions(preferences.getInt(HIDDEN, 0), preferences.getInt(SWAP, 0),
                 preferences.getInt(ENTRY_GESTURE, WorkspaceOptions.STATUS_BAR_INWARD),
-                preferences.getBoolean(KEEP_ON_LOCK, false));
+                preferences.getBoolean(KEEP_ON_LOCK, false),
+                preferences.getBoolean(SCROLL_SIDE_TASKS, false));
     }
 
     static boolean write(Context context, WorkspaceOptions options) {
@@ -30,7 +32,8 @@ final class WorkspaceSettingsStore {
                         EntryGestureSettings.lineHidden(context))) return false;
         boolean saved = preferences(context).edit().putInt(HIDDEN, options.hiddenButtons)
                 .putInt(SWAP, options.swapMode).putInt(ENTRY_GESTURE, options.entryGesture)
-                .putBoolean(KEEP_ON_LOCK, options.keepOnLock).commit();
+                .putBoolean(KEEP_ON_LOCK, options.keepOnLock)
+                .putBoolean(SCROLL_SIDE_TASKS, options.scrollSideTasks).commit();
         if (saved) context.getContentResolver().notifyChange(URI, null);
         return saved;
     }
@@ -40,6 +43,7 @@ final class WorkspaceSettingsStore {
         result.putInt(HIDDEN, options.hiddenButtons); result.putInt(SWAP, options.swapMode);
         result.putInt(ENTRY_GESTURE, options.entryGesture);
         result.putBoolean(KEEP_ON_LOCK, options.keepOnLock);
+        result.putBoolean(SCROLL_SIDE_TASKS, options.scrollSideTasks);
         return result;
     }
 
@@ -47,6 +51,6 @@ final class WorkspaceSettingsStore {
         if (bundle == null) throw new IllegalArgumentException("Settings provider returned no snapshot");
         return new WorkspaceOptions(bundle.getInt(HIDDEN, 0), bundle.getInt(SWAP, 0),
                 bundle.getInt(ENTRY_GESTURE, WorkspaceOptions.STATUS_BAR_INWARD),
-                bundle.getBoolean(KEEP_ON_LOCK, false));
+                bundle.getBoolean(KEEP_ON_LOCK, false), bundle.getBoolean(SCROLL_SIDE_TASKS, false));
     }
 }

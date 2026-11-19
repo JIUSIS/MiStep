@@ -23,14 +23,15 @@ files = {
  public <T>T getParcelable(String k,Class<T>t){return (T)m.get(k);}public void putParcelable(String k,Object v){m.put(k,v);}
  public <T>void putParcelableArrayList(String k,ArrayList<T>v){m.put(k,v);}public <T>ArrayList<T>getParcelableArrayList(String k,Class<T>t){return (ArrayList<T>)m.get(k);}}
 ''',
-'android/content/ComponentName.java': 'package android.content;public class ComponentName {String pkg;public ComponentName(String p,String c){pkg=p;}public String getPackageName(){return pkg;}}',
+'android/content/ComponentName.java': 'package android.content;public record ComponentName(String pkg,String cls) {public String getPackageName(){return pkg;}public String getClassName(){return cls;}}',
 'android/content/Intent.java': '''package android.content;import java.util.*;import android.os.*;public class Intent {
  public static final String ACTION_MAIN="android.intent.action.MAIN",CATEGORY_LAUNCHER="android.intent.category.LAUNCHER";public static final int FLAG_RECEIVER_FOREGROUND=1;
  public String action,pkg;public ComponentName component;Set<String>categories=new HashSet<>();Map<String,Object>extras=new HashMap<>();
  public Intent(String a){action=a;}public String getAction(){return action;}public Intent addCategory(String c){categories.add(c);return this;}public boolean hasCategory(String c){return categories.contains(c);}public ComponentName getComponent(){return component;}public Intent setComponent(ComponentName c){component=c;return this;}
  public Intent setPackage(String p){pkg=p;return this;}public Intent addFlags(int f){return this;}public Intent putExtra(String k,Object v){extras.put(k,v);return this;}public Bundle getBundleExtra(String k){return (Bundle)extras.get(k);}}
 ''',
-'android/content/pm/PackageManager.java': 'package android.content.pm;public class PackageManager {public String[]packages={"com.miui.home"};public String[]getPackagesForUid(int u){return packages;}}',
+'android/content/pm/ActivityInfo.java': 'package android.content.pm;public class ActivityInfo {public String targetActivity;}',
+'android/content/pm/PackageManager.java': 'package android.content.pm;import android.content.*;import java.util.*;public class PackageManager {public Map<ComponentName,String>aliases=new HashMap<>();public ActivityInfo getActivityInfo(ComponentName c,int f){ActivityInfo a=new ActivityInfo();a.targetActivity=aliases.get(c);return a;}public String[]packages={"com.miui.home"};public String[]getPackagesForUid(int u){return packages;}}',
 'android/content/Context.java': '''package android.content;import java.util.*;import android.content.pm.*;public class Context {public PackageManager pm=new PackageManager();public List<Intent>sent=new ArrayList<>();public boolean fail;public PackageManager getPackageManager(){return pm;}public void sendBroadcast(Intent i,String p){if(fail)throw new IllegalStateException();sent.add(i);}}''',
 'de/robv/android/xposed/XposedHelpers.java': '''package de.robv.android.xposed;import java.lang.reflect.*;public class XposedHelpers {
  public static Object getObjectField(Object o,String n){try{var f=o.getClass().getDeclaredField(n);f.setAccessible(true);return f.get(o);}catch(Exception e){throw new IllegalStateException(e);}}
@@ -45,20 +46,21 @@ import android.os.*;import android.content.*;import com.android.server.wm.Window
 public class DesktopRouteRegression {
  static int checks;static void check(boolean v,String m){checks++;if(!v)throw new AssertionError(m);}
  static class Token {IBinder binder=new Binder();IBinder asBinder(){return binder;}}
- static class Info {int taskId=7,userId=0,displayId=0;Token token=new Token();ComponentName baseActivity=new ComponentName("com.android.settings","Settings");boolean parent;boolean hasParentTask(){return parent;}}
+ static class Info {int taskId=7,userId=0,displayId=0;Token token=new Token();Intent baseIntent;ComponentName baseActivity=new ComponentName("com.android.settings","Settings"),topActivity;boolean parent;boolean hasParentTask(){return parent;}}
  static class Task {int mTaskId=7,mode=6,type=1;Info info=new Info();int getWindowingMode(){return mode;}Info getTaskInfo(){return info;}int getActivityType(){return type;}}
  static class Root {Task home=new Task();Root(){home.type=2;}Task getTopDisplayFocusedRootTask(){return home;}}
  static class Atms {Object mGlobalLock=new Object();Root mRootWindowContainer=new Root();}
  Context ctx=new Context();Atms atms=new Atms();Task task=new Task();Binder owner=new Binder();Bundle row=new Bundle();long sequence=1;
  Intent entry=new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER).setComponent(new ComponentName("com.android.settings","Settings"));
  DesktopRouteRegression(){SystemClock.now+=1000;WindowContainer.tasks.clear();WindowContainer.tasks.put(task.info.token.binder,task);row.putBinder("task",task.info.token.binder);row.putInt("taskId",7);row.putInt("userId",0);row.putInt("displayId",0);row.putString("package","com.android.settings");row.putLong("scene",3);row.putLong("binding",8);register(new ArrayList<>(List.of(row)));}
- void register(ArrayList<Bundle>rows){Bundle state=new Bundle();state.putBinder("owner",owner);state.putLong("sequence",sequence++);state.putParcelableArrayList("rows",rows);state.putParcelableArrayList("recents",new ArrayList<>(List.of(row)));MiStepDesktopLaunchBridge.update(new Intent("update").putExtra("state",state));}
+ void register(ArrayList<Bundle>rows){register(rows,null,false);}
+ void register(ArrayList<Bundle>rows,Bundle top,boolean retained){Bundle state=new Bundle();state.putBinder("owner",owner);state.putLong("sequence",sequence++);state.putBundle("topLaunch",top);state.putBoolean("retained",retained);state.putParcelableArrayList("rows",rows);state.putParcelableArrayList("recents",new ArrayList<>(List.of(row)));MiStepDesktopLaunchBridge.update(new Intent("update").putExtra("state",state));}
  boolean recent(int id){return MiStepDesktopLaunchBridge.beforeRecents(ctx,atms,new Object[]{id,null});}
  boolean route(){return MiStepDesktopLaunchBridge.before(ctx,atms,new Object[]{"com.miui.home",entry});}
  public static void main(String[]args){
   var h=new DesktopRouteRegression();check(h.route()&&h.ctx.sent.size()==1,"confirmed mode6 task routes once through Host");Bundle b=h.ctx.sent.get(0).getBundleExtra("binding");check(b.getBoolean("hostRoute",false)&&b.getBinder("task")==h.task.info.token.binder&&b.getLong("deadline",0)==SystemClock.now+1500,"exact binding and bounded handoff deadline");check(h.task.mode==6,"bridge never restores fullscreen or mutates the native task");check(h.route()&&h.ctx.sent.size()==1,"duplicate click cannot leak a competing native launch");
   h=new DesktopRouteRegression();h.ctx.pm.packages=new String[]{"other"};check(!h.route()&&h.ctx.sent.isEmpty(),"unrelated caller untouched");
-  h=new DesktopRouteRegression();h.atms.mRootWindowContainer.home.type=1;check(!h.route(),"application-main scene untouched");
+  h=new DesktopRouteRegression();h.atms.mRootWindowContainer.home.type=1;check(!h.route(),"unrelated application-main scene untouched");
   h=new DesktopRouteRegression();h.task.mode=1;check(!h.route(),"already fullscreen task stays with native owner");
   h=new DesktopRouteRegression();h.task.mTaskId=8;check(!h.route(),"reused task ID rejected");
   h=new DesktopRouteRegression();h.task.info.token=new Token();check(!h.route(),"replaced task token rejected");
@@ -79,6 +81,27 @@ public class DesktopRouteRegression {
   h=new DesktopRouteRegression();h.task.mode=1;check(!h.recent(7),"Recents fullscreen task stays native");
   h=new DesktopRouteRegression();h.ctx.pm.packages=new String[]{"other"};check(!h.recent(7),"Recents untrusted caller rejected");
   h=new DesktopRouteRegression();h.register(new ArrayList<>());check(!h.recent(7),"inactive registry cannot route Recents");
+  h=new DesktopRouteRegression();h.register(new ArrayList<>(),h.row,false);
+  check(h.route()&&h.ctx.sent.size()==1&&h.task.mode==6,"Launcher selects active TOP before the native mode change");
+  check(!h.recent(7),"active TOP launch registration does not change Recents filtering");
+  h=new DesktopRouteRegression();h.register(new ArrayList<>(),h.row,false);h.atms.mRootWindowContainer.home=h.task;
+  check(h.route()&&h.ctx.sent.size()==1,"the exact TOP task can still hold focus when a desktop icon is selected");
+  h=new DesktopRouteRegression();h.register(new ArrayList<>(),h.row,false);h.atms.mRootWindowContainer.home.type=1;
+  check(!h.route(),"another focused app cannot be mistaken for Home or the selected TOP");
+  h=new DesktopRouteRegression();h.register(new ArrayList<>(),h.row,false);h.task.info.token=new Token();
+  check(!h.route()&&h.ctx.sent.isEmpty(),"replaced TOP token cannot capture the icon");
+  h=new DesktopRouteRegression();h.register(new ArrayList<>(List.of(h.row)),h.row,false);
+  check(!h.route(),"ambiguous lower cell and TOP both leave the native launch alone");
+  h=new DesktopRouteRegression();h.register(new ArrayList<>(),null,true);
+  check(h.route()&&h.ctx.sent.size()==1&&h.ctx.sent.get(0).getBundleExtra("binding").getBoolean("retainedRoute",false)&&h.task.mode==6,
+      "Launcher selects only the exact retained task before native fullscreen");
+  h=new DesktopRouteRegression();h.register(new ArrayList<>(),null,true);
+  check(h.recent(7)&&h.ctx.sent.size()==1&&h.ctx.sent.get(0).getBundleExtra("binding").getBoolean("retainedRoute",false),"hidden Recents selects exact retained task and asks for native foreground handoff");
+  check(h.route()&&h.ctx.sent.size()==1,"icon and Recents coalesce the same retained handoff");
+  h=new DesktopRouteRegression();h.register(new ArrayList<>(),null,true);h.task.info.baseActivity=new ComponentName("com.android.settings","IndependentTask");
+  check(!h.route()&&h.ctx.sent.isEmpty(),"hidden retained icon never captures a different same-package entry");
+  h=new DesktopRouteRegression();h.register(new ArrayList<>(),null,true);h.task.mode=1;
+  check(!h.route()&&h.ctx.sent.isEmpty(),"retained task already in native fullscreen is not intercepted");
   h=new DesktopRouteRegression();h.ctx.fail=true;check(!h.recent(7),"failed Recents handoff stays native");h.ctx.fail=false;check(h.recent(7)&&h.ctx.sent.size()==1,"retry after enqueue failure really dispatches");
   h=new DesktopRouteRegression();h.task.info.userId=999;h.row.putInt("userId",999);h.register(new ArrayList<>(List.of(h.row)));
   check(!h.route(),"owner icon cannot route a clone side task");
@@ -86,16 +109,34 @@ public class DesktopRouteRegression {
   check(h.ctx.sent.get(0).getBundleExtra("binding").getInt("userId")==999,"clone handoff retains user");
   h=new DesktopRouteRegression();check(!MiStepDesktopLaunchBridge.before(h.ctx,h.atms,new Object[]{"com.miui.home",h.entry},999),"clone icon cannot route owner task");
   check(!MiStepDesktopLaunchBridge.before(h.ctx,h.atms,new Object[]{"com.miui.home",h.entry},-1),"unknown launch user stays native");
+  h=new DesktopRouteRegression();h.task.info.baseActivity=new ComponentName("com.android.settings","MiniProgram");
+  check(!h.route()&&h.ctx.sent.isEmpty(),"same-package independent task cannot capture the application launcher");
+  check(h.recent(7)&&h.ctx.sent.size()==1,"explicit Recents task selection retains the independent task identity");
+  h=new DesktopRouteRegression();h.task.info.topActivity=new ComponentName("com.android.settings","MiniProgram");
+  check(h.route(),"a navigation page does not replace the original task entry");
+  h=new DesktopRouteRegression();h.task.info.baseActivity=new ComponentName("com.android.settings","Main");h.task.info.baseIntent=h.entry;
+  check(h.route(),"the original launch intent retains a trampoline task identity");
+  h=new DesktopRouteRegression();h.ctx.pm.aliases.put(h.entry.getComponent(),"Main");h.task.info.baseActivity=new ComponentName("com.android.settings","Main");
+  check(h.route(),"manifest activity aliases resolve to their declared target");
+  h=new DesktopRouteRegression();Task mini=new Task();mini.mTaskId=8;mini.info.taskId=8;mini.info.baseActivity=new ComponentName("com.android.settings","MiniProgram");
+  WindowContainer.tasks.put(mini.info.token.binder,mini);Bundle other=new Bundle(h.row);other.putInt("taskId",8);other.putBinder("task",mini.info.token.binder);
+  h.register(new ArrayList<>(List.of(other,h.row)));check(h.route()&&h.ctx.sent.get(0).getBundleExtra("binding").getInt("taskId")==7,"same-package independent side tasks select only the requested application entry");
+  h=new DesktopRouteRegression();ArrayList<Bundle> overflow=new ArrayList<>();
+  for(int i=0;i<5;i++) {Bundle peer=new Bundle(h.row);peer.putString("package","peer."+i);overflow.add(peer);}
+  h.row.putBoolean("sideClipped",true);overflow.add(h.row);h.register(overflow);
+  check(h.route()&&h.ctx.sent.size()==1&&h.ctx.sent.get(0).getBundleExtra("binding").getBinder("task")==h.task.info.token.binder,
+      "the sixth task can route by exact launcher entry while clipped");
+  check(!TaskLaunchIdentity.matches(h.ctx.pm,null,h.task.info),"missing launcher component never matches by package");
   System.out.println("actual desktop route checks="+checks+" passed");
  }
 }
 '''
 }
-files['android/os/Bundle.java']=files['android/os/Bundle.java'].replace('Map<String,Object>m=', 'public Bundle getBundle(String k){return (Bundle)m.get(k);}public float getFloat(String k,float d){return m.containsKey(k)?(Float)m.get(k):d;} Map<String,Object>m=')
+files['android/os/Bundle.java']=files['android/os/Bundle.java'].replace('Map<String,Object>m=', 'public Bundle getBundle(String k){return (Bundle)m.get(k);}public void putBundle(String k,Bundle b){m.put(k,b);}public float getFloat(String k,float d){return m.containsKey(k)?(Float)m.get(k):d;} Map<String,Object>m=')
 files['com/jiusis/mistep/NativeRawInputBridge.java']='package com.jiusis.mistep;class NativeRawInputBridge {static void updateTop(int uid,float scale){}static void updateTop(int uid,float scale,float left,float top){}}'
 files['com/jiusis/mistep/MiStepTopRawInput.java']='package com.jiusis.mistep;import android.os.Bundle;class MiStepTopRawInput {static int uid(Bundle b,ClassLoader l){return -1;}}'
 for name, text in files.items():
     path=out/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_text(text,encoding='utf8')
 jdk=Path(os.environ["MISTEP_JAVA_BIN"])
-subprocess.run([str(jdk/'javac.exe'),'-encoding','UTF-8','--release','17','-d',str(out)]+[str(out/n) for n in files]+[str(src/n) for n in ['MiStepDesktopLaunchBridge.java','DesktopIconLaunchPolicy.java','MiStepSideRoleChange.java']],check=True)
+subprocess.run([str(jdk/'javac.exe'),'-encoding','UTF-8','--release','17','-d',str(out)]+[str(out/n) for n in files]+[str(src/n) for n in ['MiStepDesktopLaunchBridge.java','DesktopIconLaunchPolicy.java','MiStepSideRoleChange.java','TaskLaunchIdentity.java']],check=True)
 subprocess.run([str(jdk/'java.exe'),'-cp',str(out),'com.jiusis.mistep.DesktopRouteRegression'],check=True)

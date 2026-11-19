@@ -12,28 +12,53 @@ def member(signature):
  return source[start:end]
 body='''package com.jiusis.mistep;
 import java.util.*;import android.graphics.Rect;
+import java.util.concurrent.Executor;
+import java.util.function.Consumer;
 public class TopConfigRegression {
  static int checks;static void check(boolean b,String why){checks++;if(!b)throw new AssertionError(why);}
- static final int SLOT_TOP=4,ACTIVE=1;int scene=ACTIVE;long sceneEpoch=1;
- boolean suspendRequested,keyguardLocked,screenOn=true,defer;
+ static final int SLOT_TOP=4,ACTIVE=1,SUSPENDED=2;int scene=ACTIVE;long sceneEpoch=1;
+ boolean suspendRequested,keyguardLocked,screenOn=true,defer,transferBusy,currentTicket=true,retainedOnExit;
+ Object transitions=new Object(),shell=new Object();
+ List<Runnable>idleQueue=new ArrayList<>();
+ Consumer<Object> drawReady;
+ int returned;
+ static class Handler {void post(Runnable r){r.run();}}
+ Handler main=new Handler();
  List<Runnable>queue=new ArrayList<>();
- static class Slot {int index=4,taskId=42;Object taskToken="upper",controller=new Object();String pkg="test.app";boolean promoting;}
- static class Promotion {Slot slot=new Slot();Object token="upper";int taskId=42;boolean background=true,liveMainReveal;List<Object>otherSideTokens=List.of("side");}
+ static class Slot {int index=4,taskId=42;Object taskToken="upper",controller=new Object();String pkg="test.app";boolean promoting,frozen;}
+ static class Promotion {Slot slot=new Slot();Object token="upper";int taskId=42;boolean background=true,liveMainReveal,handoffComplete,restoreMainOpacityAfterHandoff;List<Object>otherSideTokens=List.of("side");}
  static class Info {boolean isFocused,isVisible=true;int mode,id;Object token;Info(int i,int m,Object t,boolean focus){id=i;mode=m;token=t;isFocused=focus;}}
  static class LiveTask {int id;Object token;LiveTask(int i,Object t){id=i;token=t;}LiveTask(int i,Object t,String pkg){this(i,t);}}
  List<Info>infos=new ArrayList<>();LiveTask current,home=new LiveTask(1,"home");
  static class Service {int calls,last=-1;void setFocusedTask(int id){calls++;last=id;}}
  Service service=new Service();Object applied;
  static TopConfigRegression active;
+ static class SyncTransaction {Executor executor;Runnable callback;}
  static class ShellCompat {
   static Object transaction(Object organizer,Object wct,String name,Object token,Object value){return XposedHelpers.callMethod(wct,name,token,value);}
+  static void call(Object shell,String name,Runnable action){
+   check(shell==active.shell&&name.equals("runOnIdle"),"native return waits on the real Shell queue");
+   active.idleQueue.add(action);
+  }
+  static void applySynchronized(Object views,Object controller,Object wct,Consumer<Object> ready){
+   active.applied=wct;active.drawReady=ready;
+  }
  }
  static class XposedHelpers {
   static Object callStaticMethod(Class<?>c,String name,Object...args){return active.service;}
-  static Object getObjectField(Object o,String name){if(name.equals("mTaskOrganizer"))return active.service;if(name.equals("mCaptionInsetsOwner"))return null;return ((Info)o).token;}
+  static Object getObjectField(Object o,String name){
+   if(name.equals("mTaskOrganizer"))return active.service;
+   if(name.equals("mCaptionInsetsOwner"))return null;
+   if(name.equals("mTransitions"))return active.shell;
+   if(name.equals("mTaskToken"))return "upper";
+   return ((Info)o).token;
+  }
   static boolean getBooleanField(Object o,String n){Info i=(Info)o;return n.equals("isFocused")?i.isFocused:i.isVisible;}
   static Object callMethod(Object o,String n,Object...a){
    if(o instanceof android.window.WindowContainerTransaction){((android.window.WindowContainerTransaction)o).calls.add(n+":"+a[0]+":"+(a.length>1?a[1]:"")+(a.length>2?":"+a[2]:""));return o;}
+   if(o instanceof SyncTransaction t && n.equals("addTransactionCommittedListener")){
+    t.executor=(Executor)a[0];t.callback=(Runnable)a[1];return null;
+   }
    if(o instanceof Service){((Service)o).setFocusedTask((Integer)a[0]);return null;}throw new AssertionError(n);
   }
  }
@@ -48,7 +73,9 @@ public class TopConfigRegression {
  LiveTask findMainTask(){return current;}LiveTask existingHomeTask(){return home;}
  Object rootInfo(LiveTask task){return infos.stream().filter(i->i.id==task.id&&i.token.equals(task.token)).findFirst().orElse(null);}
   boolean ordinaryRoot(Object i,int m){return i instanceof Info&&((Info)i).mode==m;}
-'''+member('    private void applyTopConfiguration(')+member('    private void applyFullscreenBounds(')+member('    private Object fullscreenExitTransaction(') +member('    private void restoreTopMainOpacity(')+member('    private void preferMainAfterTopChange(')+'''
+  boolean returnTicketCurrent(Promotion p){return currentTicket;}
+  void checkReturned(Slot s,Promotion p,int attempt,Runnable success,Consumer<String> failure){returned++;success.run();}
+'''+member('    private void applyTopConfiguration(')+member('    private void applyFullscreenBounds(')+member('    private Object fullscreenExitTransaction(')+member('    private void appendTaskViewExitOverrides(')+member('    private void finishNativeReturnWhenIdle(')+member('    private void applyRetainedDesktopReturn(')+member('    private void restoreRetainedMainOpacityAfterHandoff(')+member('    private void restoreTopMainOpacity(')+member('    private void restoreMainOpacity(')+member('    private void preferMainAfterTopChange(')+'''
  static TopConfigRegression host(){
   var h=new TopConfigRegression();active=h;h.infos.add(new Info(1,1,"home",false));h.infos.add(new Info(42,6,"upper",true));return h;
  }
@@ -73,6 +100,42 @@ public class TopConfigRegression {
   p.slot.index=1;w=(android.window.WindowContainerTransaction)h.fullscreenExitTransaction(p);
   check(w.calls.stream().noneMatch(s->s.startsWith("setDensityDpi")),"side return does not acquire top density override");
   check(w.calls.stream().noneMatch(s->s.startsWith("setAppBounds")||s.startsWith("setScreenSizeDp")||s.startsWith("setSmallestScreenWidthDp")),"ordinary side return leaves resource policy alone");
+  h=host();p=new Promotion();h.infos.set(1,new Info(42,1,"upper",true));
+  h.finishNativeReturnWhenIdle(p,()->{},error->{throw new AssertionError(error);});
+  check(h.applied==null&&h.returned==0,"native animation keeps sole control before idle");
+  h.idleQueue.remove(0).run();w=(android.window.WindowContainerTransaction)h.applied;
+  check(h.returned==1&&w.calls.contains("setForceTranslucent:upper:false")&&w.calls.contains("setAppBounds:upper:null"),
+       "native handback clears actual TOP flags after idle");
+  check(w.calls.stream().noneMatch(s->s.startsWith("setWindowingMode")||s.startsWith("setBounds")||s.startsWith("setHidden")
+       ||s.startsWith("reorder")||s.contains(":side:")),"native handback never reopens or reorders the app");
+  h=host();p=new Promotion();h.scene=SUSPENDED;h.retainedOnExit=true;
+  h.infos.set(1,new Info(42,1,"upper",false));h.infos.get(1).isVisible=false;
+  h.finishNativeReturnWhenIdle(p,()->{},error->{throw new AssertionError(error);});
+  h.idleQueue.remove(0).run();w=(android.window.WindowContainerTransaction)h.applied;
+  check(w.calls.contains("setHidden:upper:false"),"hidden retained task carried a stale hidden flag into fullscreen");
+  check(w.calls.stream().noneMatch(s->s.startsWith("setWindowingMode")||s.startsWith("setBounds")
+       ||s.startsWith("reorder")),"retained visibility repair only clears stale flags");
+  h=host();p=new Promotion();final List<String> failures=new ArrayList<>();
+  h.finishNativeReturnWhenIdle(p,()->{},failures::add);h.currentTicket=false;h.idleQueue.remove(0).run();
+  check(h.applied==null&&h.returned==0&&failures.size()==1,"stale idle callback cannot write another task");
+  h=host();p=new Promotion();
+  h.applyRetainedDesktopReturn(p,()->{},error->{throw new AssertionError(error);});
+  w=(android.window.WindowContainerTransaction)h.applied;
+  check(w.calls.contains("setHidden:upper:false")&&w.calls.contains("setForceTranslucent:upper:true"),
+        "retained return makes the app drawable and keeps the current backdrop visible");
+  check(h.returned==0,"queued WCT cannot retire the TaskView before native draw sync");
+  SyncTransaction sync=new SyncTransaction();h.drawReady.accept(sync);
+  check(h.returned==0&&sync.callback!=null,"native draw transaction completes before handoff");
+  sync.executor.execute(sync.callback);check(h.returned==1,"draw commit confirms the same task");
+  h=host();p=new Promotion();p.restoreMainOpacityAfterHandoff=true;
+  h.infos.set(1,new Info(42,1,"upper",true));h.restoreRetainedMainOpacityAfterHandoff(p);
+  check(h.applied==null&&p.restoreMainOpacityAfterHandoff,"backdrop stays visible until native task handoff completes");
+  p.handoffComplete=true;h.restoreRetainedMainOpacityAfterHandoff(p);w=(android.window.WindowContainerTransaction)h.applied;
+  check(w.calls.contains("setForceTranslucent:upper:false")&&!p.restoreMainOpacityAfterHandoff,
+        "native handoff restores opaque app policy only after the replacement surface is ready");
+  h=host();p=new Promotion();p.restoreMainOpacityAfterHandoff=true;p.handoffComplete=true;
+  h.infos.set(1,new Info(42,1,"upper",true));h.currentTicket=false;h.restoreRetainedMainOpacityAfterHandoff(p);
+  check(h.applied==null,"old opacity completion cannot modify a rebound task");
   h=host();h.preferMainAfterTopChange();check(h.service.calls==1&&h.service.last==1,"admitted top defaults to visible Home");
   h=host();h.infos.add(new Info(3,1,"main",false));h.current=new LiveTask(3,"main");h.preferMainAfterTopChange();
   check(h.service.calls==1&&h.service.last==3,"existing main app wins over top and Home");

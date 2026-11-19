@@ -194,14 +194,21 @@ final class MiStepLiveTaskPair {
         set(wct, "setInterceptBackPressedOnTaskRoot", firstToken, true);
         set(wct, "setTaskTrimmableFromRecents", firstToken, false);
         set(wct, "reorder", firstToken, true);
-        if (otherSideTokens != null) for (Object side : otherSideTokens) {
+        retainSideRoots(wct, otherSideTokens);
+        return wct;
+    }
+
+    /** Keep visible side roots above the opaque fullscreen task in the role change itself. */
+    private void retainSideRoots(Object wct, Object[] otherSideTokens) {
+        if (otherSideTokens == null) return;
+        for (Object side : otherSideTokens) {
             if (side == null || side.equals(firstToken) || side.equals(secondToken)) continue;
+            set(wct, "setHidden", side, false);
             set(wct, "setForceTranslucent", side, true);
             set(wct, "setAlwaysOnTop", side, true);
             set(wct, "setFocusable", side, true);
             set(wct, "reorder", side, true);
         }
-        return wct;
     }
 
     private void set(Object wct, String name, Object token, Object value) {
@@ -210,6 +217,10 @@ final class MiStepLiveTaskPair {
 
     /** Explicit inverse roles for a pending cancellation; no replacement organizer is registered. */
     Object reverseWindowTransaction() throws Exception {
+        return reverseWindowTransaction(null);
+    }
+
+    Object reverseWindowTransaction(Object[] otherSideTokens) throws Exception {
         waitingCancel = true;
         originalInfoSeen = false;
         Object wct = Class.forName("android.window.WindowContainerTransaction").getDeclaredConstructor().newInstance();
@@ -237,6 +248,7 @@ final class MiStepLiveTaskPair {
             XposedHelpers.callMethod(wct, "addInsetsSource", secondToken, caption, 0,
                     android.view.WindowInsets.Type.captionBar(),
                     android.graphics.Insets.of(0, ((Rect) captionFrame).height(), 0, 0), null, 20);
+        retainSideRoots(wct, otherSideTokens);
         return wct;
     }
 

@@ -27,11 +27,17 @@ public class TaskRotationBridgeTest {
         Activity topRunningActivity() { return top; }
         int getWindowingMode() { return mode; }
         boolean isForceTranslucent() { return mode == 6; }
+        Activity.Configuration getConfiguration() { return new Activity.Configuration(); }
     }
     static class Activity {
         static class Configuration { int orientation = 1; }
+        static class State {
+            java.util.List<Activity> mAssociatedTokens = new java.util.ArrayList<>();
+            State(Activity activity) { mAssociatedTokens.add(activity); }
+        }
         int request, rotation, starts, finishes;
         boolean home, transformed;
+        Object mFixedRotationTransformState;
         Task task = new Task();
         Configuration configuration = new Configuration();
         Display mDisplayContent;
@@ -41,9 +47,20 @@ public class TaskRotationBridgeTest {
         int getOverrideOrientation() { return request; }
         boolean hasFixedRotationTransform() { return transformed; }
         Task getTask() { return task; }
+        Display getDisplayContent() { return mDisplayContent; }
+        Task getParent() { return task; }
+        Activity asActivityRecord() { return this; }
+        boolean ensureActivityConfiguration() { return true; }
+        void onConfigurationChanged(Configuration configuration) {}
         Configuration getConfiguration() { return configuration; }
         int getRootTaskId() { return System.identityHashCode(task); }
-        void finishFixedRotationTransform() { finishes++; transformed = false; rotation = 0; }
+        void finishFixedRotationTransform() {
+            finishes++; transformed = false; rotation = 0; mFixedRotationTransformState = null;
+        }
+        void finishFixedRotationTransform(Runnable callback) {
+            finishFixedRotationTransform();
+            if (callback != null) callback.run();
+        }
     }
     static class Display {
         static class Info { int logicalWidth=1080, logicalHeight=2460, logicalDensityDpi=440; }
@@ -59,6 +76,7 @@ public class TaskRotationBridgeTest {
         void startFixedRotationTransform(Activity activity, int rotation) {
             if (failStart) throw new IllegalStateException("simulated transform failure");
             activity.starts++; activity.rotation = rotation; activity.transformed = true;
+            activity.mFixedRotationTransformState = new Activity.State(activity);
         }
         void setFixedRotationLaunchingApp(Activity activity, int rotation) { launches++; }
         void setFixedRotationLaunchingAppUnchecked(Activity activity) { launches++; }

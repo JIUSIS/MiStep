@@ -104,7 +104,7 @@ public class HostEntry implements IXposedHookLoadPackage {
             return;
         }
         final ClassLoader cl = lpparam.classLoader;
-        log("=== attached to " + SYSTEMUI + " build=1.0.3 upper-task upper-lock upper-adaptive two-finger composed-top top-effective-dpi readable-top upper-config-v3 upper-manual-center upper-dpi242 upper-no-native-caption-v3 upper-roll-return upper-no-main-roll-v1 upper-uniform242 upper-top-raw main-panel-touch whole-app entry-fullscreen clone-launch-users main-reveal transient-entry main-stable-frame recents-coexist fullscreen-entry-parent quick-app-pins quick-app-dialog quick-app-glass system-scope fixed-cc-icons-v6-local-slider-theme upper-live-background-v1 status-island-swap-v1 corner-terminal-v3 swap-panel-stays-collapsed-v2 os3-shell-v5 top-live-roll-v2 ime-focus-v5 top-live-collect-v2 top-insets-v2-first-layout touch-focus-v6 swap-live-overlay-v1 top-native-bars-return-v1 top-direction-no-taskinfo-v1 top-pointer-focus-v1 main-composition-sampling-v1 main-bars-owner-v1 top-live-surface-v3 top-horizontal-dismiss-v1 cc-two-pages-v1 side-preflight-diagnostics-v1 side-launch-bal-v1 top-collect-admission-reveal-v1 lyrics-session-token-v1 lyrics-kugou-album-id-v1 lyrics-miui-qq-id-v1 lyrics-miui-joined-fallback-v1 ===");
+        log("=== attached to " + SYSTEMUI + " build=1.0.4 upper-task upper-lock upper-adaptive two-finger composed-top top-effective-dpi readable-top upper-config-v3 upper-manual-center upper-dpi242 upper-no-native-caption-v3 upper-roll-return upper-no-main-roll-v1 upper-uniform242 upper-top-raw main-panel-touch whole-app entry-fullscreen clone-launch-users main-reveal transient-entry main-stable-frame recents-coexist fullscreen-entry-parent quick-app-pins quick-app-dialog quick-app-glass system-scope fixed-cc-icons-v6-local-slider-theme upper-live-background-v1 status-island-swap-v1 corner-terminal-v3 swap-panel-stays-collapsed-v2 os3-shell-v5 top-live-roll-v2 ime-focus-v5 top-live-collect-v2 top-insets-v2-first-layout touch-focus-v6 swap-live-overlay-v1 top-native-bars-return-v1 top-direction-no-taskinfo-v1 top-pointer-focus-v1 main-composition-sampling-v1 main-bars-owner-v1 top-live-surface-v3 top-horizontal-dismiss-v1 cc-two-pages-v1 side-preflight-diagnostics-v1 side-launch-bal-v1 top-collect-admission-reveal-v1 lyrics-session-token-v1 lyrics-kugou-album-id-v1 lyrics-miui-qq-id-v1 lyrics-miui-joined-fallback-v1 phone-top-live-config-scope-v2 phone-top-metrics-activity-stack-v1 phone-live-rotation-fit-v1 settings-live-resize-v1 top-portrait-native-dpi-v1 top-local-config-shared-state-v1 top-shared-live-leash-v1 inactive-rotation-cleanup-v1 native-finish-activity-gate-v1 top-independent-pages-v1 top-preserved-window-relaunch-v1 top-portrait-original-density-v1 top-close-surface-lifetime-v1 desktop-top-retained-launch-v2 desktop-top-retained-launch-v4 desktop-top-retained-launch-v5 multiside-swap-visible-v2 rail-fling-v1 side-scroll-v13 donor-feed-v1 fixed-side-compaction-v1 donor-grid-v2 ===");
         try {
             NativeMultiWindowUnlock.install(cl, false);
             MiStepSystemActions.install(cl);
@@ -132,15 +132,12 @@ public class HostEntry implements IXposedHookLoadPackage {
     }
 
     /**
-     * MiType independently enters a compact PopupWindow when a landscape
-     * keyboard cannot fit the current task width.  That is the wrong policy
-     * inside Mi Step: the main task owns the native landscape transform, so
-     * the IME should keep its normal full landscape layout.  Skip only the
-     * keyboard's auto-floating decision; manual floating mode remains owned
-     * by the keyboard itself.
+     * Keep the established tablet attached-keyboard policy. Phones retain MiType's
+     * native transient auto-floating admission and restoration when space is tight.
+     * Manual floating preferences remain owned by the keyboard.
      */
     private static void hookMiTypeAutoFloating(ClassLoader cl) {
-        log("=== attached to com.xiaomi.type build=1.0.3 upper-task upper-lock upper-adaptive two-finger composed-top top-effective-dpi readable-top upper-config-v3 upper-manual-center upper-dpi242 upper-no-native-caption-v3 upper-roll-return upper-no-main-roll-v1 upper-uniform242 upper-top-raw main-panel-touch whole-app entry-fullscreen clone-launch-users main-reveal transient-entry main-stable-frame recents-coexist fullscreen-entry-parent quick-app-pins quick-app-dialog quick-app-glass system-scope fixed-cc-icons-v6-local-slider-theme upper-live-background-v1 status-island-swap-v1 corner-terminal-v3 swap-panel-stays-collapsed-v2 os3-shell-v5 top-live-roll-v2 ime-focus-v5 top-live-collect-v2 top-insets-v2-first-layout touch-focus-v6 swap-live-overlay-v1 top-native-bars-return-v1 top-direction-no-taskinfo-v1 top-pointer-focus-v1 main-composition-sampling-v1 main-bars-owner-v1 top-live-surface-v3 top-horizontal-dismiss-v1 cc-two-pages-v1 side-preflight-diagnostics-v1 side-launch-bal-v1 top-collect-admission-reveal-v1 lyrics-session-token-v1 lyrics-kugou-album-id-v1 lyrics-miui-qq-id-v1 lyrics-miui-joined-fallback-v1 ===");
+        log("=== attached to com.xiaomi.type build=1.0.4 upper-task upper-lock upper-adaptive two-finger composed-top top-effective-dpi readable-top upper-config-v3 upper-manual-center upper-dpi242 upper-no-native-caption-v3 upper-roll-return upper-no-main-roll-v1 upper-uniform242 upper-top-raw main-panel-touch whole-app entry-fullscreen clone-launch-users main-reveal transient-entry main-stable-frame recents-coexist fullscreen-entry-parent quick-app-pins quick-app-dialog quick-app-glass system-scope fixed-cc-icons-v6-local-slider-theme upper-live-background-v1 status-island-swap-v1 corner-terminal-v3 swap-panel-stays-collapsed-v2 os3-shell-v5 top-live-roll-v2 ime-focus-v5 top-live-collect-v2 top-insets-v2-first-layout touch-focus-v6 swap-live-overlay-v1 top-native-bars-return-v1 top-direction-no-taskinfo-v1 top-pointer-focus-v1 main-composition-sampling-v1 main-bars-owner-v1 top-live-surface-v3 top-horizontal-dismiss-v1 cc-two-pages-v1 side-preflight-diagnostics-v1 side-launch-bal-v1 top-collect-admission-reveal-v1 lyrics-session-token-v1 lyrics-kugou-album-id-v1 lyrics-miui-qq-id-v1 lyrics-miui-joined-fallback-v1 phone-top-live-config-scope-v2 phone-top-metrics-activity-stack-v1 phone-live-rotation-fit-v1 settings-live-resize-v1 top-portrait-native-dpi-v1 top-local-config-shared-state-v1 top-shared-live-leash-v1 inactive-rotation-cleanup-v1 native-finish-activity-gate-v1 top-independent-pages-v1 top-preserved-window-relaunch-v1 top-portrait-original-density-v1 top-close-surface-lifetime-v1 desktop-top-retained-launch-v2 desktop-top-retained-launch-v4 desktop-top-retained-launch-v5 multiside-swap-visible-v2 rail-fling-v1 side-scroll-v13 donor-feed-v1 fixed-side-compaction-v1 donor-grid-v2 ===");
         try {
             Class<?> service = XposedHelpers.findClass("com.mi.ime.MiInputMethodService", cl);
             XposedHelpers.findAndHookMethod(service, "handleSpacePressureAutoFloating",
@@ -149,6 +146,7 @@ public class HostEntry implements IXposedHookLoadPackage {
                     if (!(param.thisObject instanceof Context)) return;
                     Context context = (Context) param.thisObject;
                     try {
+                        if (!DeviceProfile.isTablet(context)) return;
                         long now = System.currentTimeMillis();
                         String encoded = android.provider.Settings.Global.getString(
                                 context.getContentResolver(), "mistep_zoom");
@@ -204,6 +202,8 @@ public class HostEntry implements IXposedHookLoadPackage {
     private static volatile int sNativeLandscapeState = NativeLandscapePolicy.INACTIVE;
     /** Accessed only under the WMS global lock; these are per-token, not display launches. */
     private static final java.util.Map<Object, Integer> sTaskRotations =
+            new java.util.WeakHashMap<>();
+    private static final java.util.Map<Object, java.lang.ref.WeakReference<Object>> sTaskRotationTransforms =
             new java.util.WeakHashMap<>();
     /** Only surfaces actually written by our WM magnification, under its global lock. */
     private static final java.util.Map<Object, Object> sMagnifiedSurfaces =
@@ -269,7 +269,7 @@ public class HostEntry implements IXposedHookLoadPackage {
      * 与锤子Mi Step的 MagnificationSpecSmt / applyZoomedMatrixSmt 是同一机制的官方版本。
      */
     private void hookSystemServer(ClassLoader cl) {
-        log("=== attached to system_server (android) build=1.0.3 upper-task upper-lock upper-adaptive two-finger composed-top top-effective-dpi readable-top upper-config-v3 upper-manual-center upper-dpi242 upper-no-native-caption-v3 upper-roll-return upper-no-main-roll-v1 upper-uniform242 upper-top-raw main-panel-touch whole-app entry-fullscreen clone-launch-users main-reveal transient-entry main-stable-frame recents-coexist fullscreen-entry-parent quick-app-pins quick-app-dialog quick-app-glass system-scope fixed-cc-icons-v6-local-slider-theme upper-live-background-v1 status-island-swap-v1 corner-terminal-v3 swap-panel-stays-collapsed-v2 os3-shell-v5 top-live-roll-v2 ime-focus-v5 top-live-collect-v2 top-insets-v2-first-layout touch-focus-v6 swap-live-overlay-v1 top-native-bars-return-v1 top-direction-no-taskinfo-v1 top-pointer-focus-v1 main-composition-sampling-v1 main-bars-owner-v1 top-live-surface-v3 top-horizontal-dismiss-v1 cc-two-pages-v1 side-preflight-diagnostics-v1 side-launch-bal-v1 top-collect-admission-reveal-v1 lyrics-session-token-v1 lyrics-kugou-album-id-v1 lyrics-miui-qq-id-v1 lyrics-miui-joined-fallback-v1 ===");
+        log("=== attached to system_server (android) build=1.0.4 upper-task upper-lock upper-adaptive two-finger composed-top top-effective-dpi readable-top upper-config-v3 upper-manual-center upper-dpi242 upper-no-native-caption-v3 upper-roll-return upper-no-main-roll-v1 upper-uniform242 upper-top-raw main-panel-touch whole-app entry-fullscreen clone-launch-users main-reveal transient-entry main-stable-frame recents-coexist fullscreen-entry-parent quick-app-pins quick-app-dialog quick-app-glass system-scope fixed-cc-icons-v6-local-slider-theme upper-live-background-v1 status-island-swap-v1 corner-terminal-v3 swap-panel-stays-collapsed-v2 os3-shell-v5 top-live-roll-v2 ime-focus-v5 top-live-collect-v2 top-insets-v2-first-layout touch-focus-v6 swap-live-overlay-v1 top-native-bars-return-v1 top-direction-no-taskinfo-v1 top-pointer-focus-v1 main-composition-sampling-v1 main-bars-owner-v1 top-live-surface-v3 top-horizontal-dismiss-v1 cc-two-pages-v1 side-preflight-diagnostics-v1 side-launch-bal-v1 top-collect-admission-reveal-v1 lyrics-session-token-v1 lyrics-kugou-album-id-v1 lyrics-miui-qq-id-v1 lyrics-miui-joined-fallback-v1 phone-top-live-config-scope-v2 phone-top-metrics-activity-stack-v1 phone-live-rotation-fit-v1 settings-live-resize-v1 top-portrait-native-dpi-v1 top-local-config-shared-state-v1 top-shared-live-leash-v1 inactive-rotation-cleanup-v1 native-finish-activity-gate-v1 top-independent-pages-v1 top-preserved-window-relaunch-v1 top-portrait-original-density-v1 top-close-surface-lifetime-v1 desktop-top-retained-launch-v2 desktop-top-retained-launch-v4 desktop-top-retained-launch-v5 multiside-swap-visible-v2 rail-fling-v1 side-scroll-v13 donor-feed-v1 fixed-side-compaction-v1 donor-grid-v2 ===");
         MiStepRecents.install(cl);
         NativeRawInputBridge.install();
         try {
@@ -750,6 +750,10 @@ public class HostEntry implements IXposedHookLoadPackage {
                             try {
                                 if (sZoomed) synchronized (XposedHelpers.getObjectField(service, "mGlobalLock")) {
                                     MiStepTopInsets.refresh(sDisplayContent, MiStepDesktopLaunchBridge::ownsTopTask);
+                                    ZoomTarget target = sZoomTarget;
+                                    if (sFullscreenRotationActive && target != null
+                                            && target.display == sDisplayContent)
+                                        target.owner.refreshMiStepTaskRotationLocked(sDisplayContent);
                                     XposedHelpers.callMethod(service, "updateFocusedWindowLocked", 0, true);
                                 }
                             } catch (Throwable unavailable) {log("workspace lease focus refresh skipped: "+unavailable);}
@@ -1253,6 +1257,29 @@ public class HostEntry implements IXposedHookLoadPackage {
                     });
                 }
             });
+            XC_MethodHook topRotationEnd = new XC_MethodHook() {
+                @Override protected void afterHookedMethod(MethodHookParam p) {
+                    if (!p.hasThrowable()) onTopRotationTransitionEnd();
+                }
+            };
+            XposedBridge.hookAllMethods(transition, "finishTransition", topRotationEnd);
+            XposedBridge.hookAllMethods(transition, "abort", topRotationEnd);
+            XposedBridge.hookAllMethods(transition, "getLeashSurface", new XC_MethodHook() {
+                @Override protected void beforeHookedMethod(MethodHookParam p) {
+                    if (p.args.length != 2 || p.args[0] == null) return;
+                    Object page = p.args[0];
+                    if (!MiStepRotationAnimation.owns(page) || !sTopRotationBounds.containsKey(page))
+                        return;
+                    try {
+                        if (!ownsTaskRotationTransform(page)
+                                || !isUpperLandscapeTask(XposedHelpers.callMethod(page, "getTask"))
+                                || !MiStepRotationAnimation.inTransition(page)) return;
+                        // Give the native transition the fixed carrier before it builds its reparent.
+                        topRotationHandoffs.add(page);
+                        MiStepRotationAnimation.cancel(page);
+                    } catch (Throwable error) { log("TOP native surface handoff unavailable: " + error); }
+                }
+            });
             log("Transition#buildFinishTransaction magnification replay hooked");
         } catch (Throwable error) {
             log("transition magnification replay hook unavailable: " + error);
@@ -1289,6 +1316,13 @@ public class HostEntry implements IXposedHookLoadPackage {
             Object app = sMiStepFixedRotationApp;
             if (app != null && !sTaskRotations.containsKey(app)) app = null;
             publishMainUiConfiguration(app);
+            if (MiStepTopRotation.phone(sDisplayContent) && MiStepImeViewport.imeWindow(window)) {
+                Object imeOwner = sMainSystemUiRotation.updatePhoneIme(window, sDisplayContent,
+                        this::ownsTaskRotationTransform, w -> MiStepImePolicy.isFocusedTopWindow(
+                                w, sDisplayContent, MiStepDesktopLaunchBridge::ownsTopTask), HostEntry::log);
+                sMainImeProcessConfiguration.update(window, sDisplayContent, imeOwner, HostEntry::log);
+                return;
+            }
             sMainSystemUiRotation.update(window, sDisplayContent, app, HostEntry::log);
             Object imeApp = sInteractiveImeViewport.update(window, sDisplayContent,
                     MiStepDesktopLaunchBridge::ownsTopTask, HostEntry::log);
@@ -1670,7 +1704,7 @@ public class HostEntry implements IXposedHookLoadPackage {
                     if(p.hasThrowable() || p.args.length!=2 || !sZoomed || !sFullscreenRotationActive
                             || sDisplayContent==null || p.args[0]==null)return;
                     try {
-                        Object adjusted=MiStepTopInsets.adjust(p.args[0],sDisplayContent,p.args[1],
+                        Object adjusted=MiStepTopInsets.adjustMetrics(p.args[0],sDisplayContent,p.args[1],
                                 MiStepDesktopLaunchBridge::ownsTopViewport);
                         if(adjusted!=p.args[1]) {
                             sTopSystemBars.remember(p.args[0],sDisplayContent);
@@ -1694,6 +1728,9 @@ public class HostEntry implements IXposedHookLoadPackage {
                         if (XposedHelpers.getObjectField(p.thisObject, "mDisplayContent")
                                 != sDisplayContent) return;
                         Object task = XposedHelpers.callMethod(p.thisObject, "getTask");
+                        android.content.res.Configuration local =
+                                ownedTopRotationConfigurationLocked(p.thisObject, task);
+                        if (MiStepTopConfiguration.applyRotated(p.thisObject, task, local)) return;
                         MiStepTopConfiguration.apply(p.thisObject, task,
                                 (android.content.res.Configuration) p.args[0]);
                     } catch (Throwable error) {
@@ -1704,6 +1741,71 @@ public class HostEntry implements IXposedHookLoadPackage {
             log("upper Activity configuration follows full task viewport");
         } catch (Throwable error) {
             log("upper Activity configuration hook unavailable: " + error);
+        }
+        try {
+            Class<?> activityRecord = XposedHelpers.findClass(
+                    "com.android.server.wm.ActivityRecord", cl);
+            XposedBridge.hookAllMethods(activityRecord, "shouldRelaunchLocked",
+                    new XC_MethodHook() {
+                @Override protected void afterHookedMethod(MethodHookParam p) {
+                    if (p.hasThrowable() || !Boolean.TRUE.equals(p.getResult())
+                            || p.args.length != 2 || !(p.args[0] instanceof Integer)
+                            || !(p.args[1] instanceof android.content.res.Configuration)) return;
+                    try {
+                        TopRelaunchScope scope = sTopRotationRelaunchScopes.get(p.thisObject);
+                        if (scope == null || !keepTopActivityForRotationConfig(p.thisObject,
+                                (Integer) p.args[0], p.args[1])) return;
+                        scope.previous = new android.content.res.Configuration(
+                                (android.content.res.Configuration) p.args[1]);
+                    } catch (Throwable error) {
+                        log("TOP rotation relaunch guard unavailable: " + error);
+                    }
+                }
+            });
+            XposedBridge.hookAllMethods(activityRecord, "updateReportedConfigurationAndSend",
+                    new XC_MethodHook() {
+                @Override protected void beforeHookedMethod(MethodHookParam p) {
+                    p.setObjectExtra("mistep.previousRelaunchScope",
+                            sTopRotationRelaunchScopes.put(p.thisObject, new TopRelaunchScope()));
+                    p.setObjectExtra("mistep.relaunchScope", Boolean.TRUE);
+                }
+                @Override protected void afterHookedMethod(MethodHookParam p) {
+                    if (!Boolean.TRUE.equals(p.getObjectExtra("mistep.relaunchScope"))) return;
+                    TopRelaunchScope previous =
+                            (TopRelaunchScope) p.getObjectExtra("mistep.previousRelaunchScope");
+                    if (previous == null) sTopRotationRelaunchScopes.remove(p.thisObject);
+                    else sTopRotationRelaunchScopes.put(p.thisObject, previous);
+                }
+            });
+            XposedBridge.hookAllMethods(activityRecord, "relaunchActivityLocked",
+                    new XC_MethodHook() {
+                @Override protected void beforeHookedMethod(MethodHookParam p) {
+                    if (p.args.length != 2 || !(p.args[1] instanceof Integer)) return;
+                    try {
+                        if (preserveTopWindowForRelaunch(p.thisObject, (Integer) p.args[1])) {
+                            p.args[0] = true;
+                            log("TOP rebuilds Activity layout with its real Window preserved");
+                        }
+                    } catch (Throwable error) {
+                        log("TOP preserved Window relaunch unavailable: " + error);
+                    }
+                }
+            });
+            XposedBridge.hookAllMethods(activityRecord, "startFreezingScreenLocked",
+                    new XC_MethodHook() {
+                @Override protected void beforeHookedMethod(MethodHookParam p) {
+                    if (p.args.length < 1 || !(p.args[0] instanceof Integer)) return;
+                    try {
+                        if (preserveTopWindowForRelaunch(p.thisObject, (Integer) p.args[0]))
+                            p.setResult(null);
+                    } catch (Throwable error) {
+                        log("TOP local configuration freeze check unavailable: " + error);
+                    }
+                }
+            });
+            log("TOP owned rotation rebuilds layouts while preserving the real Window");
+        } catch (Throwable error) {
+            log("TOP rotation relaunch hook unavailable: " + error);
         }
         try {
             Class<?> displayContent = XposedHelpers.findClass(
@@ -1793,6 +1895,21 @@ public class HostEntry implements IXposedHookLoadPackage {
             log("task rotation display-launch exclusion unavailable: " + error);
         }
         try {
+            Class<?> windowToken = XposedHelpers.findClass(
+                    "com.android.server.wm.WindowToken", cl);
+            XposedBridge.hookAllMethods(windowToken, "finishFixedRotationTransform",
+                    new XC_MethodHook() {
+                @Override protected void beforeHookedMethod(MethodHookParam p) {
+                    // A non-null action is a real display rotation, not cancellation.
+                    if (p.args.length > 1 || p.args.length == 1 && p.args[0] != null) return;
+                    if (retainTaskRotationOnNativeFinishLocked(p.thisObject)) p.setResult(null);
+                }
+            });
+            log("task rotation: owned token transform retained across native transition finish");
+        } catch (Throwable error) {
+            log("task rotation lifetime hook unavailable: " + error);
+        }
+        try {
             Class<?> displayRotation = XposedHelpers.findClass(
                     "com.android.server.wm.DisplayRotation", cl);
             sTaskRotationResolver = XposedHelpers.findMethodExact(displayRotation,
@@ -1814,6 +1931,16 @@ public class HostEntry implements IXposedHookLoadPackage {
                 }
             });
             log("fixed rotation: display 0 hold hooked");
+            try {
+                XposedHelpers.findAndHookMethod(displayRotation, "dispatchProposedRotation", int.class,
+                    new XC_MethodHook() {
+                @Override protected void afterHookedMethod(MethodHookParam p) {
+                    queueWorkspaceRotationRefresh(p.thisObject);
+                }
+                });
+            } catch (Throwable unavailable) {
+                log("workspace direction proposal unavailable: " + unavailable);
+            }
             XposedBridge.hookAllMethods(displayRotation, "updateRotationUnchecked",
                     new XC_MethodHook() {
                 @Override protected void afterHookedMethod(MethodHookParam p) {
@@ -1927,6 +2054,10 @@ public class HostEntry implements IXposedHookLoadPackage {
                     recordTaskWindowState(activity,upper.overrideOrientation,upper.resolvedRotation,
                             upper.taskRotation,6,source+" upper-landscape");
                 }
+                if (retainSharedTopRotationLocked(activity)) return Boolean.FALSE;
+                if (retainClosingTopRotationLocked(activity, task)) return Boolean.FALSE;
+                if (isLiveTopPageLocked(activity, task))
+                    return applyTopRotationLocked(display, activity, task, source);
                 releaseTaskRotationLocked(activity,"upper task uses native landscape bounds");
                 return Boolean.FALSE;
             }
@@ -1937,6 +2068,9 @@ public class HostEntry implements IXposedHookLoadPackage {
                 releaseTaskRotationLocked(activity, "returned to native freeform owner");
                 return null;
             }
+            if (sTopRotationBounds.containsKey(activity)
+                    && !releaseTaskRotationLocked(activity, "TOP returned to main/ordinary side role"))
+                return Boolean.FALSE;
             // Role changes reconfigure the whole back stack. Only its running top
             // activity can define this task's direction or replace the main owner.
             // A portrait page underneath a landscape video must not cancel that
@@ -1966,7 +2100,8 @@ public class HostEntry implements IXposedHookLoadPackage {
             Object previous = sMiStepFixedRotationApp;
             if (!sideTask && previous != null && previous != activity) {
                 if (!isSideFixedTask(previous)) {
-                    releaseTaskRotationLocked(previous, "main activity changed");
+                    if (!releaseTaskRotationLocked(previous, "main activity changed"))
+                        return Boolean.FALSE;
                 }
                 sMiStepFixedRotationApp = null;
             }
@@ -1986,23 +2121,42 @@ public class HostEntry implements IXposedHookLoadPackage {
             recordTaskWindowState(activity, overrideOrientation, resolvedRotation,
                     rotation, sideTask ? 6 : 1, source);
             if (rotation == sHeldDisplayRotation) {
-                releaseTaskRotationLocked(activity, source + " -> portrait/locked");
+                Integer oldRotation = sTaskRotations.get(activity);
+                boolean owned = ownsTaskRotationTransform(activity);
+                boolean released = releaseTaskRotationLocked(activity, source + " -> portrait/locked");
+                if (released && owned && oldRotation != null)
+                    animateTaskRotationLocked(activity, oldRotation, rotation);
                 return Boolean.FALSE;
             }
             boolean transformed = Boolean.TRUE.equals(XposedHelpers.callMethod(
                     activity, "hasFixedRotationTransform"));
             Integer existingRotation = sTaskRotations.get(activity);
+            java.lang.ref.WeakReference<Object> lease = sTaskRotationTransforms.get(activity);
+            if (transformed && existingRotation != null && lease != null
+                    && lease.get() != XposedHelpers.getObjectField(
+                    activity, "mFixedRotationTransformState")) {
+                releaseTaskRotationLocked(activity, "native transform owner changed");
+                return Boolean.FALSE;
+            }
             if (transformed && existingRotation == null) {
                 // Leave a native, in-flight rotation under its original owner's lifecycle.
                 return Boolean.FALSE;
             }
             if (!transformed || existingRotation == null || existingRotation != rotation) {
-                releaseTaskRotationLocked(activity, "task direction changed");
+                if (sTaskRotations.containsKey(activity)
+                        && !releaseTaskRotationLocked(activity, "task direction changed"))
+                    return Boolean.FALSE;
                 if (!sideTask) sMiStepFixedRotationApp = activity;
                 sTaskRotations.put(activity, rotation);
                 try {
                     XposedHelpers.callMethod(display, "startFixedRotationTransform",
                             activity, rotation);
+                    Object installed = XposedHelpers.getObjectField(
+                            activity, "mFixedRotationTransformState");
+                    if (installed == null) throw new IllegalStateException("native transform not installed");
+                    sTaskRotationTransforms.put(activity, new java.lang.ref.WeakReference<>(installed));
+                    animateTaskRotationLocked(activity,
+                            existingRotation == null ? sHeldDisplayRotation : existingRotation, rotation);
                 } catch (Throwable error) {
                     releaseTaskRotationLocked(activity, "failed transform cleanup");
                     throw error;
@@ -2135,17 +2289,251 @@ public class HostEntry implements IXposedHookLoadPackage {
         }
     }
 
-    private boolean releaseTaskRotationLocked(Object activity, String reason) {
+    private boolean retainTaskRotationOnNativeFinishLocked(Object activity) {
+        if (!sFullscreenRotationActive || sUpdatingTaskRotation || activity == null) return false;
+        // This hook belongs to WindowToken, including IME/Toast tokens with no task.
+        // WindowContainer returns null; only ActivityRecord returns itself.
+        if (XposedHelpers.callMethod(activity, "asActivityRecord") == null) return false;
+        // Native linkFixedRotationTransform shares one state with the previous page.
+        // Even a finishing old page must not reset the current page's entire association.
+        if (retainSharedTopRotationLocked(activity)) return true;
         if (!sTaskRotations.containsKey(activity)) return false;
         try {
-            XposedHelpers.callMethod(activity, "finishFixedRotationTransform");
-            sTaskRotations.remove(activity);
-            if (sMiStepFixedRotationApp == activity) sMiStepFixedRotationApp = null;
+            java.lang.ref.WeakReference<Object> lease = sTaskRotationTransforms.get(activity);
+            Object state = XposedHelpers.getObjectField(activity, "mFixedRotationTransformState");
+            if (lease == null || state == null || lease.get() != state
+                    || XposedHelpers.getObjectField(activity, "mDisplayContent") != sDisplayContent
+                    || Boolean.TRUE.equals(XposedHelpers.getObjectField(activity, "mRemovingFromDisplay"))
+                    || XposedHelpers.callMethod(activity, "getParent") == null) return false;
+            Object task = XposedHelpers.callMethod(activity, "getTask");
+            if (Boolean.TRUE.equals(XposedHelpers.getObjectField(activity, "finishing")))
+                return retainClosingTopRotationLocked(activity, task);
+            if (isLiveTopPageLocked(activity, task))
+                return Integer.valueOf(resolveTopRotationLocked(sDisplayContent,
+                        XposedHelpers.callMethod(task, "topRunningActivity")))
+                        .equals(sTaskRotations.get(activity));
+            if (task == null || XposedHelpers.callMethod(task, "topRunningActivity") != activity
+                    || Boolean.TRUE.equals(XposedHelpers.callMethod(activity, "isActivityTypeHome")))
+                return false;
+            if (isUpperLandscapeTask(task))
+                return sZoomed && MiStepTopRotation.phone(sDisplayContent)
+                        && Integer.valueOf(resolveTopRotationLocked(sDisplayContent, activity))
+                                .equals(sTaskRotations.get(activity));
+            int mode = (Integer) XposedHelpers.callMethod(task, "getWindowingMode");
+            boolean side = isSideFixedTask(activity);
+            if ((mode != 1 && !side) || NativeLandscapePolicy.suppressesLocalRotation(
+                    sNativeLandscapeState, side, false)) return false;
+            if (!side && (activity != sMiStepFixedRotationApp || !sZoomed
+                    || XposedHelpers.callMethod(sDisplayContent, "topRunningActivity") != activity
+                    && !MiStepDesktopLaunchBridge.rotationMain(sDisplayContent, activity)))
+                return false;
+            RotationResolution desired = resolveTaskRotationLocked(
+                    sDisplayContent, activity, task, mode, "native-transform-finish");
+            return desired.taskRotation != sHeldDisplayRotation
+                    && Integer.valueOf(desired.taskRotation).equals(sTaskRotations.get(activity));
+        } catch (Throwable error) {
+            log("task rotation lifetime check unavailable: " + error);
+            return false;
+        }
+    }
+
+    private final java.util.Set<Object> closingTopRotations =
+            java.util.Collections.newSetFromMap(new java.util.WeakHashMap<>());
+    private final java.util.Set<Object> topRotationHandoffs =
+            java.util.Collections.newSetFromMap(new java.util.WeakHashMap<>());
+
+    private boolean retainClosingTopRotationLocked(Object activity, Object task) {
+        if (!sZoomed || !sFullscreenRotationActive || !sTopRotationBounds.containsKey(activity)
+                || !isUpperLandscapeTask(task) || !MiStepTopRotation.phone(sDisplayContent)
+                || !ownsTaskRotationTransform(activity)
+                || XposedHelpers.getObjectField(activity, "mDisplayContent") != sDisplayContent
+                || !Boolean.TRUE.equals(XposedHelpers.getObjectField(activity, "finishing"))
+                || Boolean.TRUE.equals(XposedHelpers.getObjectField(activity, "mRemovingFromDisplay"))
+                || XposedHelpers.callMethod(activity, "getParent") == null
+                || !Boolean.TRUE.equals(XposedHelpers.callMethod(activity, "inTransition"))) return false;
+        Object surface = XposedHelpers.callMethod(activity, "getSurfaceControl");
+        if (surface == null || !Boolean.TRUE.equals(
+                XposedHelpers.callMethod(surface, "isValid"))) return false;
+        closingTopRotations.add(activity);
+        return true;
+    }
+
+    private void reconcileTopRotationTransitionsLocked(Object display) {
+        if (display != sDisplayContent) return;
+        if (!sFullscreenRotationActive) {
+            releaseAllTaskRotationsLocked("transition completed after workspace exit");
+            return;
+        }
+        for (Object page : new java.util.ArrayList<>(closingTopRotations)) {
+            Object task = XposedHelpers.callMethod(page, "getTask");
+            if (retainClosingTopRotationLocked(page, task)) continue;
+            if (XposedHelpers.callMethod(page, "getParent") == null
+                    || Boolean.TRUE.equals(XposedHelpers.getObjectField(page, "finishing"))) {
+                if (retainSharedTopRotationLocked(page)) continue;
+                if (sTaskRotations.containsKey(page)
+                        && !releaseTaskRotationLocked(page, "TOP page transition ended")) continue;
+            }
+            closingTopRotations.remove(page);
+        }
+        for (Object page : new java.util.ArrayList<>(topRotationHandoffs)) {
+            if (MiStepRotationAnimation.inTransition(page)) continue;
+            topRotationHandoffs.remove(page);
+            applyMiStepFixedRotationLocked(display, page, "TOP native transition settled");
+        }
+    }
+
+    private void onTopRotationTransitionEnd() {
+        Object display = sDisplayContent;
+        Handler handler = sZoomBridgeHandler;
+        if (display == null || handler == null) return;
+        if (sFullscreenRotationActive
+                ? closingTopRotations.isEmpty() && topRotationHandoffs.isEmpty()
+                : sTaskRotations.isEmpty() && !MiStepRotationAnimation.hasOwners()) return;
+        int epoch = inactiveRotationCleanupEpoch;
+        handler.post(() -> {
+            try {
+                Object service = XposedHelpers.getObjectField(display, "mWmService");
+                synchronized (XposedHelpers.getObjectField(service, "mGlobalLock")) {
+                    if (epoch != inactiveRotationCleanupEpoch) return;
+                    reconcileTopRotationTransitionsLocked(display);
+                }
+            } catch (Throwable error) { log("TOP transition reconciliation unavailable: " + error); }
+        });
+    }
+
+    private boolean isLiveTopPageLocked(Object activity, Object task) {
+        if (!sZoomed || !sFullscreenRotationActive || activity == null
+                || !isUpperLandscapeTask(task) || !MiStepTopRotation.phone(sDisplayContent))
+            return false;
+        Object top = XposedHelpers.callMethod(task, "topRunningActivity");
+        return top != null
+                && !Boolean.TRUE.equals(XposedHelpers.getObjectField(top, "finishing"))
+                && !Boolean.TRUE.equals(XposedHelpers.getObjectField(top, "mRemovingFromDisplay"))
+                && XposedHelpers.callMethod(top, "getParent") != null
+                && XposedHelpers.getObjectField(activity, "mDisplayContent") == sDisplayContent
+                && !Boolean.TRUE.equals(XposedHelpers.getObjectField(activity, "finishing"))
+                && !Boolean.TRUE.equals(XposedHelpers.getObjectField(activity, "mRemovingFromDisplay"))
+                && XposedHelpers.callMethod(activity, "getParent") != null
+                && !Boolean.TRUE.equals(XposedHelpers.callMethod(activity, "isActivityTypeHome"));
+    }
+
+    private boolean adoptSharedTopRotationLocked(Object activity, Object task, Object state,
+            int desired) {
+        if (state == null || !sZoomed || !sFullscreenRotationActive
+                || desired == sHeldDisplayRotation || !isUpperLandscapeTask(task)) return false;
+        Rect bounds = (Rect) XposedHelpers.callMethod(task, "getBounds");
+        for (Object peer : new java.util.ArrayList<>(sTopRotationBounds.keySet())) {
+            if (!bounds.equals(sTopRotationBounds.get(peer))
+                    || !Integer.valueOf(desired).equals(sTaskRotations.get(peer))
+                    || XposedHelpers.callMethod(peer, "getTask") != task
+                    || !ownsTaskRotationTransform(peer)
+                    || XposedHelpers.getObjectField(peer, "mFixedRotationTransformState") != state)
+                continue;
+            sTaskRotations.put(activity, desired);
+            sTaskRotationTransforms.put(activity, new java.lang.ref.WeakReference<>(state));
+            sTopRotationBounds.put(activity, new Rect(bounds));
+            return true;
+        }
+        return false;
+    }
+
+    private boolean retainSharedTopRotationLocked(Object activity) {
+        if (!sZoomed || !sFullscreenRotationActive || activity == null) return false;
+        try {
+            if (XposedHelpers.getObjectField(activity, "mDisplayContent") != sDisplayContent
+                    || !MiStepTopRotation.phone(sDisplayContent)) return false;
+            Object task = XposedHelpers.callMethod(activity, "getTask");
+            if (!isUpperLandscapeTask(task)) return false;
+            Object top = XposedHelpers.callMethod(task, "topRunningActivity");
+            if (top == null || top == activity
+                    || Boolean.TRUE.equals(XposedHelpers.getObjectField(top, "finishing"))
+                    || Boolean.TRUE.equals(XposedHelpers.getObjectField(top, "mRemovingFromDisplay"))
+                    || XposedHelpers.callMethod(top, "getParent") == null) return false;
+            Object state = XposedHelpers.getObjectField(activity, "mFixedRotationTransformState");
+            return state != null
+                    && XposedHelpers.getObjectField(top, "mFixedRotationTransformState") == state
+                    && adoptSharedTopRotationLocked(top, task, state,
+                            resolveTopRotationLocked(sDisplayContent, top));
+        } catch (Throwable error) {
+            log("TOP shared rotation lifetime unavailable: " + error);
+            return false;
+        }
+    }
+
+    private android.content.res.Configuration ownedTopRotationConfigurationLocked(
+            Object activity, Object task) throws Throwable {
+        android.content.res.Configuration applying =
+                MiStepTopRotation.applyingConfiguration(activity, task);
+        if (applying != null) return applying;
+        if (!sZoomed || !sFullscreenRotationActive || !isUpperLandscapeTask(task)
+                || !MiStepTopRotation.phone(sDisplayContent)) return null;
+        Object state = XposedHelpers.getObjectField(activity, "mFixedRotationTransformState");
+        if (state == null) return null;
+        Rect bounds = (Rect) XposedHelpers.callMethod(task, "getBounds");
+        if ((!ownsTaskRotationTransform(activity)
+                || !bounds.equals(sTopRotationBounds.get(activity)))
+                && !adoptSharedTopRotationLocked(activity, task, state,
+                        resolveTopRotationLocked(sDisplayContent, activity))) return null;
+        return (android.content.res.Configuration) XposedHelpers.getObjectField(
+                state, "mRotatedOverrideConfiguration");
+    }
+
+    private boolean releaseTaskRotationLocked(Object activity, String reason) {
+        if (!sTaskRotations.containsKey(activity)) return false;
+        boolean wasUpdating = sUpdatingTaskRotation;
+        sUpdatingTaskRotation = true;
+        try {
+            java.lang.ref.WeakReference<Object> lease = sTaskRotationTransforms.get(activity);
+            Object state = XposedHelpers.getObjectField(activity, "mFixedRotationTransformState");
+            java.util.ArrayList<Object> members = new java.util.ArrayList<>();
+            members.add(activity);
+            if (state != null && lease != null && lease.get() == state) {
+                for (Object peer : new java.util.ArrayList<>(sTaskRotations.keySet())) {
+                    if (peer != activity && ownsTaskRotationTransform(peer)
+                            && XposedHelpers.getObjectField(peer, "mFixedRotationTransformState")
+                                    == state) members.add(peer);
+                }
+            }
+            try {
+                for (Object member : members) {
+                    if (!MiStepRotationAnimation.cancel(member)) {
+                        log("local rotation animation still owned; defer transform release");
+                        return false;
+                    }
+                }
+            } catch (Throwable error) {
+                log("local rotation animation cleanup unavailable: " + error);
+                return false;
+            }
+            if (state != null && (lease == null || lease.get() == state)) {
+                Object display = XposedHelpers.callMethod(activity, "getDisplayContent");
+                for (Object member : members) {
+                    if (sTopRotationBounds.containsKey(member))
+                        sTopRotationConfigurationRelease.add(member);
+                }
+                try {
+                    if (display != null && MiStepTopRotation.phone(display))
+                        MiStepRotationAnimation.finishLocalRotation(activity);
+                    else XposedHelpers.callMethod(activity, "finishFixedRotationTransform");
+                } finally {
+                    sTopRotationConfigurationRelease.removeAll(members);
+                }
+            }
+            for (Object member : members) {
+                closingTopRotations.remove(member);
+                topRotationHandoffs.remove(member);
+                sTaskRotations.remove(member);
+                sTaskRotationTransforms.remove(member);
+                sTopRotationBounds.remove(member);
+                if (sMiStepFixedRotationApp == member) sMiStepFixedRotationApp = null;
+            }
             log("task rotation released: " + reason);
             return true;
         } catch (Throwable error) {
             log("fixed rotation release failed: " + reason + ": " + error);
             return false;
+        } finally {
+            sUpdatingTaskRotation = wasUpdating;
         }
     }
 
@@ -2242,6 +2630,13 @@ public class HostEntry implements IXposedHookLoadPackage {
         boolean wasUpdating = sUpdatingTaskRotation;
         sUpdatingTaskRotation = true;
         try {
+            topRotationHandoffs.clear();
+            try {
+                // A return-to-portrait animation can outlive the fixed rotation state itself.
+                MiStepRotationAnimation.cancelAll();
+            } catch (Throwable error) {
+                log("local rotation animations cleanup unavailable: " + error);
+            }
             for (Object activity : new java.util.ArrayList<>(sTaskRotations.keySet())) {
                 releaseTaskRotationLocked(activity, reason);
             }
@@ -2250,14 +2645,216 @@ public class HostEntry implements IXposedHookLoadPackage {
         }
     }
 
+    private int inactiveRotationCleanupEpoch;
+
+    private void queueInactiveRotationCleanupLocked(Object display) {
+        int epoch = ++inactiveRotationCleanupEpoch;
+        queueInactiveRotationCleanupLocked(display, epoch, 3);
+    }
+
+    private void queueInactiveRotationCleanupLocked(Object display, int epoch, int remaining) {
+        if (sFullscreenRotationActive || sTaskRotations.isEmpty() && !MiStepRotationAnimation.hasOwners()
+                || display != sDisplayContent) return;
+        if (remaining == 0) {
+            log("inactive rotation cleanup remains blocked by native animation");
+            return;
+        }
+        Handler bridge = sZoomBridgeHandler;
+        if (bridge == null) {
+            log("inactive rotation cleanup unavailable: no bridge handler");
+            return;
+        }
+        bridge.postDelayed(() -> {
+            try {
+                Object service = XposedHelpers.getObjectField(display, "mWmService");
+                synchronized (XposedHelpers.getObjectField(service, "mGlobalLock")) {
+                    if (epoch != inactiveRotationCleanupEpoch || sFullscreenRotationActive
+                            || display != sDisplayContent) return;
+                    releaseAllTaskRotationsLocked("deferred inactive cleanup");
+                    queueInactiveRotationCleanupLocked(display, epoch, remaining - 1);
+                }
+            } catch (Throwable error) {
+                log("inactive rotation cleanup failed: " + error);
+            }
+        }, 400);
+    }
+
     private void refreshMiStepTaskRotationLocked(Object display) {
         Object top = XposedHelpers.callMethod(display, "topRunningActivity");
-        for (Object activity : new java.util.ArrayList<>(sTaskRotations.keySet())) {
+        java.util.ArrayList<Object> activities = new java.util.ArrayList<>(sTaskRotations.keySet());
+        // Reconcile old owners first. The confirmed current main must win over a departing main.
+        for (Object activity : MiStepDesktopLaunchBridge.rotationActivities(display)) {
+            activities.remove(activity);
+            activities.add(activity);
+            Object task = XposedHelpers.callMethod(activity, "getTask");
+            if (isUpperLandscapeTask(task)) {
+                XposedHelpers.callMethod(task, "forAllActivities",
+                        (java.util.function.Consumer<Object>) page -> {
+                            if (XposedHelpers.callMethod(page, "getTask") == task
+                                    && !activities.contains(page)) activities.add(page);
+                        }, true);
+            }
+        }
+        for (Object activity : activities) {
             if (activity != top) {
                 applyMiStepFixedRotationLocked(display, activity, "side-rotation-policy");
             }
         }
         applyMiStepFixedRotationLocked(display, top, "system-rotation-policy");
+    }
+
+    private boolean workspaceRotationRefreshPending;
+
+    /** A proposal can change while the physical display remains held at zero. */
+    private void queueWorkspaceRotationRefresh(Object rotation) {
+        if (!sZoomed || !sFullscreenRotationActive) return;
+        try {
+            Object display = XposedHelpers.getObjectField(rotation, "mDisplayContent");
+            if (display != sDisplayContent || sZoomBridgeHandler == null) return;
+            synchronized (this) {
+                if (workspaceRotationRefreshPending) return;
+                workspaceRotationRefreshPending = true;
+            }
+            boolean posted = sZoomBridgeHandler.post(() -> {
+                synchronized (HostEntry.this) { workspaceRotationRefreshPending = false; }
+                try {
+                    Object service = XposedHelpers.getObjectField(display, "mWmService");
+                    synchronized (XposedHelpers.getObjectField(service, "mGlobalLock")) {
+                        if (sZoomed && sFullscreenRotationActive && display == sDisplayContent
+                                && !sUpdatingTaskRotation) refreshMiStepTaskRotationLocked(display);
+                    }
+                } catch (Throwable error) { log("workspace direction proposal refresh failed: " + error); }
+            });
+            if (!posted) synchronized (this) { workspaceRotationRefreshPending = false; }
+        } catch (Throwable error) {
+            synchronized (this) { workspaceRotationRefreshPending = false; }
+            log("workspace direction proposal unavailable: " + error);
+        }
+    }
+
+    /** TOP follows the system USER policy, independent of its app's landscape request. */
+    private int resolveTopRotationLocked(Object display, Object activity) throws Throwable {
+        Object resolver = XposedHelpers.getObjectField(display, "mDisplayRotation");
+        int last = sTaskRotations.getOrDefault(activity, sHeldDisplayRotation);
+        int resolved = (Integer) XposedBridge.invokeOriginalMethod(sTaskRotationResolver, resolver,
+                new Object[]{2, last});
+        return MiStepTopRotation.rotation(resolved);
+    }
+
+    private static final java.util.Map<Object, Rect> sTopRotationBounds = new java.util.WeakHashMap<>();
+    private static final java.util.Set<Object> sTopRotationConfigurationRelease =
+            java.util.Collections.newSetFromMap(new java.util.WeakHashMap<>());
+    private static final class TopRelaunchScope {
+        android.content.res.Configuration previous;
+    }
+    private static final java.util.Map<Object, TopRelaunchScope>
+            sTopRotationRelaunchScopes = new java.util.WeakHashMap<>();
+
+    private boolean preserveTopWindowForRelaunch(Object activity, int changes) {
+        TopRelaunchScope scope = sTopRotationRelaunchScopes.get(activity);
+        return scope != null && scope.previous != null
+                && keepTopActivityForRotationConfig(activity, changes, scope.previous);
+    }
+
+    private boolean keepTopActivityForRotationConfig(Object activity, int changes, Object previous) {
+        if (!sZoomed || !sFullscreenRotationActive || activity == null
+                || XposedHelpers.callMethod(activity, "getDisplayContent") != sDisplayContent)
+            return false;
+        if (!Integer.valueOf(sHeldDisplayRotation).equals(XposedHelpers.callMethod(
+                XposedHelpers.getObjectField(sDisplayContent, "mDisplayRotation"), "getRotation")))
+            return false;
+        Object task = XposedHelpers.callMethod(activity, "getTask");
+        if (!isLiveTopPageLocked(activity, task))
+            return false;
+        Object state = XposedHelpers.getObjectField(activity, "mFixedRotationTransformState");
+        // Native apply dispatches configuration synchronously before it returns the state
+        // for our long-lived lease. The helper's exact task/config call scope covers that gap.
+        if (MiStepTopRotation.isApplying(activity, task))
+            return MiStepTopRotation.shouldKeepLiveSurface(
+                    activity, changes, previous, state, false);
+        java.lang.ref.WeakReference<Object> lease = sTaskRotationTransforms.get(activity);
+        Rect expected = sTopRotationBounds.get(activity);
+        if (lease == null || lease.get() == null || expected == null
+                || !expected.equals(XposedHelpers.callMethod(task, "getBounds"))) return false;
+        return MiStepTopRotation.shouldKeepLiveSurface(activity, changes, previous,
+                lease.get(), sTopRotationConfigurationRelease.contains(activity));
+    }
+
+    private boolean ownsTaskRotationTransform(Object activity) {
+        java.lang.ref.WeakReference<Object> lease = sTaskRotationTransforms.get(activity);
+        return lease != null && lease.get() != null && lease.get() == XposedHelpers.getObjectField(
+                activity, "mFixedRotationTransformState");
+    }
+
+    private void animateTaskRotationLocked(Object activity, int oldRotation, int newRotation) {
+        if (!sZoomed || oldRotation == newRotation) return;
+        try {
+            if (isUpperLandscapeTask(XposedHelpers.callMethod(activity, "getTask"))
+                    && MiStepRotationAnimation.inTransition(activity)) {
+                // Shell owns the visible motion; reconcile the final viewport without replaying it.
+                topRotationHandoffs.add(activity);
+                return;
+            }
+            if (MiStepTopRotation.phone(sDisplayContent)
+                    && MiStepRotationAnimation.start(activity, oldRotation, newRotation))
+                log("local rotation animation native-window=true old=" + oldRotation
+                        + " new=" + newRotation);
+        } catch (Throwable error) {
+            // Animation availability must never break configuration, input or native cleanup.
+            log("local rotation animation unavailable: " + error);
+        }
+    }
+
+    private Boolean applyTopRotationLocked(Object display, Object activity, Object task, String source)
+            throws Throwable {
+        int desired = resolveTopRotationLocked(display,
+                XposedHelpers.callMethod(task, "topRunningActivity"));
+        Integer previous = sTaskRotations.get(activity);
+        if (desired == sHeldDisplayRotation) {
+            boolean owned = ownsTaskRotationTransform(activity);
+            boolean released = releaseTaskRotationLocked(activity, "TOP returned to landscape viewport");
+            if (released && owned && previous != null)
+                animateTaskRotationLocked(activity, previous, desired);
+            return Boolean.FALSE;
+        }
+        Object state = XposedHelpers.getObjectField(activity, "mFixedRotationTransformState");
+        java.lang.ref.WeakReference<Object> lease = sTaskRotationTransforms.get(activity);
+        if (state != null && (previous == null || lease == null || lease.get() != state)) {
+            if (adoptSharedTopRotationLocked(activity, task, state, desired)) {
+                MiStepTopRotation.ensureSurface(activity);
+                log("TOP joined owned native page rotation source=" + source);
+                return Boolean.TRUE;
+            }
+            if (previous != null) releaseTaskRotationLocked(activity, "TOP native owner replaced");
+            return Boolean.FALSE;
+        }
+        Rect bounds = (Rect) XposedHelpers.callMethod(task, "getBounds");
+        if (state != null && Integer.valueOf(desired).equals(previous)
+                && bounds.equals(sTopRotationBounds.get(activity))) {
+            MiStepTopRotation.ensureSurface(activity);
+            return Boolean.TRUE;
+        }
+        if (sTaskRotations.containsKey(activity)
+                && !releaseTaskRotationLocked(activity, "TOP direction changed"))
+            return Boolean.FALSE;
+        sTaskRotations.put(activity, desired);
+        try {
+            MiStepTopRotation.apply(display, activity, task, desired);
+            Object installed = XposedHelpers.getObjectField(activity, "mFixedRotationTransformState");
+            if (installed == null) throw new IllegalStateException("TOP native rotation not installed");
+            sTaskRotationTransforms.put(activity, new java.lang.ref.WeakReference<>(installed));
+            sTopRotationBounds.put(activity, new Rect(bounds));
+            animateTaskRotationLocked(activity,
+                    previous == null ? sHeldDisplayRotation : previous, desired);
+        } catch (Throwable error) {
+            // The helper may have installed state before its native leash operation failed.
+            Object installed = XposedHelpers.getObjectField(activity, "mFixedRotationTransformState");
+            if (installed != null) sTaskRotationTransforms.put(activity, new java.lang.ref.WeakReference<>(installed));
+            releaseTaskRotationLocked(activity, "TOP rotation failed cleanup");
+            throw error;
+        }
+        log("TOP local viewport rotation=" + desired + " source=" + source);
+        return Boolean.TRUE;
     }
 
     private boolean isSideFixedTask(Object activity) {
@@ -2914,7 +3511,8 @@ public class HostEntry implements IXposedHookLoadPackage {
             if (context == null) return;
             android.content.Intent signal = new android.content.Intent(DESKTOP_ICON_LAUNCH_ACTION)
                     .setPackage(SYSTEMUI)
-                    .putExtra("package", pkg).putExtra("userId", launchUser);
+                    .putExtra("package", pkg).putExtra("userId", launchUser)
+                    .putExtra("component", launch.getComponent());
             context.sendBroadcast(signal);
             log("desktop icon launch forwarded package=" + pkg + " user=" + launchUser);
         } catch (Throwable error) {
@@ -2961,6 +3559,7 @@ public class HostEntry implements IXposedHookLoadPackage {
         captureTaskWindowState(display, XposedHelpers.callMethod(display, "topRunningActivity"),
                 "before-workspace-portrait");
         releaseAllTaskRotationsLocked("new Mi Step session");
+        ++inactiveRotationCleanupEpoch;
         sHeldDisplayRotation = workspaceDisplayRotation(display);
         sFullscreenRotationActive = true;
         log("fixed rotation active; Mi Step display held at workspace rotation "
@@ -2977,10 +3576,12 @@ public class HostEntry implements IXposedHookLoadPackage {
         if (!sFullscreenRotationActive) {
             sMainStatusBarClip.clear(HostEntry::log);
             releaseAllTaskRotationsLocked("inactive cleanup");
+            queueInactiveRotationCleanupLocked(display);
             return;
         }
-        releaseAllTaskRotationsLocked("host exit");
         sFullscreenRotationActive = false;
+        releaseAllTaskRotationsLocked("host exit");
+        queueInactiveRotationCleanupLocked(display);
         sMainStatusBarClip.clear(HostEntry::log);
         recomputeDisplayOrientationLocked(display, "exit Mi Step");
     }

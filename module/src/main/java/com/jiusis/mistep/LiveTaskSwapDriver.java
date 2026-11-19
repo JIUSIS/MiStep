@@ -74,6 +74,7 @@ final class LiveTaskSwapDriver {
         final Object homeToken, hostRoot;
         final Rect logical;
         final LiveSwapZoom.Zoom zoom;
+        final SideRoot[] sideRoots;
         final Object[] cellBackgrounds;
         final Object backdrop;
         Home(LiveSwapGeometry.Task app, int homeId, Object homeToken, int userId, Rect logical,
@@ -86,16 +87,35 @@ final class LiveTaskSwapDriver {
         }
         Home(LiveSwapGeometry.Task app, int homeId, Object homeToken, int appUserId, int homeUserId,
                 Rect logical, Object hostRoot, LiveSwapZoom.Zoom zoom, Object[] cellBackgrounds, Object backdrop) {
+            this(app, homeId, homeToken, appUserId, homeUserId, logical, hostRoot, zoom,
+                    new SideRoot[0], cellBackgrounds, backdrop);
+        }
+        Home(LiveSwapGeometry.Task app, int homeId, Object homeToken, int appUserId, int homeUserId,
+                Rect logical, Object hostRoot, LiveSwapZoom.Zoom zoom, SideRoot[] sideRoots,
+                Object[] cellBackgrounds, Object backdrop) {
             if (app == null || homeId < 0 || homeId == app.id || homeToken == null
                     || appUserId < 0 || homeUserId < 0
                     || homeToken.equals(app.token) || logical == null || logical.isEmpty()
-                    || hostRoot == null || zoom == null || cellBackgrounds == null)
+                    || hostRoot == null || zoom == null || sideRoots == null || cellBackgrounds == null)
                 throw new IllegalArgumentException("incomplete live Home request");
             this.app = app; this.homeId = homeId; this.homeToken = homeToken;
             this.appUserId = appUserId; this.homeUserId = homeUserId;
             this.logical = new Rect(logical); this.hostRoot = hostRoot; this.zoom = zoom;
+            this.sideRoots = sideRoots.clone();
             this.cellBackgrounds = cellBackgrounds.clone();
             this.backdrop = backdrop;
+        }
+    }
+
+    /** Identity of a stationary TaskView whose task order must survive Home promotion. */
+    static final class SideRoot {
+        final int id, userId;
+        final Object token, controller;
+        SideRoot(int id, int userId, Object token, Object controller) {
+            if (id < 0 || userId < 0 || token == null || controller == null)
+                throw new IllegalArgumentException("side root identity missing");
+            this.id = id; this.userId = userId;
+            this.token = token; this.controller = controller;
         }
     }
 

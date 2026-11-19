@@ -36,6 +36,18 @@ final class WallpaperCropDrawable extends Drawable {
         this.tintPaint.setColor(i5);
     }
 
+    boolean matchesWallpaper(Bitmap bitmap, int width, int height, int tint) {
+        return wallpaper == bitmap && screenWidth == width && screenHeight == height
+                && this.tint == tint;
+    }
+
+    void setScreenOrigin(int x, int y) {
+        if (screenX == x && screenY == y) return;
+        screenX = x;
+        screenY = y;
+        invalidateSelf();
+    }
+
     /** Main-thread offscreen rendering only; retain the live View's source without invalidating it. */
     void withScreenOrigin(int x, int y, Runnable draw) {
         int oldX = screenX, oldY = screenY;

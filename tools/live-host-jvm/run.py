@@ -90,8 +90,8 @@ public class LiveHostRegression {
   static int getIntField(Object o,String n){return (Integer)getObjectField(o,n);}
   static Object callMethod(Object o,String n,Object...args){try{var m=o.getClass().getMethod(n);m.setAccessible(true);return m.invoke(o);}catch(Exception e){throw new RuntimeException(e);}}
  }
- static final int ACTIVE=1,SLOT_MAIN=0;
- int scene=ACTIVE;long sceneEpoch=7;boolean screenOn=true,keyguardLocked,transferBusy,inputPass=true,unavailable,geometryRefreshAfterLive;
+ static final int ACTIVE=0,SUSPENDING=1,SUSPENDED=2,SLOT_MAIN=0;
+ int scene=ACTIVE;long sceneEpoch=7;boolean screenOn=true,keyguardLocked,transferBusy,inputPass=true,unavailable,geometryRefreshAfterLive,retainedOnExit;
  static class HomeTaskReturn {boolean covers(int id,Object token){return true;}}
  Slot[] slots=new Slot[4];Promotion promotion;HomeTaskReturn coveredHome=new HomeTaskReturn();View root=new View();
  long zoomAnimUntil; Object pendingLiveZoom;
@@ -108,6 +108,8 @@ public class LiveHostRegression {
  void setLiveSwapInputBlocked(boolean b){inputPass=b;}
  void scheduleDisplayGeometryRefresh(){}
  void finishPendingSuspend(){suspends++;}
+ boolean compactPending,sideScrolling;
+ void requestCompaction(){compactPending=true;}
  // Placement versus retirement policy is exercised by home-compact-jvm.
  int compactions;void compactCellsAfterCollection(){compactions++;}
  void clearSlot(Slot s){clears++;s.taskId=-1;s.taskToken=null;s.taskEpoch++;}
@@ -199,6 +201,10 @@ public class LiveHostRegression {
   promotion=new Promotion(s);check(!leaveExternalChangeToNative(c),"ordinary A/B native promotion never bypassed");
   promotion.externalLaunch=true;check(leaveExternalChangeToNative(c),"exact external ticket allowed");
   promotion.bindingEpoch++;check(!leaveExternalChangeToNative(c),"stale external binding rejected");promotion=null;
+  scene=SUSPENDING;check(!leaveExternalChangeToNative(c),"parking exit keeps original handler");
+  retainedOnExit=true;check(leaveExternalChangeToNative(c),"native launch during retaining exit stays native");
+  scene=SUSPENDED;check(leaveExternalChangeToNative(c),"native launch from hidden workspace stays native");
+  scene=ACTIVE;retainedOnExit=false;
   s.modeAdmissionPending=true;check(!leaveExternalChangeToNative(c),"new-task mode admission untouched");s.modeAdmissionPending=false;
   s.controller.mTaskOrganizer.mTasks.put(s.taskId,new Appeared(new Info(s.taskId,new Object())));
   check(!leaveExternalChangeToNative(c),"canonical token mismatch preserves original behavior");

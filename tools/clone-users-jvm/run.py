@@ -100,8 +100,6 @@ public class CloneUsersRegression {
 }'''.replace('__PEER__', peer).replace('__RESOLVE__', resolve.replace('@Override ', ''))
 }
 rect = out/'android/graphics/Rect.java'
-rect.write_text(rect.read_text(encoding='utf-8').replace('public int width()',
-    'public boolean isEmpty(){return width()<=0||height()<=0;}public int width()'), encoding='utf-8')
 paths = [str(rect)]
 for name, text in files.items():
     path=out/name

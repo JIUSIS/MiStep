@@ -34,7 +34,7 @@ public class LiveFinishRegression {
  static class Overlay {void finish(Object tx,boolean original){((Tx)tx).ops.add(original?"overlay-original":"overlay-target");}}
  static class Flip {Overlay overlays=new Overlay();}
  static class Run {
-  boolean uncertain,rollback,waitingCancel,resolved=true;
+  boolean uncertain,rollback,waitingCancel,resolved=true,borrowingPeers=true;
   Flip flip=new Flip();Object finishReplay;Owner pair=new Owner(),single=new Owner();float oldSideScale=.25f,targetSideScale=.25f;
   void peersFinish(Object tx,boolean original){((Tx)tx).ops.add("peers");}
   void background(Object tx,boolean show){((Tx)tx).ops.add("background");}
@@ -44,6 +44,7 @@ public class LiveFinishRegression {
  public static void main(String[] args){
   Run forward=new Run();Tx finish=new Tx(),right=replay(273);finish.ops.add("old-WMS:0");forward.finishReplay=right;
   forward.finish(finish,false);
+  check(!forward.borrowingPeers,"finishing releases the animated parent lease for retained repairs");
   check(finish.displayX==273&&finish.ops.get(finish.ops.size()-1).equals("WMS:273.0"),"old finish offset won over current right-main tuple");
   check(finish.ops.indexOf("task-parents")<finish.ops.indexOf("WMS:273.0"),"current WMS operations did not follow owner handoff");
   check(finish.ops.indexOf("overlay-target")<finish.ops.indexOf("WMS:273.0"),"overlay finish overwrote native final replay");
@@ -57,7 +58,7 @@ public class LiveFinishRegression {
   Run absent=new Run();try{absent.finish(new Tx(),false);throw new AssertionError("missing replay accepted");}catch(IllegalStateException expected){checks++;}
   Run closed=new Run();Tx invalid=replay(273),safe=new Tx();invalid.close();closed.finishReplay=invalid;
   try{closed.finish(safe,false);throw new AssertionError("closed native replay merged");}catch(IllegalStateException expected){check(safe.ops.isEmpty(),"closed replay changed ownership before rejection");}
-  Run uncertain=new Run();uncertain.uncertain=true;Tx untouched=new Tx();try{uncertain.finish(untouched,true);throw new AssertionError("uncertain state committed");}catch(IllegalStateException expected){check(untouched.ops.isEmpty(),"uncertain state changed surfaces");}
+  Run uncertain=new Run();uncertain.uncertain=true;Tx untouched=new Tx();try{uncertain.finish(untouched,true);throw new AssertionError("uncertain state committed");}catch(IllegalStateException expected){check(untouched.ops.isEmpty()&&!uncertain.borrowingPeers,"uncertain state leaves canonical recovery eligible");}
   System.out.println("actual Shell finish ordering checks="+checks+" passed");
  }
 }'''.replace('METHOD', method)

@@ -59,6 +59,7 @@ public class LiveLayoutRegression {
  int sideSegmentTop(int index){return layout.cellY[index-1];}
  int sideSegmentHeight(int index){return layout.cellHeight[index-1];}
  void applyRect(Slot slot){slot.applied++;}void updateTouchRegion(Slot slot){slot.touch++;}
+ void layoutSideViewport(boolean all){}
  int[] slotBounds(Slot slot){return layout.cellBounds(slot.index-1);}
  __METHOD__
  __SET_MAIN_SIDE__

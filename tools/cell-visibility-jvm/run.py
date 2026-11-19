@@ -18,10 +18,10 @@ public class CellVisibilityRegression {
  static int checks;static final int SLOT_TOP=4,CELL_SLOT_COUNT=4;boolean topFace,taskCellsCovered;Roll topRoll;
  static class Roll{boolean moving,task;boolean rolling(){return moving;}boolean showingTask(){return task;}}
  static void check(boolean b,String why){checks++;if(!b)throw new AssertionError(why);}
- float workspaceAlpha=1f;Object cellMotion;Promotion promotion;boolean owns=true;
+ float workspaceAlpha=1f;Object cellMotion;Promotion promotion;boolean owns=true,sideScrolling;
  static class Promotion{boolean nativeSwap=true,cancelled;}
  static class View{float alpha;void setAlpha(float a){alpha=a;}}
- static class Slot{int index=1;boolean occupied,parked,promoting,launching;int taskId=42;Object taskToken=new Object();View view=new View();Object controller=new SurfaceControl();}
+ static class Slot{int index=1,sideRow=-1;boolean occupied,parked,promoting,launching,sideShown,sidePrepared;int taskId=42;Object taskToken=new Object();View view=new View();Object controller=new SurfaceControl();}
  Object getSurfaceField(Object c,String f){return c;}
  boolean controllerOwns(Slot s,int id,Object token){return owns;}
  static void closeSurfaceObject(Object o,String m){if(o!=null)XposedHelpers.callMethod(o,m);}
@@ -65,10 +65,18 @@ public class CellVisibilityRegression {
   check(s.view.alpha==1&&surface.shown,"drawer close restores the same live task");
   s.index=SLOT_TOP;h.topFace=true;h.taskCellsCovered=true;h.updateCellSurfaceVisibility(s);
   check(s.view.alpha==1&&surface.shown,"independent interactive pane is not hidden by top-row controls");
+  h.taskCellsCovered=false;s.index=8;s.sideRow=5;h.updateCellSurfaceVisibility(s);
+  check(!surface.shown&&s.occupied,"offscreen list row hides the surface without clearing its task");
+  s.sideShown=true;h.updateCellSurfaceVisibility(s);
+  check(surface.shown&&s.taskId==42,"partly exposed list row shows the original task");
+  h.sideScrolling=true;s.sideShown=false;s.sidePrepared=true;h.updateCellSurfaceVisibility(s);
+  check(surface.shown&&s.taskId==42,"viewport parent clips a warm task before it appears");
+  s.sidePrepared=false;h.updateCellSurfaceVisibility(s);
+  check(!surface.shown&&s.taskId==42,"a distant row can retire its surface without losing the task");
   System.out.println("Actual Host cell visibility checks="+checks+" passed");
  }
 }
-'''.replace('__METHODS__','\n'.join(method(s) for s in ['    private boolean ownsCellPresentation(', '    private boolean cellPresentationVisible(', '    private void updateCellSurfaceVisibility(', '    private void prepareCellSurface(']))
+'''.replace('__METHODS__','\n'.join(method(s) for s in ['    private boolean presentsSlot(', '    private boolean ownsCellPresentation(', '    private boolean cellPresentationVisible(', '    private void updateCellSurfaceVisibility(', '    private void prepareCellSurface(']))
 files={
 'com/jiusis/mistep/CellVisibilityRegression.java':body,
 'android/view/SurfaceControl.java':r'''package android.view;import java.util.*;

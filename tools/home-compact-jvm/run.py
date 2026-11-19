@@ -15,6 +15,10 @@ def method(t,s):
 host=(src/'MiStepHost.java').read_text(encoding='utf-8-sig')
 parts=['    private void completeHomePromotion(', '    private void clearSlot(', '    private void compactCells()', '    private void compactCellsAfterCollection()', '    private static final class CellMovePlan', '    private void syncSlotWindowState(', '    private void onTaskIdKnown(', '    private void queueSidePromotion(', '    private void retrySidePromotion(', '    private void beginExternalPromotion(', '    private boolean externalPromotionCurrent(', '    private void afterExternalTransitionIdle(']
 methods='\n'.join(method(host,s) for s in parts)+'\n'+method(host,'    private static final class PendingSidePromotion')
+parts=['    private boolean compactScrollingSideRows()', '    private void mapSideSlots(',
+       '    private int maxSideOffset()', '    private void finishSideScroll()',
+       '    private void commitSideScrollPosition()', '    private boolean nearSideViewport(']
+methods+='\n'+'\n'.join(method(host,s) for s in parts)
 body=r"""
 package com.jiusis.mistep;
 import java.util.*;
@@ -37,7 +41,7 @@ public class HomeCompactRegression {
  static class WindowState{final int taskId;int slotIndex;boolean active=true;WindowState(int t,int s){taskId=t;slotIndex=s;}void clear(){active=false;slotIndex=-1;}}
  static class VisibilityRepair{void reset(){}}
  static class Slot implements SlotPositions.Entry {
-  int index,taskId=-1,removalCheckTask=-1,retiredTaskId=-1,taskUid,windowMode=6,modeRepairAttempts,scaleTaskId,scaleAttempts;
+  int index,sideRow=-1,taskId=-1,removalCheckTask=-1,retiredTaskId=-1,taskUid,windowMode=6,modeRepairAttempts,scaleTaskId,scaleAttempts;
   Object taskToken,scaleSurface,bufferedDown,controller;String pkg;View view=new View();int[]rect;
   boolean nativeReleasePending,closing,occupied,parked,frozen,promoting,taskVisible,launching,injecting,modeAdmissionPending,scaleOnLeash,reassertPending;
   long taskEpoch=3,modeGuardUntil=1000;float scaleApplied;WindowState windowState;
@@ -57,6 +61,27 @@ public class HomeCompactRegression {
  static class TopState {Object owner(){return null;}void release(Object key,boolean dismissed){}}
  TopState topTaskState=new TopState();Slot topOriginalSlot;
  Promotion promotion;HomeTaskReturn coveredHome;CellMovePreview cellMovePreview;boolean compactPending;Slot launchCurrentSlot;Object cellMotion;
+ final List<Slot> sideOrder=new ArrayList<>(),sideAttached=new ArrayList<>();
+ final Map<Slot,Float> sideCompactionShift=new IdentityHashMap<>();
+ boolean sideArmed,sideCaptured,sideCompacting,sideScrolling,creatingSideView;Object sideScrollAnimator;
+ float sideOffset,savedSideOffset;
+ int animatedSideRows,appendedSideRows;
+ boolean lastFullSideLayout;
+ static class Options{boolean scrollSideTasks;}
+ Options workspaceOptions=new Options();
+ static class MiStepLayout{static final int CELL_COUNT=3;}
+ static class DeviceProfile{static boolean isTablet(Object unused){return false;}}
+ static class android{static class animation{static class ValueAnimator{static boolean areAnimatorsEnabled(){return true;}}}}
+ boolean isSideMotionRunning(){return sideScrollAnimator!=null;}
+ boolean ensureSideViewport(){return true;}
+ boolean canMoveSideRows(){return true;}
+ void layoutSideViewport(boolean all){lastFullSideLayout=all;}
+ void syncSideViewportFocus(){}
+ void recycleSideVelocity(){}
+ void appendSideRow(){appendedSideRows++;}
+ void animateSideCompaction(){animatedSideRows=sideCompactionShift.size();sideCompacting=true;sideScrollAnimator=new Object();}
+ void cancelSideAnimator(){sideScrollAnimator=null;sideCompacting=false;sideCompactionShift.clear();}
+ String describeTasks(){return "";}
  static final int ACTIVE=1;int scene=ACTIVE;long sceneEpoch=1;boolean screenOn=true,keyguardLocked,transferBusy;long SIDE_PROMOTION_TIMEOUT_MS=3500;
  Object ctx=new Object();Idle transitions=new Idle();StatusBar statusBar=new StatusBar();Runnable observed;int promotionChecks,failures;
  Main main=new Main();Map<Integer,WindowState> taskWindowStates=new HashMap<>();final Object taskWindowStatesLock=new Object();
@@ -103,6 +128,42 @@ public class HomeCompactRegression {
   check(retired.retiredTaskId==oldId&&retired.taskEpoch==oldEpoch+1&&retired.pendingSidePromotion==null&&retired.windowMode==-1&&!retired.injecting&&!retired.launching,"retired callbacks and gestures invalidated");
   int layouts=root.layouts;completeHomePromotion(p);check(root.layouts==layouts,"duplicate completion cannot move owners again");
   onTaskIdKnown(retired.index,oldId);check(!retired.occupied,"late retired task callback cannot resurrect it in tail");
+ }
+ static void fixedAfterScrolling() {
+  var h=new HomeCompactRegression();
+  h.SLOT_COUNT=6;h.SLOT_TOP=5;h.slots=Arrays.copyOf(h.slots,9);
+  for(int i=4;i<h.slots.length;i++)h.slots[i]=new Slot(i);
+  Slot first=h.slots[1],second=h.slots[2],third=h.slots[3],fourth=h.slots[6],fifth=h.slots[7],top=h.slots[5];
+  fourth.occupied=fifth.occupied=true;
+  h.sideOrder.addAll(List.of(first,second,third,fourth,fifth,h.slots[8]));
+  h.sideScrolling=true;h.sideOffset=2f;h.mapSideSlots(2);
+  h.compactCells();
+  check(!h.sideScrolling&&h.sideOffset==0f&&h.slots[1]==first&&h.slots[3]==third,
+        "disabling scrolling returns to the original three fixed cells");
+  check(h.slots[6]==fourth&&h.slots[7]==fifth&&h.slots[5]==top,
+        "the extra TaskViews and the independent top cell keep their own positions");
+
+  Promotion p=new Promotion(first);h.promotion=p;
+  Object secondToken=second.taskToken,thirdSurfaceOwner=third.controller;
+  h.clearSlot(first);h.completeHomePromotion(p);
+  check(h.slots[1]==second&&h.slots[2]==third&&h.slots[3]==first&&!first.occupied,
+        "Home promotion after disabling scrolling fills the fixed gap in order");
+  check(h.slots[1].taskToken==secondToken&&h.slots[2].controller==thirdSurfaceOwner,
+        "fixed mode moves the original TaskView owners");
+  check(h.slots[6]==fourth&&h.slots[7]==fifth&&h.appendedSideRows==0,
+        "fixed compaction keeps the extra rows out of the viewport");
+  check(h.animatedSideRows==2&&h.sideCompactionShift.get(second)==1f
+        &&h.sideCompactionShift.get(third)==1f,"both surviving views take the real movement path");
+
+  int publications=h.registrations;
+  h.lastFullSideLayout=false;
+  h.finishSideScroll();
+  check(h.lastFullSideLayout&&h.registrations>publications&&!h.sideCompacting,
+        "fixed compaction completion restores fixed visibility and publishes final bindings");
+
+  h.workspaceOptions.scrollSideTasks=true;h.compactCells();
+  check(h.sideScrolling&&h.sideOffset==1f&&h.slots[1]==third&&h.slots[2]==fourth&&h.slots[3]==fifth,
+        "reopening brings back the preserved scroll position and live owners");
  }
  public static void main(String[]args){
   for(int selected=1;selected<=4;selected++){
@@ -153,6 +214,7 @@ public class HomeCompactRegression {
      "tablet independent portrait pane stays fixed and compaction settles");
   }
   for(int i=1;i<=3;i++)new HomeCompactRegression().selection(i);
+  fixedAfterScrolling();
   var h=new HomeCompactRegression();Slot gap=h.slots[1],moving=h.slots[2];h.clearSlot(gap);Object gesture=new Object();moving.bufferedDown=gesture;
   h.compactCells();check(h.compactPending&&h.slots[2]==moving&&moving.bufferedDown==gesture,"compaction waits without discarding active DOWN");
   moving.bufferedDown=null;h.compactCells();check(!h.compactPending&&h.slots[1]==moving,"pending gap fills after gesture end");

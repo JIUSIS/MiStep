@@ -13,7 +13,7 @@ def member(signature):
   elif host[i]=='}':d-=1
   i+=1
  return host[a:i]
-methods='\n'.join(member(s) for s in ['    private void beginWorkspaceEntry(', '    private void awaitWorkspaceFrame(', '    private void setWorkspaceAlpha(', '    private android.graphics.RectF workspaceMainHole(', '    private void updateWorkspaceBacking(', '    private void updateWorkspaceBackdropVisibility(', '    private void playWorkspaceFade(', '    private void suspendSession(', '    private boolean ownsCellPresentation(', '    private boolean cellPresentationVisible(', '    private void updateCellSurfaceVisibility('])
+methods='\n'.join(member(s) for s in ['    private void beginWorkspaceEntry(', '    private void awaitWorkspaceFrame(', '    private void setWorkspaceAlpha(', '    private android.graphics.RectF workspaceMainHole(', '    private void updateWorkspaceBacking(', '    private void updateWorkspaceBackdropVisibility(', '    private void playWorkspaceFade(', '    private void suspendSession(', '    private void finishPendingSuspend(', '    private boolean ownsCellPresentation(', '    private boolean cellPresentationVisible(', '    private void updateCellSurfaceVisibility('])
 files={
 'android/animation/Animator.java':'package android.animation;public class Animator {}',
 'android/animation/AnimatorListenerAdapter.java':'package android.animation;public class AnimatorListenerAdapter {public void onAnimationEnd(Animator a){}}',
@@ -48,7 +48,7 @@ public class WorkspaceRegression {
   boolean isAttachedToWindow(){return attached;}boolean isHardwareAccelerated(){return hardware;}Observer getViewTreeObserver(){return observer;}void invalidate(){invalidates++;}void draw(){Runnable r=observer.frame;observer.frame=null;if(r!=null)r.run();}}
  static class Queue {List<Runnable>q=new ArrayList<>();void post(Runnable r){q.add(r);}void postDelayed(Runnable r,long d){q.add(r);}void flush(){while(!q.isEmpty())q.remove(0).run();}}
  static class Controller {SurfaceControl surface=new SurfaceControl();Object token=new Object();}
- static class Slot {int index=1;int taskId=1;Object taskToken;boolean occupied=true,parked,promoting,launching;Controller controller=new Controller();View hint=new View(),view=new View();Slot(){taskToken=controller.token;}}
+ static class Slot {int index=1,sideRow=-1;int taskId=1;Object taskToken;boolean occupied=true,parked,promoting,launching,sidePrepared;Controller controller=new Controller();View hint=new View(),view=new View();Slot(){taskToken=controller.token;}}
  static class Bitmap {void recycle(){}}
  static class StatusBar {void restore(){}}
  static class Clipboard {void close(){}}static class MiStepClipboard {static Clipboard get(Object c){return new Clipboard();}}
@@ -56,16 +56,29 @@ public class WorkspaceRegression {
  static class Promotion {boolean nativeSwap,cancelled;}
  static final int ACTIVE=1,RESUMING=2,SUSPENDING=3,SUSPENDED=4,SLOT_COUNT=4,CELL_SLOT_COUNT=4,SLOT_MAIN=0,SLOT_TOP=4;static final long ZOOM_ANIM_MS=300;
  FrameLayout root=new FrameLayout();View topBar=new View(),tabletTools=new View(),topStripBacking=new View(),mainGapBacking=new View(),topTaskPane=new View();boolean topFace,taskCellsCovered;Roll topRoll;View[]sideBackingViews={null,new View(),new View(),new View()};Slot[]slots={new Slot(),new Slot(),new Slot(),new Slot()};
+ boolean sideArmed,sideCaptured,sideScrolling;Object sideScrollAnimator;
+ boolean isSideMotionRunning(){return sideScrollAnimator!=null;}
+ void finishSideScroll(){sideCaptured=false;sideScrollAnimator=null;}
+ final List<Slot> sideOrder=new ArrayList<>();
+ int sideLayouts;
+ void layoutSideViewport(boolean all){
+  check(all&&zoomWrites==0,"restore the real side viewport before starting the zoom");
+  sideLayouts++;
+ }
+ boolean presentsSlot(Slot s){return true;}
  static class Roll{boolean rolling(){return false;}boolean showingTask(){return false;}}
  static class CellMotion{void finish(){}}
  Queue main=new Queue();Object ctx=new Object();CellMotion cellMotion;StatusBar statusBar=new StatusBar();Promotion promotion;Bitmap mainBackdrop,wallpaperBackdrop=new Bitmap();
-  boolean screenOn=true,zoomed=true,suspendRequested,landscapeSuspended,transferBusy,workspaceEntering,keyguardLocked;int scene=ACTIVE,zoomWrites,parks,returns,ready;long sceneEpoch=1,workspaceGeneration,zoomAnimUntil;
+  boolean screenOn=true,zoomed=true,suspendRequested,landscapeSuspended,transferBusy,workspaceEntering,keyguardLocked;int scene=ACTIVE,zoomWrites,parks,returns,ready;long sceneEpoch=1,workspaceGeneration,zoomAnimUntil;String pendingSuspendReason;
  static class Layout {boolean tabletLandscape;float mainScale=.7017717f;int mainOffsetX,mainOffsetY=606;}
  Layout layout=new Layout();int screenW=3048,screenH=2032;long workspaceZoomStart=10032;
  Object workspaceBackdrop;int backdropAcquires;void prepareWorkspaceBackdrop(long g,int attempt,Runnable ready){backdropAcquires++;ready.run();}
  android.animation.ValueAnimator workspaceAnimator;float workspaceAlpha=1f;
  void writeZoomAnimated(boolean on){zoomWrites++;}void writeZoom(boolean on){zoomWrites++;}void setZoomState(boolean on){zoomed=on;}void scheduleMainCropClear(long d){}void publishDesktopSideTasks(){}
  void resetTopForSuspend(){}
+ boolean retentionAllowed,retainedOnExit;long retainedExitSourceEpoch=-1;int retainedHides;
+ boolean canRetainBoundTasks(){return retentionAllowed;}
+ void finishRetainedSuspend(long epoch){retainedHides++;}
  void closeSwapPreview(){}void closeCellMovePreview(){}void restoreCarrierToMain(){}void hideIme(){}void log(String s){}void failPromotion(Promotion p,String s){}
  void returnUnboundOwnedCandidates(long epoch,Runnable r){returns++;r.run();}void parkNext(int i){parks++;}
  Object getSurfaceField(Object o,String n){return o==null?null:((Controller)o).surface;}
@@ -73,6 +86,17 @@ public class WorkspaceRegression {
  void closeSurfaceObject(Object t,String n){if(t!=null)((SurfaceControl.Transaction)t).close();}
  __METHODS__
  public static void main(String[]args){
+  var kept=new WorkspaceRegression();kept.retentionAllowed=true;kept.suspendSession("exit");
+  check(kept.retainedHides==0&&kept.returns==0,"retained task hiding waits for real exit fade");
+  kept.workspaceAnimator.end();check(kept.retainedHides==1&&kept.returns==0&&kept.parks==0,"normal exit retains bindings without native handback");
+  kept=new WorkspaceRegression();kept.retentionAllowed=true;kept.suspendSession("homekey");kept.workspaceAnimator.end();
+  check(kept.retainedHides==1&&kept.returns==0,"ordinary Home exit retains live binding");
+  kept=new WorkspaceRegression();kept.retentionAllowed=true;kept.suspendSession("screen-lock");kept.workspaceAnimator.end();
+  check(kept.retainedHides==0&&kept.returns==1,"screen lock keeps its separate lifecycle");
+  kept=new WorkspaceRegression();kept.retentionAllowed=true;kept.slots[1].launching=true;kept.suspendSession("exit");
+  check(kept.suspendRequested&&"exit".equals(kept.pendingSuspendReason),"exit reason survives an in-flight app collection");
+  kept.slots[1].launching=false;kept.finishPendingSuspend();kept.workspaceAnimator.end();
+  check(kept.retainedHides==1&&kept.returns==0,"settled collection exits into retained live bindings");
   var h=new WorkspaceRegression();h.beginWorkspaceEntry(()->h.ready++);
   check(h.backdropAcquires==0,"native backdrop acquisition must wait for the first committed Host frame");
   check(h.workspaceAlpha==0&&h.topBar.alpha==0&&h.mainGapBacking.alpha==0&&h.slots[1].controller.surface.alpha==0,"entry hides controls, gap background and actual task parents before first buffer");
@@ -103,6 +127,10 @@ public class WorkspaceRegression {
   check(h.slots[1].controller.surface.alpha==.37f,"workspace fade respects Shell presentation ownership during handoff");
   h=new WorkspaceRegression();h.taskCellsCovered=true;h.setWorkspaceAlpha(.8f);
   check(h.slots[1].controller.surface.alpha==0&&h.slots[1].hint.alpha==0,"workspace callback cannot expose covered cells or plus hints");
+  h=new WorkspaceRegression();h.scene=RESUMING;h.sideOrder.add(h.slots[1]);h.beginWorkspaceEntry(null);
+  check(h.sideLayouts==0,"wait for the newly visible Host surface");
+  h.root.draw();h.main.flush();
+  check(h.sideLayouts==1&&h.zoomWrites==1,"retained entry reconnects its viewport before zoom");
   h=new WorkspaceRegression();h.scene=RESUMING;h.beginWorkspaceEntry(null);h.suspendSession("exit-before-first-frame");
   check(h.scene==SUSPENDING&&!h.workspaceEntering,"exit during pending resume frame cannot strand RESUMING");h.root.draw();h.main.flush();check(h.zoomWrites==1,"late entry frame cannot restart zoom after exit");h.workspaceAnimator.end();check(h.parks==1,"pending-entry exit returns tasks");
   h=new WorkspaceRegression();h.scene=RESUMING;h.beginWorkspaceEntry(null);h.screenOn=false;h.suspendSession("screen-lock");

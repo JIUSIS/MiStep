@@ -3,17 +3,14 @@ package com.jiusis.mistep;
 import android.animation.ValueAnimator;
 import android.content.Context;
 import android.graphics.Canvas;
-import android.graphics.LinearGradient;
-import android.graphics.Paint;
 import android.graphics.Path;
-import android.graphics.RadialGradient;
 import android.graphics.RectF;
-import android.graphics.Shader;
-import android.graphics.drawable.Drawable;
 import android.view.MotionEvent;
+import android.view.VelocityTracker;
 import android.view.View;
 import android.view.ViewConfiguration;
 import android.view.animation.DecelerateInterpolator;
+import android.widget.OverScroller;
 import java.util.Collections;
 import java.util.List;
 
@@ -22,29 +19,23 @@ final class QuickAppRail extends View {
     private int activeIndex;
     private List<QuickApp> apps;
     private final RectF bounds;
-    private final RectF bubble;
-    private final Paint bubblePaint;
-    private final Paint bubbleStroke;
     private final Path clip;
     private boolean down;
     private float downX;
     private float downY;
-    private float energy;
-    private ValueAnimator energyAnimator;
-    private final Paint fadePaint;
-    private final Paint haloPaint;
     private final float iconSize;
-    private final Paint iconTint;
-    private ValueAnimator lensAnimator;
-    private float lensX;
     private final Listener listener;
     private final Runnable longPress;
     private final float padding;
-    private float pressX;
-    private float pressY;
     private float scrollOffset;
-    private float scrollStart;
+    private final OverScroller scroller;
+    private final int minimumVelocity;
+    private final int maximumVelocity;
+    private VelocityTracker velocity;
+    private float lastX;
     private boolean scrolling;
+    private boolean moved;
+    private boolean vertical;
     private boolean editing;
     private final float tileWidth;
     private final float touchSlop;
@@ -63,12 +54,6 @@ final class QuickAppRail extends View {
 
     QuickAppRail(Context context, List<QuickApp> list, Listener listener) {
         super(context);
-        this.iconTint = new Paint(1);
-        this.bubblePaint = new Paint(1);
-        this.bubbleStroke = new Paint(1);
-        this.haloPaint = new Paint(1);
-        this.fadePaint = new Paint(1);
-        this.bubble = new RectF();
         this.clip = new Path();
         this.bounds = new RectF();
         this.longPress = new Runnable() { // from class: com.jiusis.mistep.QuickAppRail.2
@@ -77,7 +62,6 @@ final class QuickAppRail extends View {
                 QuickAppRail.this.openAppPicker();
             }
         };
-        this.lensX = -1.0f;
         this.activeIndex = -1;
         this.apps = list == null ? Collections.emptyList() : Collections.unmodifiableList(new java.util.ArrayList<>(list));
         this.listener = listener;
@@ -85,13 +69,11 @@ final class QuickAppRail extends View {
         this.tileWidth = 48.0f * f;
         this.padding = 10.0f * f;
         this.iconSize = 31.0f * f;
-        this.touchSlop = ViewConfiguration.get(context).getScaledTouchSlop();
-        this.bubblePaint.setStyle(Paint.Style.FILL);
-        this.bubbleStroke.setStyle(Paint.Style.STROKE);
-        this.bubbleStroke.setColor(1694498815);
-        this.bubbleStroke.setStrokeWidth(Math.max(1.0f, 0.9f * f));
-        this.iconTint.setFilterBitmap(true);
-        this.fadePaint.setStyle(Paint.Style.FILL);
+        ViewConfiguration config = ViewConfiguration.get(context);
+        this.touchSlop = config.getScaledTouchSlop();
+        this.minimumVelocity = config.getScaledMinimumFlingVelocity();
+        this.maximumVelocity = config.getScaledMaximumFlingVelocity();
+        this.scroller = new OverScroller(context);
         setLayerType(2, null);
         setBackground(null);
         setForeground(null);
@@ -124,7 +106,11 @@ final class QuickAppRail extends View {
         stackDirection = step;
         selectedIndex = target;
         activeIndex = -1;
-        lensX = tileCenter(target);
+        scroller.forceFinished(true);
+        float left = tileCenter(target) - tileWidth * .5f;
+        if (left < scrollOffset) setOffset(left);
+        else if (left + tileWidth > scrollOffset + getWidth())
+            setOffset(left + tileWidth - getWidth());
         stackProgress = 0f;
         stackAnimator = ValueAnimator.ofFloat(0f, 1f);
         stackAnimator.setDuration(230L);
@@ -154,8 +140,8 @@ final class QuickAppRail extends View {
                 : Collections.unmodifiableList(new java.util.ArrayList<>(next));
         selectedIndex = stackFromIndex = stackToIndex = -1;
         stackProgress = 1f;
-        scrollOffset = scrollStart = 0f;
-        lensX = -1f;
+        scroller.forceFinished(true);
+        scrollOffset = 0f;
         invalidate();
     }
 
@@ -171,7 +157,10 @@ final class QuickAppRail extends View {
         canvas.translate(-this.scrollOffset, 0.0f);
         float iconY = getHeight() * 0.5f;
         boolean stacking = stackProgress < 1f && stackFromIndex >= 0 && stackToIndex >= 0;
-        for (int i = 0; i < apps.size(); i++) {
+        int first = Math.max(0, (int) Math.floor((scrollOffset - padding) / tileWidth) - 1);
+        int end = Math.min(apps.size(),
+                (int) Math.ceil((scrollOffset + getWidth() - padding) / tileWidth) + 1);
+        for (int i = first; i < end; i++) {
             if (!stacking || (i != stackFromIndex && i != stackToIndex)) {
                 float scale = i == this.activeIndex && this.down && !this.editing
                         ? 1.18f : 1.0f;
@@ -193,104 +182,103 @@ final class QuickAppRail extends View {
         canvas.restoreToCount(iSave);
     }
 
-    private void drawActiveHalo(Canvas canvas) {
-        int index = this.activeIndex >= 0 ? this.activeIndex : this.selectedIndex;
-        if (index < 0 || index >= this.apps.size()) {
-            return;
-        }
-        float fTileCenter = this.lensX >= 0.0f ? this.lensX : tileCenter(index);
-        float height = getHeight() * 0.5f;
-        float f = getResources().getDisplayMetrics().density * 27.0f;
-        this.haloPaint.setShader(new RadialGradient(fTileCenter, height, f, new int[]{1392508927, 536870911, 16777215}, new float[]{0.0f, 0.62f, 1.0f}, Shader.TileMode.CLAMP));
-        canvas.drawCircle(fTileCenter, height, f, this.haloPaint);
-        float f2 = 0.92f * f;
-        this.bubble.set(fTileCenter - (this.tileWidth * 0.45f), height - f2, fTileCenter + (this.tileWidth * 0.45f), height + f2);
-        this.bubblePaint.setShader(new LinearGradient(this.bubble.left, this.bubble.top, this.bubble.right, this.bubble.bottom, new int[]{1124073471, 419430399, 685237226}, (float[]) null, Shader.TileMode.CLAMP));
-        float f3 = f * 0.58f;
-        canvas.drawRoundRect(this.bubble, f3, f3, this.bubblePaint);
-        this.bubblePaint.setShader(null);
-        canvas.drawRoundRect(this.bubble, f3, f3, this.bubbleStroke);
-    }
-
-    private void drawEdgeFades(Canvas canvas) {
-        Canvas canvas2;
-        float f = getResources().getDisplayMetrics().density * 9.0f;
-        if (this.scrollOffset <= 0.5f) {
-            canvas2 = canvas;
-        } else {
-            this.fadePaint.setShader(new LinearGradient(0.0f, 0.0f, f, 0.0f, 922746879, 16777215, Shader.TileMode.CLAMP));
-            canvas2 = canvas;
-            canvas2.drawRect(0.0f, 0.0f, f, getHeight(), this.fadePaint);
-        }
-        if (this.scrollOffset < maxScroll() - 0.5f) {
-            this.fadePaint.setShader(new LinearGradient(getWidth() - f, 0.0f, getWidth(), 0.0f, 16777215, 721420287, Shader.TileMode.CLAMP));
-            canvas2.drawRect(getWidth() - f, 0.0f, getWidth(), getHeight(), this.fadePaint);
-        }
-        this.fadePaint.setShader(null);
-    }
-
-    @Override // android.view.View
-    public boolean onTouchEvent(MotionEvent motionEvent) {
-        switch (motionEvent.getActionMasked()) {
-            case 0:
+    @Override public boolean onTouchEvent(MotionEvent event) {
+        switch (event.getActionMasked()) {
+            case MotionEvent.ACTION_DOWN:
+                resetTouch();
                 if (stackAnimator != null && stackAnimator.isRunning()) {
                     stackGeneration++;
                     stackAnimator.cancel();
                     stackProgress = 1f;
                     stackFromIndex = stackToIndex = -1;
                 }
-                this.down = true;
-                this.editing = false;
-                this.scrolling = false;
-                this.downX = motionEvent.getX();
-                this.downY = motionEvent.getY();
-                this.scrollStart = this.scrollOffset;
-                this.activeIndex = indexAt(this.downX);
-                this.lensX = this.activeIndex >= 0 ? tileCenter(this.activeIndex) : -1.0f;
-                this.pressX = this.downX;
-                this.pressY = this.downY;
-                animateEnergy(1.0f, 100L);
-                removeCallbacks(this.longPress);
-                if (this.activeIndex >= 0) postDelayed(this.longPress, ViewConfiguration.getLongPressTimeout());
+                // A tap can stop a moving row without opening the icon below it.
+                moved = !scroller.isFinished();
+                scroller.forceFinished(true);
+                down = true;
+                downX = lastX = event.getX();
+                downY = event.getY();
+                velocity = VelocityTracker.obtain();
+                velocity.addMovement(event);
+                if (!moved) {
+                    activeIndex = indexAt(downX);
+                    if (activeIndex >= 0) postDelayed(longPress, ViewConfiguration.getLongPressTimeout());
+                }
                 invalidate();
-                break;
-            case 1:
-                removeCallbacks(this.longPress);
-                if (!this.down) break;
-                float x = motionEvent.getX() - this.downX;
-                float y = motionEvent.getY() - this.downY;
-                if (!this.editing && !this.scrolling && Math.abs(x) < this.touchSlop && Math.abs(y) < this.touchSlop) {
-                    this.activeIndex = indexAt(motionEvent.getX());
-                    this.lensX = this.activeIndex >= 0 ? tileCenter(this.activeIndex) : -1.0f;
-                    launchActive();
+                return true;
+            case MotionEvent.ACTION_MOVE:
+                if (!down || editing) return true;
+                velocity.addMovement(event);
+                followFinger(event.getX(), event.getY());
+                return true;
+            case MotionEvent.ACTION_UP:
+                if (down && !editing) {
+                    velocity.addMovement(event);
+                    followFinger(event.getX(), event.getY());
+                    if (scrolling) {
+                        velocity.computeCurrentVelocity(1000, maximumVelocity);
+                        float speed = -velocity.getXVelocity(event.getPointerId(0));
+                        if (Math.abs(speed) >= minimumVelocity) {
+                            scroller.fling(Math.round(scrollOffset), 0, Math.round(speed), 0,
+                                    0, Math.round(maxScroll()), 0, 0);
+                            postInvalidateOnAnimation();
+                        }
+                    } else if (!moved && indexAt(event.getX()) == activeIndex) {
+                        launchActive();
+                    }
                 }
                 resetTouch();
-                break;
-            case 2:
-                if (!this.down || this.editing) break;
-                this.pressX = motionEvent.getX();
-                this.pressY = motionEvent.getY();
-                float x2 = motionEvent.getX() - this.downX;
-                float y2 = motionEvent.getY() - this.downY;
-                if (Math.abs(x2) > this.touchSlop || Math.abs(y2) > this.touchSlop) {
-                    removeCallbacks(this.longPress);
-                    if (!this.scrolling) {
-                        this.scrolling = true;
-                        this.activeIndex = -1;
-                    }
-                    if (Math.abs(x2) >= Math.abs(y2)) {
-                        this.scrollOffset = clamp(this.scrollStart - x2, 0.0f, maxScroll());
-                    }
-                }
-                invalidate();
-                break;
-            case MiStepLayout.CELL_COUNT /* 3 */:
+                return true;
+            case MotionEvent.ACTION_CANCEL:
             case MotionEvent.ACTION_POINTER_DOWN:
-                removeCallbacks(this.longPress);
                 resetTouch();
-                break;
+                return true;
+            default:
+                return true;
         }
-        return true;
+    }
+
+    private void followFinger(float x, float y) {
+        float dx = x - downX, dy = y - downY;
+        if (!scrolling && Math.max(Math.abs(dx), Math.abs(dy)) > touchSlop && activeIndex >= 0) {
+            removeCallbacks(longPress);
+            activeIndex = -1;
+            invalidate();
+        }
+        if (!scrolling && !vertical && Math.max(Math.abs(dx), Math.abs(dy)) > touchSlop) {
+            moved = true;
+            if (maxScroll() > 0f && Math.abs(dx) > Math.abs(dy)) {
+                scrolling = true;
+                lastX = downX + Math.copySign(touchSlop, dx);
+                if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(true);
+            } else {
+                vertical = true;
+            }
+        }
+        if (scrolling) {
+            setOffset(scrollOffset + lastX - x);
+            lastX = x;
+        }
+    }
+
+    private void setOffset(float value) {
+        float next = clamp(value, 0f, maxScroll());
+        if (next == scrollOffset) return;
+        scrollOffset = next;
+        invalidate();
+    }
+
+    @Override public void computeScroll() {
+        if (scroller.computeScrollOffset()) {
+            setOffset(scroller.getCurrX());
+            postInvalidateOnAnimation();
+        }
+    }
+
+    @Override protected void onSizeChanged(int w, int h, int oldW, int oldH) {
+        super.onSizeChanged(w, h, oldW, oldH);
+        if (w != oldW) scroller.forceFinished(true);
+        setOffset(scrollOffset);
     }
 
     /* JADX INFO: Access modifiers changed from: private */
@@ -305,7 +293,6 @@ final class QuickAppRail extends View {
     private void launchActive() {
         if (this.activeIndex >= 0 && this.activeIndex < this.apps.size() && this.listener != null) {
             this.selectedIndex = this.activeIndex;
-            this.lensX = tileCenter(this.selectedIndex);
             this.listener.onLaunch(this.apps.get(this.activeIndex));
         }
     }
@@ -326,60 +313,14 @@ final class QuickAppRail extends View {
     }
 
     private void resetTouch() {
-        if (this.lensAnimator != null) {
-            this.lensAnimator.cancel();
-            this.lensAnimator = null;
+        removeCallbacks(longPress);
+        if (scrolling && getParent() != null) getParent().requestDisallowInterceptTouchEvent(false);
+        if (velocity != null) {
+            velocity.recycle();
+            velocity = null;
         }
-        this.down = false;
-        this.editing = false;
-        this.scrolling = false;
-        this.activeIndex = -1;
-        this.lensX = -1.0f;
-        animateEnergy(0.0f, 220L);
-        invalidate();
-    }
-
-    private void moveLensTo(float f) {
-        if (this.lensAnimator != null) {
-            this.lensAnimator.cancel();
-        }
-        this.lensAnimator = ValueAnimator.ofFloat(this.lensX < 0.0f ? f : this.lensX, f);
-        this.lensAnimator.setDuration(110L);
-        this.lensAnimator.setInterpolator(new DecelerateInterpolator(1.6f));
-        this.lensAnimator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() { // from class: com.jiusis.mistep.QuickAppRail.0
-            @Override // android.animation.ValueAnimator.AnimatorUpdateListener
-            public final void onAnimationUpdate(ValueAnimator valueAnimator) {
-                QuickAppRail.this.lambda$moveLensTo$0(valueAnimator);
-            }
-        });
-        this.lensAnimator.start();
-    }
-
-    /* JADX INFO: Access modifiers changed from: private */
-    public /* synthetic */ void lambda$moveLensTo$0(ValueAnimator valueAnimator) {
-        this.lensX = ((Float) valueAnimator.getAnimatedValue()).floatValue();
-        invalidate();
-    }
-
-    private void animateEnergy(float f, long j) {
-        if (this.energyAnimator != null) {
-            this.energyAnimator.cancel();
-        }
-        this.energyAnimator = ValueAnimator.ofFloat(this.energy, f);
-        this.energyAnimator.setDuration(j);
-        this.energyAnimator.setInterpolator(new DecelerateInterpolator());
-        this.energyAnimator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() { // from class: com.jiusis.mistep.QuickAppRail.3
-            @Override // android.animation.ValueAnimator.AnimatorUpdateListener
-            public final void onAnimationUpdate(ValueAnimator valueAnimator) {
-                QuickAppRail.this.lambda$animateEnergy$1(valueAnimator);
-            }
-        });
-        this.energyAnimator.start();
-    }
-
-    /* JADX INFO: Access modifiers changed from: private */
-    public /* synthetic */ void lambda$animateEnergy$1(ValueAnimator valueAnimator) {
-        this.energy = ((Float) valueAnimator.getAnimatedValue()).floatValue();
+        down = editing = scrolling = moved = vertical = false;
+        activeIndex = -1;
         invalidate();
     }
 
@@ -396,7 +337,7 @@ final class QuickAppRail extends View {
         ++stackGeneration;
         if (stackAnimator != null) stackAnimator.cancel();
         resetTouch();
-        if (energyAnimator != null) energyAnimator.cancel();
+        scroller.forceFinished(true);
         super.onDetachedFromWindow();
     }
 

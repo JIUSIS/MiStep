@@ -401,6 +401,35 @@ final class ShellCompat {
         throw new IllegalStateException("Native constructor unavailable: " + type.getName());
     }
 
+    static void applySynchronized(Object taskViews, Object controller, Object wct,
+            java.util.function.Consumer<Object> onReady) throws ClassNotFoundException {
+        Object transitions = XposedHelpers.getObjectField(taskViews, "mTransitions");
+        Object executor = XposedHelpers.getObjectField(transitions, "mMainExecutor");
+        Object pool;
+        try {
+            pool = XposedHelpers.getObjectField(transitions, "mTransactionPool");
+        } catch (NoSuchFieldError absent) {
+            Object taskViewQueue = XposedHelpers.getObjectField(controller, "mSyncQueue");
+            pool = XposedHelpers.getObjectField(taskViewQueue, "mTransactionPool");
+        }
+        ClassLoader loader = transitions.getClass().getClassLoader();
+        String queueName = "com.android.wm.shell.common.SyncTransactionQueue";
+        Object queue = construct(Class.forName(queueName, false, loader), pool, executor);
+        Class<?> runnableType = Class.forName(queueName + "$TransactionRunnable", false, loader);
+        Object callback = java.lang.reflect.Proxy.newProxyInstance(loader, new Class<?>[]{runnableType},
+                (proxy, operation, args) -> {
+                    if ("runWithTransaction".equals(operation.getName())) onReady.accept(args[0]);
+                    return null;
+                });
+        Method submit = method(queue, "queue", new Object[]{wct});
+        Method register = method(queue, "runInSync", new Object[]{callback});
+        if (submit == null || register == null)
+            throw new IllegalStateException("Native window draw sync unavailable");
+        // This queue holds only this WCT. The same Shell executor delivers its callback.
+        invoke(submit, queue, new Object[]{wct});
+        invoke(register, queue, new Object[]{callback});
+    }
+
     static void createTaskView(Object factory, Object context, java.util.concurrent.Executor callback,
             java.util.function.Consumer<Object> consumer) {
         Method nativeMethod = method(factory, "create", new Object[]{context, callback, consumer});

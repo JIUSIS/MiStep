@@ -17,6 +17,9 @@ if ($LASTEXITCODE -ne 0) { throw 'Rotation bridge test compilation failed.' }
     com.jiusis.mistep.TaskRotationBridgeTest
 if ($LASTEXITCODE -ne 0) { throw 'Rotation bridge regression failed.' }
 & (Join-Path $jdk 'java.exe') -cp "$out;$classes;$android;$xposed" `
+    com.jiusis.mistep.TaskRotationLifecycleTest
+if ($LASTEXITCODE -ne 0) { throw 'Task rotation lifecycle regression failed.' }
+& (Join-Path $jdk 'java.exe') -cp "$out;$classes;$android;$xposed" `
     com.jiusis.mistep.NativeFreeformLayerBridgeTest
 if ($LASTEXITCODE -ne 0) { throw 'Native freeform layer bridge regression failed.' }
 & (Join-Path $jdk 'java.exe') -cp "$out;$classes;$android;$xposed" `

@@ -71,7 +71,35 @@ final class MiStepLiveHomeTask {
                     caption, 0, android.view.WindowInsets.Type.captionBar());
         }
         set(wct, "reorder", true);
+        retainSideRoots(wct);
         return wct;
+    }
+
+    /** Keep other visible TaskViews above the fullscreen root in the role change itself. */
+    private void retainSideRoots(Object wct) {
+        synchronized (lock) {
+            for (LiveTaskSwapDriver.SideRoot side : request.sideRoots) {
+                if (side.id == request.app.id || side.id == request.homeId
+                        || side.token.equals(request.app.token) || side.token.equals(request.homeToken)) continue;
+                Object entry = XposedHelpers.callMethod(
+                        XposedHelpers.getObjectField(organizer, "mTasks"), "get", side.id);
+                if (entry == null) continue;
+                Object task = XposedHelpers.callMethod(entry, "getTaskInfo");
+                if (XposedHelpers.getIntField(task, "taskId") != side.id
+                        || !side.token.equals(XposedHelpers.getObjectField(task, "token"))
+                        || XposedHelpers.getIntField(task, "displayId") != 0
+                        || side.userId != XposedHelpers.getIntField(task, "userId")
+                        || !Integer.valueOf(6).equals(XposedHelpers.callMethod(task, "getWindowingMode"))
+                        || !Integer.valueOf(1).equals(XposedHelpers.callMethod(task, "getActivityType"))
+                        || Boolean.TRUE.equals(XposedHelpers.callMethod(task, "hasParentTask"))
+                        || owner(task) != side.controller
+                        || !side.token.equals(XposedHelpers.getObjectField(side.controller, "mTaskToken"))) continue;
+                ShellCompat.transaction(organizer, wct, "setHidden", side.token, false);
+                ShellCompat.transaction(organizer, wct, "setForceTranslucent", side.token, true);
+                ShellCompat.transaction(organizer, wct, "setAlwaysOnTop", side.token, true);
+                ShellCompat.transaction(organizer, wct, "reorder", side.token, true);
+            }
+        }
     }
     Object resolve(Object transition) {
         synchronized (lock) {

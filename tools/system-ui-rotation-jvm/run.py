@@ -13,12 +13,19 @@ test=OUT/'com/jiusis/mistep/SystemUiRotationRegression.java';test.parent.mkdir(p
 test.write_text(r'''package com.jiusis.mistep;
 public class SystemUiRotationRegression {
  static int checks;static void check(boolean v,String why){checks++;if(!v)throw new AssertionError(why);}
- static class State {Object mRotatedOverrideConfiguration=new Object();}
+ static class State {
+  Object mRotatedOverrideConfiguration=new Config();
+  State(){}
+  State(int rotation){mRotatedOverrideConfiguration=new Config(rotation);}
+ }
+ static class Config {Object windowConfiguration;Config(){this(1);}Config(int rotation){windowConfiguration=new WindowConfig(rotation);}}
+ static class WindowConfig {int rotation;WindowConfig(int r){rotation=r;}public int getDisplayRotation(){return rotation;}}
  public static class Node {
-  Object display,mFixedRotationTransformState,mLastMagnificationSpec;Node parent;Controller mTransitionController=new Controller();
+  Object display,mFixedRotationTransformState,mLastMagnificationSpec;Node parent;Task task;Controller mTransitionController=new Controller();
   public int applies,finishes,leashes,zooms;boolean home,multi;Object info=new Object(),frames=new Object();
   public Node(Object d,Node p){display=d;parent=p;}
   public Node getParent(){return parent;}public Object getDisplayContent(){return display;}
+  public Task getTask(){return task;}
   public boolean isActivityTypeHome(){return home;}public boolean inMultiWindowMode(){return multi;}
   public Object getFixedRotationTransformDisplayInfo(){return info;}
   public Object getFixedRotationTransformDisplayFrames(){return frames;}
@@ -29,12 +36,16 @@ public class SystemUiRotationRegression {
   public void applyMagnificationSpec(Object t,Object s){zooms++;mLastMagnificationSpec=s;}
  }
  static class Controller {boolean shell;public boolean useShellTransitionsRotation(){return shell;}}
- static class Display {Window target;public Window getImeInputTarget(){return target;}}
- static class Task {int mode=1;public int getWindowingMode(){return mode;}}
+ static class Display {Window target,mCurrentFocus;Node mFocusedApp;int nativeStarts,lastRotation;
+  public Window getImeInputTarget(){return target;}
+  public void startFixedRotationTransform(Object token,int rotation){nativeStarts++;lastRotation=rotation;((Node)token).applyFixedRotationTransform(new Object(),new Object(),new State(rotation));}
+ }
+ static class Task {int mode=1;boolean translucent;android.graphics.Rect bounds=new android.graphics.Rect(0,0,1080,2400);
+  public int getWindowingMode(){return mode;}public boolean isForceTranslucent(){return translucent;}public android.graphics.Rect getBounds(){return bounds;}}
  static class Attrs {int type;String packageName,title;Attrs(int t,String p,String n){type=t;packageName=p;title=n;}public CharSequence getTitle(){return title;}}
  static class Window {
-  Attrs mAttrs;Node mToken;Task task=new Task();boolean mIsImWindow;Window mParentWindow;
-  Window(Node n,int t,String p,String title){mToken=n;mAttrs=new Attrs(t,p,title);}
+  Attrs mAttrs;Node mToken;Task task=new Task();Object mActivityRecord;boolean mIsImWindow;Window mParentWindow;
+  Window(Node n,int t,String p,String title){mToken=n;mAttrs=new Attrs(t,p,title);mIsImWindow=t==2011||t==2012;}
   public Object getDisplayContent(){return mToken.display;}public Window getWindowState(){return this;}public Task getTask(){return task;}
  }
  static Window window(Display d,int type,String pkg,String title){return new Window(new Node(d,new Node(d,null)),type,pkg,title);}
@@ -94,11 +105,79 @@ public class SystemUiRotationRegression {
   check(!MiStepSystemUiRotation.magnifyPrivacy(privacy,d,null,tx),"inactive zoom admitted");
   check(!MiStepSystemUiRotation.privacyWindow(2017,"foreign","FlaresView"),"title spoof admitted");
   check(!MiStepSystemUiRotation.privacyWindow(2038,"com.android.systemui","FlaresView"),"wrong type admitted");
+
+  MiStepSystemUiRotation phoneImeOwner=new MiStepSystemUiRotation();
+  Node appToken=new Node(d,new Node(d,null));appToken.mFixedRotationTransformState=new State(1);
+  Window appWindow=new Window(appToken,1,"app","editor");appWindow.mActivityRecord=appToken;
+  appToken.task=appWindow.task;appWindow.task.mode=1;d.target=appWindow;d.mFocusedApp=appToken;
+  Window phoneIme=window(d,2011,"keyboard.vendor","InputMethod");d.mCurrentFocus=phoneIme;
+  check(MiStepImePolicy.isTopAppFocused(appWindow.task,d),"main fake focus/task identity invalid");
+  java.util.function.Predicate<Object> exactActivity=value->value==appToken;
+  java.util.function.Predicate<Object> exactTop=value->false;
+  check(phoneImeOwner.updatePhoneIme(phoneIme,d,exactActivity,exactTop,s->{})==appToken,
+      "focused main activity did not own phone IME rotation");
+  check(d.nativeStarts==1&&d.lastRotation==1&&phoneIme.mToken.mFixedRotationTransformState!=appToken.mFixedRotationTransformState,
+      "main IME did not use independent full-display native fixed rotation");
+  check(((State)phoneIme.mToken.mFixedRotationTransformState).mRotatedOverrideConfiguration
+      instanceof Config,"main IME native rotation did not install an independent configuration");
+  phoneImeOwner.updatePhoneIme(phoneIme,d,exactActivity,exactTop,s->{});
+  check(d.nativeStarts==1,"stable phone IME lease restarted");
+
+  Node topToken=new Node(d,new Node(d,null));topToken.mFixedRotationTransformState=new State(3);
+  Window topEditor=new Window(topToken,1,"app","top-editor");topEditor.mActivityRecord=topToken;
+  topToken.task=topEditor.task;topEditor.task.mode=6;topEditor.task.translucent=true;topEditor.task.bounds=new android.graphics.Rect(0,0,2400,1080);
+  d.target=topEditor;d.mFocusedApp=topToken;d.mCurrentFocus=topEditor;
+  java.util.function.Predicate<Object> exactTopWindow=value->value==topEditor;
+  check(phoneImeOwner.updatePhoneIme(phoneIme,d,value->value==topToken,exactTopWindow,s->{})==topToken,
+      "exact focused TOP activity did not own phone IME rotation");
+  check(d.nativeStarts==2&&d.lastRotation==3&&phoneIme.mToken.finishes==1,
+      "TOP handoff failed to replace only the prior IME lease with native rotation");
+  check(phoneImeOwner.updatePhoneIme(phoneIme,d,value->value==topToken,exactTopWindow,s->{})==topToken
+      &&d.nativeStarts==2,"stable TOP lease restarted");
+  d.target=appWindow;d.mFocusedApp=appToken;d.mCurrentFocus=appWindow;
+  check(phoneImeOwner.updatePhoneIme(phoneIme,d,exactActivity,exactTop,s->{})==appToken
+      &&d.nativeStarts==3&&phoneIme.mToken.finishes==2,
+      "TOP-to-main focus transition did not restore and reconfigure the IME");
+  int beforeReject=d.nativeStarts;
+  d.target=topEditor;d.mFocusedApp=topToken;d.mCurrentFocus=topEditor;
+  check(phoneImeOwner.updatePhoneIme(phoneIme,d,value->value==topToken,value->false,s->{})==null
+      &&d.nativeStarts==beforeReject&&phoneIme.mToken.finishes==3,
+      "unleased TOP focus did not release its previous IME transform");
+  check(phoneImeOwner.updatePhoneIme(phoneIme,d,value->value==topToken,exactTopWindow,s->{})==topToken
+      &&d.nativeStarts==beforeReject+1,"exact TOP lease did not recover");
+  topEditor.task.mode=5;
+  check(phoneImeOwner.updatePhoneIme(phoneIme,d,value->value==topToken,exactTopWindow,s->{})==null
+      &&phoneIme.mToken.mFixedRotationTransformState==null,
+      "OEM freeform focus incorrectly retained the TOP IME transform");
+  topEditor.task.mode=6;
+  check(phoneImeOwner.updatePhoneIme(phoneIme,d,value->value==topToken,exactTopWindow,s->{})==topToken,
+      "TOP IME did not recover after OEM freeform ended");
+  topToken.mFixedRotationTransformState=null;
+  int startsWithoutOwner=d.nativeStarts;
+  check(phoneImeOwner.updatePhoneIme(phoneIme,d,value->value==topToken,exactTopWindow,s->{})==null
+      &&phoneIme.mToken.mFixedRotationTransformState==null&&d.nativeStarts==startsWithoutOwner,
+      "TOP without its native fixed-rotation lease retained a stale IME transform");
+  topToken.mFixedRotationTransformState=new State(3);
+  check(phoneImeOwner.updatePhoneIme(phoneIme,d,value->value==topToken,exactTopWindow,s->{})==topToken,
+      "TOP IME did not recover after its exact native rotation lease returned");
+  phoneIme.mToken.mFixedRotationTransformState=new State();
+  int foreignFinish=phoneIme.mToken.finishes;
+  d.target=appWindow;d.mFocusedApp=appToken;d.mCurrentFocus=appWindow;
+  phoneImeOwner.updatePhoneIme(phoneIme,d,exactActivity,exactTop,s->{});
+  check(phoneIme.mToken.finishes==foreignFinish,
+      "replacement native IME owner was not preserved during focus change");
+  Window foreignIme=window(new Display(),2011,"keyboard.vendor","InputMethod");
+  check(phoneImeOwner.updatePhoneIme(foreignIme,d,exactActivity,exactTop,s->{})==null,
+      "foreign-display IME admitted");
+  phoneImeOwner.clear(s->{});
   System.out.println("actual main system UI rotation/permission ownership checks="+checks+" passed");
  }
 }''',encoding='utf8')
 area=OUT/'com/android/server/wm/DisplayArea.java';area.parent.mkdir(parents=True,exist_ok=True)
 area.write_text('''package com.android.server.wm;public class DisplayArea {public static class Tokens extends com.jiusis.mistep.SystemUiRotationRegression.Node {public Tokens(Object display){super(display,null);}}}''',encoding='utf8')
 source=ROOT/'module/src/main/java/com/jiusis/mistep/MiStepSystemUiRotation.java'
-subprocess.run([str(JDK/'javac.exe'),'-encoding','UTF-8','--release','17','-d',str(OUT),str(fake),str(test),str(area),str(source)],check=True)
+rect=ROOT/'tools/test-stubs/android/graphics/Rect.java'
+extra=[ROOT/f"module/src/main/java/com/jiusis/mistep/{n}.java" for n in
+       ["ZoomChannelState","ZoomCommand","ZoomAnimCommand"]]
+subprocess.run([str(JDK/'javac.exe'),'-encoding','UTF-8','--release','17','-d',str(OUT),str(fake),str(rect),str(test),str(area),str(source),str(ROOT/'module/src/main/java/com/jiusis/mistep/MiStepImePolicy.java'),str(ROOT/'module/src/main/java/com/jiusis/mistep/MiStepSideRoleChange.java'),*map(str,extra)],check=True)
 subprocess.run([str(JDK/'java.exe'),'-cp',str(OUT),'com.jiusis.mistep.SystemUiRotationRegression'],check=True)

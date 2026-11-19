@@ -21,6 +21,7 @@ import android.graphics.drawable.RippleDrawable;
 import android.graphics.drawable.StateListDrawable;
 import android.os.Bundle;
 import android.net.Uri;
+import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -35,16 +36,29 @@ import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
 /** Settings use the installed system Settings resources and layout proportions. */
 final class WorkspaceSettingsPage extends FrameLayout {
     private static final int HOME = 0, CONTROL = 1, HEADER = 2, SWAP = 3, LOGS = 4, GESTURE = 5,
-            ABOUT = 6, DONATE = 7;
+            ABOUT = 6, DONATE = 7, DONOR_THANKS = 8;
+    private static final long DONOR_REFRESH_MS = 30_000;
     private static final int BLUE = HyperOsStyle.CONTROL_ACCENT;
     private final SettingsActivity activity;
     private final boolean dark;
     private final int primary, secondary, surface;
-    private final int[] scrollPositions = new int[8];
+    private final int[] scrollPositions = new int[DONOR_THANKS + 1];
     private final SharedPreferences aboutPreferences;
+    private final DonorFeed donorFeed;
+    private final ExecutorService donorWorker = Executors.newSingleThreadExecutor();
+    private final Runnable donorRefresh = this::refreshDonorNames;
+    private LinearLayout donorRows;
+    private int donorColumns;
+    private TextView donorStatus;
+    private List<String> donorNames;
+    private boolean started, donorRefreshing, donorRefreshFailed;
     private int donationMethod;
     private boolean donationTemporarilyHidden;
     private Dialog donationDialog;
@@ -70,6 +84,7 @@ final class WorkspaceSettingsPage extends FrameLayout {
         this.runtimeLogs = runtimeLogs;
         aboutPreferences = activity.createDeviceProtectedStorageContext()
                 .getSharedPreferences("about_settings", android.content.Context.MODE_PRIVATE);
+        donorFeed = new DonorFeed(activity);
         donationMethod = state == null ? 0 : state.getInt("donation_method", 0);
         donationTemporarilyHidden = state != null && state.getBoolean("donation_temporary_hidden", false);
         dark = (getResources().getConfiguration().uiMode & 48) == 32;
@@ -80,11 +95,11 @@ final class WorkspaceSettingsPage extends FrameLayout {
         surface = dark ? 0xff1b1d23 : 0xffffffff;
         if (state != null) {
             int[] saved = state.getIntArray("settings_scroll");
-            if (saved != null && saved.length == scrollPositions.length)
-                System.arraycopy(saved, 0, scrollPositions, 0, saved.length);
+            if (saved != null)
+                System.arraycopy(saved, 0, scrollPositions, 0, Math.min(saved.length, scrollPositions.length));
         }
         int restored = state == null ? HOME : state.getInt("settings_page", HOME);
-        show(restored >= HOME && restored <= DONATE ? restored : HOME, false);
+        show(restored >= HOME && restored <= DONOR_THANKS ? restored : HOME, false);
     }
 
     void save(Bundle state) {
@@ -95,14 +110,24 @@ final class WorkspaceSettingsPage extends FrameLayout {
         state.putBoolean("donation_temporary_hidden", donationTemporarilyHidden);
     }
 
+    void refreshLayout() {
+        show(screen, false);
+    }
+
     boolean goBack() {
         if (screen == HOME) return false;
-        show(screen == DONATE ? ABOUT : HOME, true);
+        show(screen == DONATE || screen == DONOR_THANKS ? ABOUT : HOME, true);
         return true;
     }
 
     private void show(int next, boolean animate) {
         if (next == DONATE && donationHidden()) next = ABOUT;
+        boolean enteringDonorPage = next == DONOR_THANKS && screen != DONOR_THANKS;
+        if (next != DONOR_THANKS) {
+            removeCallbacks(donorRefresh);
+            donorRows = null;
+            donorStatus = null;
+        }
         if (scroll != null) scrollPositions[screen] = scroll.getScrollY();
         screen = next;
         removeAllViews();
@@ -122,7 +147,7 @@ final class WorkspaceSettingsPage extends FrameLayout {
         String title = next == CONTROL ? "控制中心按钮" : next == HEADER ? "标题栏按钮"
                 : next == SWAP ? "主副交换逻辑" : next == LOGS ? "运行日志"
                 : next == GESTURE ? "唤出手势" : next == ABOUT ? "关于 MiStep"
-                : next == DONATE ? "支持 MiStep" : "Mi Step";
+                : next == DONATE ? "支持 MiStep" : next == DONOR_THANKS ? "捐赠致谢" : "Mi Step";
         activity.setPageTitle(title);
         if (next == HOME) home();
         else if (next == LOGS) logs();
@@ -130,9 +155,11 @@ final class WorkspaceSettingsPage extends FrameLayout {
         else if (next == GESTURE) gesture();
         else if (next == ABOUT) about();
         else if (next == DONATE) donate();
+        else if (next == DONOR_THANKS) donorThanks();
         else buttons(next == CONTROL ? WorkspaceOptions.CONTROL_IDS : WorkspaceOptions.HEADER_IDS);
         int restoreY = scrollPositions[next];
         scroll.post(() -> scroll.scrollTo(0, restoreY));
+        if (enteringDonorPage) refreshDonorNames();
         if (animate && android.animation.ValueAnimator.areAnimatorsEnabled()) {
             content.setAlpha(0f);
             content.animate().alpha(1f).setDuration(160).start();
@@ -170,6 +197,20 @@ final class WorkspaceSettingsPage extends FrameLayout {
         });
         lockRow.setOnClickListener(v -> keepOnLock.toggle());
         interaction.addView(lockRow);
+        divider(interaction);
+        LinearLayout sideRow = row();
+        TextView sideLabel = text("无限小窗", 17, primary);
+        sideLabel.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        sideRow.addView(sideLabel, new LinearLayout.LayoutParams(0, -2, 1));
+        Switch scrollSideTasks = settingsSwitch("无限小窗", options.scrollSideTasks);
+        sideRow.addView(scrollSideTasks, new LinearLayout.LayoutParams(-2, -2));
+        scrollSideTasks.setOnCheckedChangeListener((button, checked) -> {
+            WorkspaceOptions current = WorkspaceSettingsStore.read(activity);
+            if (current.scrollSideTasks == checked) return;
+            if (!persist(current.withScrollSideTasks(checked))) button.setChecked(!checked);
+        });
+        sideRow.setOnClickListener(v -> scrollSideTasks.toggle());
+        interaction.addView(sideRow);
         add(interaction, 0, 12);
         section("诊断");
         LinearLayout diagnostics = card();
@@ -220,17 +261,124 @@ final class WorkspaceSettingsPage extends FrameLayout {
         menu(author, "抖音", "作者动态",
                 () -> openLink("https://www.iesdouyin.com/share/user/MS4wLjABAAAAwO_VlPNVbWRMdL5IKWyZmlYsgQWp1F7242NaGaChouEgyhgSH3A1vufR90CNWshx?u_code=4af0205jm7b6&did=MS4wLjABAAAAcPUqe1yfW2XQDXt_6aKgTqt-iCG5oBjpQ1-IXRV42TiF3OQp2aRnEMkkL9D98zEJ&iid=MS4wLjABAAAABcarNUFlFQX1acVALzLVSpihiFYInZAz1hvCeN41hTtxk8oCmzazMurlvhbTkIfi&with_sec_did=1&sec_uid=MS4wLjABAAAAwO_VlPNVbWRMdL5IKWyZmlYsgQWp1F7242NaGaChouEgyhgSH3A1vufR90CNWshx&from_ssr=1&from_aid=1128&timestamp=1794330190"));
         add(author, 0, 12);
-        if (!donationHidden()) {
-            LinearLayout support = card();
+        boolean showDonation = !donationHidden();
+        LinearLayout support = card();
+        if (showDonation) {
             LinearLayout entry = menu(support, "捐赠", "赛博乞讨", () -> show(DONATE, true));
             entry.setOnLongClickListener(v -> {
                 showDonationDialog(false);
                 return true;
             });
-            add(support, 0, 10);
+            divider(support);
+        }
+        menu(support, "捐赠致谢", "感谢支持 MiStep 的朋友", () -> show(DONOR_THANKS, true));
+        add(support, 0, 10);
+        if (showDonation) {
             TextView hint = text("纯为爱发电 · 长按捐赠入口可关闭", 12, secondary);
             hint.setGravity(Gravity.CENTER);
             add(hint, 0, 0);
+        }
+    }
+
+    private void donorThanks() {
+        section("排名不分先后");
+        donorRows = card();
+        int width = getWidth() > 0 ? getWidth() : getResources().getDisplayMetrics().widthPixels;
+        donorColumns = donorColumnCount(Math.min(width, dp(680)), content);
+        content.addOnLayoutChangeListener((view, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {
+            if (right - left == oldRight - oldLeft) return;
+            // Rebuild after layout so the new rows receive their own measure pass.
+            view.post(() -> {
+                if (view != content || donorRows == null) return;
+                int columns = donorColumnCount(view.getWidth(), view);
+                if (columns != donorColumns) {
+                    donorColumns = columns;
+                    renderDonorNames();
+                }
+            });
+        });
+        add(donorRows, 0, 10);
+        donorStatus = text("", 13, secondary);
+        donorStatus.setGravity(Gravity.CENTER);
+        donorStatus.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        add(donorStatus, 0, 0);
+        renderDonorNames();
+    }
+
+    private int donorColumnCount(int width, View parent) {
+        int cellWidth = Math.round(TypedValue.applyDimension(
+                TypedValue.COMPLEX_UNIT_SP, 104, getResources().getDisplayMetrics()));
+        int available = width - parent.getPaddingLeft() - parent.getPaddingRight();
+        return Math.max(1, Math.min(4, available / Math.max(1, cellWidth)));
+    }
+
+    private void renderDonorNames() {
+        if (donorRows == null) return;
+        donorRows.removeAllViews();
+        boolean hasNames = donorNames != null && !donorNames.isEmpty();
+        donorRows.setVisibility(hasNames ? VISIBLE : GONE);
+        if (hasNames) {
+            for (int first = 0; first < donorNames.size(); first += donorColumns) {
+                if (donorRows.getChildCount() > 0) divider(donorRows);
+                LinearLayout row = new LinearLayout(activity);
+                row.setBaselineAligned(false);
+                row.setWeightSum(donorColumns);
+                int end = Math.min(first + donorColumns, donorNames.size());
+                for (int index = first; index < end; index++) {
+                    TextView label = text(donorNames.get(index), 17, primary);
+                    label.setMinHeight(dp(44));
+                    label.setGravity(Gravity.CENTER);
+                    label.setPadding(dp(8), dp(8), dp(8), dp(8));
+                    row.addView(label, new LinearLayout.LayoutParams(0, -2, 1));
+                }
+                donorRows.addView(row, new LinearLayout.LayoutParams(-1, -2));
+            }
+        }
+        String status = donorRefreshFailed ? (donorNames == null ? "暂时无法加载名单" : "暂时无法更新，已显示上次名单")
+                : hasNames ? "" : donorNames == null && donorFeed.isConfigured() ? "正在加载名单…" : "暂无公开名单";
+        donorStatus.setText(status);
+        donorStatus.setVisibility(status.isEmpty() ? GONE : VISIBLE);
+    }
+
+    void setStarted(boolean started) {
+        this.started = started;
+        if (started) refreshDonorNames();
+        else removeCallbacks(donorRefresh);
+    }
+
+    private void refreshDonorNames() {
+        if (!started || screen != DONOR_THANKS || donorRefreshing || !donorFeed.isConfigured()) return;
+        removeCallbacks(donorRefresh);
+        donorRefreshing = true;
+        boolean loadCache = donorNames == null;
+        donorWorker.execute(() -> {
+            List<String> cached = loadCache ? donorFeed.cachedNames() : null;
+            if (cached != null) {
+                activity.runOnUiThread(() -> {
+                    donorNames = cached;
+                    if (started) renderDonorNames();
+                });
+            }
+            try {
+                List<String> updated = donorFeed.refreshNames();
+                activity.runOnUiThread(() -> finishDonorRefresh(updated));
+            } catch (java.io.IOException | org.json.JSONException unavailable) {
+                activity.runOnUiThread(() -> finishDonorRefresh(null));
+            }
+        });
+    }
+
+    private void finishDonorRefresh(List<String> updated) {
+        donorRefreshing = false;
+        boolean changed = donorRefreshFailed != (updated == null);
+        donorRefreshFailed = updated == null;
+        if (updated != null && !updated.equals(donorNames)) {
+            donorNames = updated;
+            changed = true;
+        }
+        if (started && screen == DONOR_THANKS) {
+            if (changed) renderDonorNames();
+            postDelayed(donorRefresh, DONOR_REFRESH_MS);
         }
     }
 
@@ -239,6 +387,12 @@ final class WorkspaceSettingsPage extends FrameLayout {
             donationDialog.dismiss();
             donationDialog = null;
         }
+    }
+
+    void close() {
+        setStarted(false);
+        donorWorker.shutdownNow();
+        closeDialogs();
     }
 
     private void showDonationDialog(boolean permanent) {

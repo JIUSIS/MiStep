@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Public HTTPS URL of the JSON file. An empty value disables fetches. -->
+    <string name="donor_feed_url" translatable="false">https://jiusis.github.io/mistep-donors/donors.json</string>
+</resources>

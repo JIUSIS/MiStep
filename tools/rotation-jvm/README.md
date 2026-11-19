@@ -12,6 +12,12 @@ local token rotation, main-to-side handoff, independent token ownership, exit
 cleanup, preservation of native transforms, failure rollback and display scope.
 They supplement device verification; they cannot establish visual acceptance.
 
+The lifecycle regression replays native transform cancellation and configuration
+callbacks. It covers repeated same-direction transition completion, main/side
+handoff, reentrant explicit cleanup, native state replacement, removal, actual
+display rotation and release failure recovery. It uses the built production
+HostEntry methods; Xposed dispatch and OEM rendering still require device checks.
+
 The runner also exercises HostEntry's native freeform layer bridge. The local
 WindowManager shim retains LayoutParams' required inheritance and is allocated
 without executing Android stub constructors. Checks cover exact host filtering,

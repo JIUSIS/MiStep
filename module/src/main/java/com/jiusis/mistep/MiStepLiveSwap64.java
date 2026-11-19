@@ -10,6 +10,21 @@ import de.robv.android.xposed.XposedHelpers;
 final class MiStepLiveSwap64 {
     private MiStepLiveSwap64() {}
     private static final IdentityHashMap<Object, Run> ACTIVE = new IdentityHashMap<>();
+
+    /** A retained parent repair must leave an animated peer under the Host until handoff. */
+    static boolean isBorrowingPeer(Object controller, int taskId, Object token) {
+        synchronized (ACTIVE) {
+            for (Run run : ACTIVE.values()) {
+                if (!run.borrowingPeers) continue;
+                for (LiveTaskSwapDriver.Peer peer : run.flip.peers) {
+                    if (peer.controller == controller && peer.task.id == taskId
+                            && peer.task.token.equals(token)) return true;
+                }
+            }
+        }
+        return false;
+    }
+
     static void cancel(Object controller) {
         Run run;
         synchronized (ACTIVE) { run = ACTIVE.get(controller); }
@@ -53,6 +68,7 @@ final class MiStepLiveSwap64 {
         final float oldSideScale, targetSideScale;
         MiStepLiveSwapSession session;
         boolean cancelled, waitingCancel, rollback, uncertain, delivered, resolved;
+        volatile boolean borrowingPeers;
         Throwable settleError;
         Object finishReplay;
         long commitGeneration;
@@ -138,10 +154,25 @@ final class MiStepLiveSwap64 {
                 throw new IllegalStateException("peer leash changed during lease");
             peerLeashes[i] = leash; peerParents[i] = parent; return leash;
         }
+        Object[] retainedPeerTokens(boolean restoring) {
+            Object[] tokens = new Object[flip.peers.length];
+            for (int i = 0; i < tokens.length; i++) {
+                try {
+                    peer(i);
+                    tokens[i] = flip.peers[i].task.token;
+                } catch (RuntimeException error) {
+                    if (!restoring) throw error;
+                    log.accept("64 inverse skipped stale peer " + flip.peers[i].task.id + ": " + error);
+                }
+            }
+            return tokens;
+        }
         boolean start() throws Exception {
+            Object wct = pair != null ? pair.windowTransaction(retainedPeerTokens(false))
+                    : single.windowTransaction(false);
             if (pair != null) pair.arm(controller.getClass().getClassLoader());
             session = new MiStepLiveSwapSession(backend, this, tasks, 300L);
-            return session.start(pair != null ? pair.windowTransaction(null) : single.windowTransaction(false));
+            return session.start(wct);
         }
         @Override public boolean mayStart() { return current.getAsBoolean() && !cancelled; }
         @Override public MiStepLiveSwapSession.Ready resolve(Object info) {
@@ -154,9 +185,12 @@ final class MiStepLiveSwap64 {
                 surfaces[0] = two.firstSurface; surfaces[1] = two.secondSurface;
                 for (int i = 0; i < flip.peers.length; i++) surfaces[i + 2] = peer(i);
             } else surfaces[0] = single.resolve(info);
-            // B is above shrinking A and the two moving peers while it grows in its original column.
-            for (int i = 0; i < tasks.length; i++) { layers[i] = i + 10; content[i] = LiveSwapGeometry.Affine.identity(); }
-            if (pair != null) { layers[0] = 100; layers[1] = 101; }
+            // Peers keep their size as they cross the moving pair. Put them above both
+            // apps during the crossing so an opaque expanding app cannot cover them.
+            for (int i = 0; i < tasks.length; i++) {
+                layers[i] = pair != null ? 100 + i : 10;
+                content[i] = LiveSwapGeometry.Affine.identity();
+            }
             resolved = true;
             return new MiStepLiveSwapSession.Ready(surfaces, root, layers, LiveSwapGeometry.Affine.identity(), content);
         }
@@ -175,6 +209,7 @@ final class MiStepLiveSwap64 {
             catch (Exception error) { throw new IllegalStateException("64 native owner preparation", error); }
             background(start, false);
             if (single != null) single.stageContainer(start, false);
+            borrowingPeers = flip != null && flip.peers.length > 0;
         }
         @Override public void input(Object tx, LiveSwapGeometry.Frame[] frames) {
             if (!mayStart()) throw new IllegalStateException("64 scene changed during live frame");
@@ -231,7 +266,7 @@ final class MiStepLiveSwap64 {
         void reverse(Consumer<Throwable> ready, Throwable original) {
             settleError = original;
             try {
-                Object inverse = pair != null ? pair.reverseWindowTransaction() : single.windowTransaction(true);
+                Object inverse = inverseTransaction();
                 XposedHelpers.callMethod(XposedHelpers.getObjectField(shell, "mOrganizer"), "applyTransaction", inverse);
                 backend.await(() -> pair != null ? pair.rollbackRolesReady() : single.roles(true), 1500L, roles -> {
                     if (!roles) { uncertain = true; ready.accept(new IllegalStateException("inverse canonical roles unconfirmed", original)); return; }
@@ -245,12 +280,17 @@ final class MiStepLiveSwap64 {
                 });
             } catch (Throwable error) { uncertain = true; ready.accept(error); }
         }
+        Object inverseTransaction() throws Exception {
+            return pair != null ? pair.reverseWindowTransaction(retainedPeerTokens(true))
+                    : single.windowTransaction(true);
+        }
         void peersFinish(Object tx, boolean original) {
             if (flip == null) return;
             for (int i = 0; i < flip.peers.length; i++) {
                 Object leash = peer(i); LiveSwapGeometry.Task task = flip.peers[i].task;
                 float scale = uniform(original ? task.start : task.end, task);
                 XposedHelpers.callMethod(tx, "reparent", leash, peerParents[i]);
+                XposedHelpers.callMethod(tx, "setLayer", leash, 0);
                 XposedHelpers.callMethod(tx, "setMatrix", leash, scale, 0f, 0f, scale);
                 XposedHelpers.callMethod(tx, "setPosition", leash, 0f, 0f);
                 XposedHelpers.callMethod(tx, "setWindowCrop", leash, new Rect(flip.logical));
@@ -258,6 +298,8 @@ final class MiStepLiveSwap64 {
             }
         }
         @Override public void finish(Object tx, boolean failed) {
+            // Other transactions may repair canonical parents again once animation has stopped.
+            borrowingPeers = false;
             if (uncertain) throw new IllegalStateException("64 external/canonical handoff remains unconfirmed");
             if (flip != null && resolved && !waitingCancel && !LiveSwapZoom.replayOpen(finishReplay))
                 throw new IllegalStateException("WMS finish replay missing or closed");
@@ -276,12 +318,13 @@ final class MiStepLiveSwap64 {
         @Override public void requestWaitingCancel() {
             waitingCancel = true;
             try {
-                Object reverse = pair != null ? pair.reverseWindowTransaction() : single.windowTransaction(true);
-                XposedHelpers.callMethod(XposedHelpers.getObjectField(shell, "mOrganizer"), "applyTransaction", reverse);
+                XposedHelpers.callMethod(XposedHelpers.getObjectField(shell, "mOrganizer"),
+                        "applyTransaction", inverseTransaction());
             } catch (Exception error) { throw new IllegalStateException(error); }
         }
         @Override public boolean waitingCancelReady() { return pair != null ? pair.originalRoles() : single.roles(true); }
         @Override public void consumed(Object tx, boolean aborted) {
+            borrowingPeers = false;
             if(flip!=null && flip.overlays!=null)flip.overlays.finish(tx,true);
             if (flip != null && resolved) { uncertain = true; throw new IllegalStateException("consumed flip requires ledger recovery"); }
             rollback = pair != null ? pair.originalRoles() : single.roles(true);

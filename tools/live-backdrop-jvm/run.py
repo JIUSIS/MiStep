@@ -53,8 +53,9 @@ import android.graphics.*;import android.view.*;import java.util.*;import de.rob
 public class BackdropRegression {
 static int checks;static void check(boolean b,String why){checks++;if(!b)throw new AssertionError(why);}
 static class HyperOsStyle {static int page(Object c){return 0;}}
-static class Slot {int index=1;boolean occupied,parked;Object controller=new Object(),cellBackground,cellBackgroundParent;int[]rect={0,0,267,609};int cellBackgroundWidth,cellBackgroundHeight;}
+static class Slot {int index=1,sideRow=-1;boolean occupied,parked;Object controller=new Object(),cellBackground,cellBackgroundParent;int[]rect={0,0,267,609};int cellBackgroundWidth,cellBackgroundHeight;}
 static class Host {
+ boolean sideScrolling;
  Bitmap wallpaperBackdrop;Object root=new Object(),ctx=new Object(),parent=new Object();static final int SLOT_MAIN=0;int removed;
  void applyWallpaperBackdrops(){}Object getSurfaceField(Object c,String f){return parent;}
  void removeCellBackground(Slot s){if(s.cellBackground!=null)removed++;s.cellBackground=null;s.cellBackgroundParent=null;}

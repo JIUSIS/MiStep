@@ -76,6 +76,9 @@ final class MiStepDesktopLaunchBridge {
         final ArrayList<Bundle> rows;
         final ArrayList<Bundle> recentsRows;
         Bundle topInput;
+        Bundle topLaunch;
+        Bundle rotationMain;
+        boolean retained;
         long lastAt;
         int lastTask = -1;
         Registry(IBinder owner, long sequence, ArrayList<Bundle> rows, ArrayList<Bundle> recentsRows) {
@@ -102,16 +105,68 @@ final class MiStepDesktopLaunchBridge {
             ArrayList<Bundle> recents = state.getParcelableArrayList("recents", Bundle.class);
             if (recents == null) recents = rows;
             if (owner == null || !owner.isBinderAlive() || sequence < 0
-                    || rows == null || rows.size() > 4 || recents == null || recents.size() > 4) return false;
+                    || rows == null || recents == null) return false;
             if (current != null && current.owner.equals(owner) && sequence <= current.sequence) return false;
             Registry next = new Registry(owner, sequence, new ArrayList<>(rows), new ArrayList<>(recents));
+            next.retained = state.getBoolean("retained", false);
             next.topInput = state.getBundle("topInput");
+            next.topLaunch = state.getBundle("topLaunch");
+            next.rotationMain = state.getBundle("rotationMain");
             owner.linkToDeath(next, 0);
             Registry old = current;
             current = next;
             if (old != null) old.owner.unlinkToDeath(old, 0);
             return true;
         } catch (Throwable unavailable) { /* Reject an incomplete registration. */ return false; }
+    }
+
+    /** Resolve exact active task binders without TaskInfo aggregation under WM orientation locks. */
+    static ArrayList<Object> rotationActivities(Object display) {
+        Registry state;
+        synchronized (MiStepDesktopLaunchBridge.class) { state = current; }
+        ArrayList<Object> result = new ArrayList<>();
+        if (state == null || !state.owner.isBinderAlive()) return result;
+        ArrayList<Bundle> rows = new ArrayList<>();
+        for (Bundle row : state.rows) if (!row.getBoolean("sideClipped", false)) rows.add(row);
+        if (state.topInput != null) rows.add(state.topInput);
+        if (state.rotationMain != null) rows.add(state.rotationMain);
+        for (Bundle row : rows) {
+            Object activity = rotationActivity(display, row, row == state.rotationMain);
+            if (activity != null && !result.contains(activity)) result.add(activity);
+        }
+        synchronized (MiStepDesktopLaunchBridge.class) {
+            if (current != state || !state.owner.isBinderAlive()) result.clear();
+        }
+        return result;
+    }
+
+    static boolean rotationMain(Object display, Object activity) {
+        Registry state;
+        synchronized (MiStepDesktopLaunchBridge.class) { state = current; }
+        if (state == null || !state.owner.isBinderAlive() || state.rotationMain == null) return false;
+        Object candidate = rotationActivity(display, state.rotationMain, true);
+        synchronized (MiStepDesktopLaunchBridge.class) {
+            return current == state && state.owner.isBinderAlive() && candidate == activity;
+        }
+    }
+
+    private static Object rotationActivity(Object display, Bundle row, boolean main) {
+        try {
+            if (row == null || row.getInt("displayId", -1) != 0
+                    || row.getBinder("task") == null) return null;
+            Class<?> type = XposedHelpers.findClass("com.android.server.wm.WindowContainer",
+                    display.getClass().getClassLoader());
+            Object task = XposedHelpers.callStaticMethod(type, "fromBinder", row.getBinder("task"));
+            if (task == null || XposedHelpers.callMethod(task, "getDisplayContent") != display
+                    || XposedHelpers.getIntField(task, "mTaskId") != row.getInt("taskId", -1)
+                    || XposedHelpers.getIntField(task, "mUserId") != row.getInt("userId", -1)
+                    || (main ? !Integer.valueOf(1).equals(XposedHelpers.callMethod(task, "getWindowingMode"))
+                             : !MiStepSideRoleChange.isSide(task))) return null;
+            Object activity = XposedHelpers.callMethod(task, "topRunningActivity");
+            if (activity == null || XposedHelpers.callMethod(activity, "getTask") != task
+                    || Boolean.TRUE.equals(XposedHelpers.callMethod(activity, "isActivityTypeHome"))) return null;
+            return activity;
+        } catch (Throwable stale) { return null; }
     }
 
     /** Reuse the protected scene lease; never put TOP in desktop promotion rows. */
@@ -248,38 +303,46 @@ final class MiStepDesktopLaunchBridge {
             Registry state;
             synchronized (MiStepDesktopLaunchBridge.class) { state = current; }
             if (state == null || !state.owner.isBinderAlive()) return false;
+            ArrayList<Bundle> candidates = new ArrayList<>(state.retained ? state.recentsRows : state.rows);
+            if (!state.retained && state.topLaunch != null) candidates.add(state.topLaunch);
             Bundle found = null;
-            for (Bundle row : state.rows) {
-                if (!pkg.equals(row.getString("package"))
-                        || row.getInt("userId", -1) != launchUser
-                        || row.getInt("displayId", -1) != 0) continue;
-                if (found != null) return false;
-                found = row;
-            }
-            if (found == null) return false;
-            IBinder binder = found.getBinder("task");
-            int taskId = found.getInt("taskId", -1);
             Object lock = XposedHelpers.getObjectField(atms, "mGlobalLock");
             synchronized (lock) {
                 Object root = XposedHelpers.getObjectField(atms, "mRootWindowContainer");
                 Object focused = XposedHelpers.callMethod(root, "getTopDisplayFocusedRootTask");
-                if (focused == null || !Integer.valueOf(2).equals(
-                        XposedHelpers.callMethod(focused, "getActivityType"))) return false;
+                if (focused == null) return false;
+                boolean homeFocused = Integer.valueOf(2).equals(
+                        XposedHelpers.callMethod(focused, "getActivityType"));
                 Class<?> container = XposedHelpers.findClass(
                         "com.android.server.wm.WindowContainer", atms.getClass().getClassLoader());
-                Object task = XposedHelpers.callStaticMethod(container, "fromBinder", binder);
-                if (task == null || XposedHelpers.getIntField(task, "mTaskId") != taskId
-                        || !Integer.valueOf(6).equals(XposedHelpers.callMethod(task, "getWindowingMode"))) return false;
-                Object info = XposedHelpers.callMethod(task, "getTaskInfo");
-                Object token = XposedHelpers.getObjectField(info, "token");
-                android.content.ComponentName component = (android.content.ComponentName)
-                        XposedHelpers.getObjectField(info, "baseActivity");
-                if (XposedHelpers.getIntField(info, "displayId") != 0
-                        || XposedHelpers.getIntField(info, "userId") != found.getInt("userId")
-                        || !binder.equals(XposedHelpers.callMethod(token, "asBinder"))
-                        || Boolean.TRUE.equals(XposedHelpers.callMethod(info, "hasParentTask"))
-                        || component == null || !pkg.equals(component.getPackageName())) return false;
+                for (Bundle row : candidates) {
+                    if (!pkg.equals(row.getString("package"))
+                            || row.getInt("userId", -1) != launchUser
+                            || row.getInt("displayId", -1) != 0) continue;
+                    IBinder binder = row.getBinder("task");
+                    int taskId = row.getInt("taskId", -1);
+                    if (binder == null || taskId < 0) continue;
+                    Object task = XposedHelpers.callStaticMethod(container, "fromBinder", binder);
+                    if (task == null || XposedHelpers.getIntField(task, "mTaskId") != taskId
+                            || !Integer.valueOf(6).equals(XposedHelpers.callMethod(task, "getWindowingMode"))) continue;
+                    if (!homeFocused && (row != state.topLaunch || focused != task)) continue;
+                    Object info = XposedHelpers.callMethod(task, "getTaskInfo");
+                    Object token = XposedHelpers.getObjectField(info, "token");
+                    android.content.ComponentName component = (android.content.ComponentName)
+                            XposedHelpers.getObjectField(info, "baseActivity");
+                    if (XposedHelpers.getIntField(info, "taskId") != taskId
+                            || XposedHelpers.getIntField(info, "displayId") != 0
+                            || XposedHelpers.getIntField(info, "userId") != row.getInt("userId")
+                            || !binder.equals(XposedHelpers.callMethod(token, "asBinder"))
+                            || Boolean.TRUE.equals(XposedHelpers.callMethod(info, "hasParentTask"))
+                            || component == null || !pkg.equals(component.getPackageName())
+                            || !TaskLaunchIdentity.matches(context.getPackageManager(),
+                                    launch.getComponent(), info)) continue;
+                    if (found != null) return false;
+                    found = row;
+                }
             }
+            if (found == null) return false;
             return dispatch(context, state, found);
         } catch (Throwable unavailable) { /* A rejected binding retains the ordinary native launch. */ return false; }
     }
@@ -297,7 +360,7 @@ final class MiStepDesktopLaunchBridge {
             if (state == null || !state.owner.isBinderAlive()) return false;
             Bundle found = null;
             int user = (Integer) XposedHelpers.callStaticMethod(UserHandle.class, "getUserId", uid);
-            for (Bundle row : state.rows) {
+            for (Bundle row : state.retained ? state.recentsRows : state.rows) {
                 if (row.getInt("taskId", -1) != taskId || row.getInt("userId", -1) != user
                         || row.getInt("displayId", -1) != 0) continue;
                 if (found != null) return false;
@@ -332,6 +395,7 @@ final class MiStepDesktopLaunchBridge {
             }
             Bundle handoff = new Bundle(found);
             handoff.putBoolean("hostRoute", true);
+            handoff.putBoolean("retainedRoute", state.retained);
             handoff.putLong("deadline", now + 1500L);
             Intent signal = new Intent(LAUNCH).setPackage("com.android.systemui")
                     .addFlags(Intent.FLAG_RECEIVER_FOREGROUND)

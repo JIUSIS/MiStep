@@ -12,11 +12,11 @@
 </p>
 
 <p align="center">
-  <kbd>1.0.3</kbd> &nbsp; <kbd>HyperOS 2 / 3 / 4</kbd> &nbsp; <kbd>Android 14+</kbd> &nbsp; <kbd>ARM64</kbd> &nbsp; <kbd>Root + LSPosed</kbd> &nbsp; <kbd>源码公开 · 非商用</kbd>
+  <kbd>1.0.4</kbd> &nbsp; <kbd>HyperOS 2 / 3 / 4</kbd> &nbsp; <kbd>Android 14+</kbd> &nbsp; <kbd>ARM64</kbd> &nbsp; <kbd>Root + LSPosed</kbd> &nbsp; <kbd>源码公开 · 非商用</kbd>
 </p>
 
 <p align="center">
-  <a href="https://github.com/JIUSIS/MiStep/releases/tag/v1.0.3"><strong>下载 1.0.3</strong></a> ·
+  <a href="https://github.com/JIUSIS/MiStep/releases/tag/v1.0.4"><strong>下载 1.0.4</strong></a> ·
   <a href="#功能详解">功能详解</a> ·
   <a href="#安装与上手">安装与上手</a> ·
   <a href="#一个许愿工程师的自述">项目缘起</a>
@@ -24,9 +24,9 @@
 
 ---
 
-**1.0.3 正式版**新增澎湃 OS 2 与平板适配、模块设置、两种主副交换模式、底部唤出手势和锁屏保留工作区，并完善问题诊断。完整改动及升级说明见[1.0.3 更新日志](docs/发行说明-1.0.3.md)。
+**1.0.4 正式版**新增无限小窗、普通退出后保留副任务及在线捐赠致谢名单，优化了快捷栏滚动和任务切换。详见[更新日志](docs/发行说明-1.0.4.md)。
 
-**兼容范围按系统接口与实机证据分别记录。** 本轮已验证部分澎湃 OS 2 / Android 15 手机及 OS 4 / Android 17 手机、平板；最低安装版本 Android 14 不代表所有 ROM 均已验收。详情见[1.0.3 验证说明](docs/验证说明-1.0.3.md)。
+1.0.4 的分项设备测试主要在澎湃 OS 2 / Android 15 手机上完成。详情见[验证说明](docs/验证说明-1.0.4.md)。
 
 ## 一步，回到顺手的多任务
 
@@ -139,7 +139,7 @@
 
 | 项目 | 当前要求 |
 | --- | --- |
-| 系统 | 最低安装版本 **Android 14 / API 34**；适配 HyperOS 2 / 3 / 4，实际验证范围见 1.0.3 验证说明 |
+| 系统 | 最低安装版本 **Android 14 / API 34**；适配 HyperOS 2 / 3 / 4，实际验证范围见 1.0.4 验证说明 |
 | 架构 | **ARM64** |
 | 框架 | 已配置可用的 **Root + LSPosed** |
 | 开发与验证设备 | Xiaomi 17 Pro Max、Redmi Note 11T Pro |
@@ -150,7 +150,7 @@
 
 模块包名统一为 `com.jiusis.mistep`，后续版本继续使用这个包名。已安装旧包名版本时，先退出工作区并在 LSPosed 中停用旧模块，再安装此包、启用新模块并重新选择作用域，最后正常重启；确认正常后可卸载旧模块。旧包名版本无法直接覆盖升级，请避免同时启用两个模块。
 
-1. 从 [1.0.3 发行页](https://github.com/JIUSIS/MiStep/releases/tag/v1.0.3) 下载 `MiStep-1.0.3.apk`，可用同页的 `SHA256SUMS.txt` 核对文件。
+1. 从 [1.0.4 发行页](https://github.com/JIUSIS/MiStep/releases/tag/v1.0.4) 下载 `MiStep-1.0.4.apk`，可用同页的 `SHA256SUMS.txt` 核对文件。
 2. 安装后，在 LSPosed 中启用 **Mi Step**，选择模块推荐作用域。
 3. **正常重启手机**，使系统进程加载模块。
 4. 在竖屏界面用上角横滑手势打开工作区，先在主区域打开一个应用，再点副格「＋」收纳。
@@ -206,7 +206,8 @@ Mi Step 是个人项目，并非小米、锤子科技或上述社区项目的官
 | 想了解什么 | 从这里开始 |
 | --- | --- |
 | 安装、手势、升级与恢复 | [使用说明](docs/使用说明.md) |
-| 1.0.3 更新日志与升级说明 | [发行说明](docs/发行说明-1.0.3.md) |
+| 1.0.4 更新日志与升级说明 | [发行说明](docs/发行说明-1.0.4.md) |
+| 1.0.3 历史更新日志 | [发行说明](docs/发行说明-1.0.3.md) |
 | 1.0.1 更新日志与升级说明 | [发行说明](docs/发行说明-1.0.1.md) |
 | 1.0.0 历史发行说明 | [发行说明](docs/发行说明-1.0.0.md) |
 | 从源码构建和运行测试 | [构建说明](docs/构建说明.md) |

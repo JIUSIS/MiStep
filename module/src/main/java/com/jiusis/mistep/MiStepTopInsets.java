@@ -18,6 +18,19 @@ final class MiStepTopInsets {
     }
 
     static Object adjust(Object window, Object display, Object original, Predicate<Object> lease) {
+        return adjustViewport(window, display, original, lease, false);
+    }
+
+    /** InsetsPolicy metrics receives a WindowToken, often the ActivityRecord itself. */
+    static Object adjustMetrics(Object token, Object display, Object original, Predicate<Object> lease) {
+        if (token == null || display == null || original == null || lease == null) return original;
+        Object activity = XposedHelpers.callMethod(token, "asActivityRecord");
+        if (activity == null) return original;
+        return adjustViewport(activity, display, original, lease, true);
+    }
+
+    private static Object adjustViewport(Object window, Object display, Object original,
+            Predicate<Object> lease, boolean activityToken) {
         if (window == null || display == null || original == null || lease == null
                 || XposedHelpers.callMethod(window, "getDisplayContent") != display) return original;
         Object task = XposedHelpers.callMethod(window, "getTask");
@@ -28,6 +41,15 @@ final class MiStepTopInsets {
         Object config = XposedHelpers.callMethod(task, "getConfiguration");
         Object wc = XposedHelpers.getObjectField(config, "windowConfiguration");
         if (!bounds.equals(XposedHelpers.callMethod(wc, "getAppBounds"))) return original;
+        // A rotated TOP activity uses a portrait local frame inside this wide parent.
+        Object activity = activityToken ? window : XposedHelpers.getObjectField(window, "mActivityRecord");
+        if (activity != null && Boolean.TRUE.equals(XposedHelpers.callMethod(
+                activity, "hasFixedRotationTransform"))) {
+            Rect rotated = (Rect) XposedHelpers.callMethod(activity, "getFixedRotationTransformDisplayBounds");
+            if (rotated != null && rotated.width() == bounds.height()
+                    && rotated.height() == bounds.width())
+                bounds = new Rect(rotated.left, rotated.top, rotated.right, rotated.bottom);
+        }
 
         // Never mutate the shared display state or a retained IME source.
         Object state = XposedHelpers.newInstance(original.getClass(), original);

@@ -31,6 +31,7 @@ methods = '\n'.join(member(signature) for signature in [
     '    public static void onLandscapeMode(',
     '    private boolean retainWorkspaceForLock(', '    private void leaveKeyguardPrivacy(',
     '    private void showResumingSession(', '    private void resumeNext(',
+    '    private void completeWorkspaceResume(',
     '    private void writeZoomLine(String command, long issuedAt)'])
 files = {
     'android/animation/ValueAnimator.java': '''package android.animation;public class ValueAnimator {
@@ -81,7 +82,7 @@ public class MiStepHost {
  WindowManager wm=new WindowManager();WindowManager.LayoutParams lp=new WindowManager.LayoutParams();
  WorkspaceOptions workspaceOptions=WorkspaceOptions.DEFAULT;Context ctx;
  Slot[]slots=new Slot[SLOT_COUNT];StatusBar statusBar=new StatusBar();MiStepSwapTrace swapTrace;
- boolean screenOn=true,keyguardLocked,retainedForLock,keyguardWindowHidden,keyguardWindowNotTouchable;
+ boolean screenOn=true,keyguardLocked,retainedForLock,keyguardWindowHidden,keyguardWindowNotTouchable,retainedOnExit;
  boolean restoredSurfaces,traceNextSwap,workspaceEntering,zoomed=true,suspendRequested,landscapeSuspended,mirror=true;
  float keyguardWindowAlpha,workspaceAlpha=1f;int keyguardResumeIndex=-1,scene=ACTIVE,suspends,entries,repairs,reasserts,adoptions,zooms;
  long sceneEpoch=7,workspaceGeneration,zoomAnimUntil;String lastCommand;Runnable entryReady;
@@ -93,6 +94,7 @@ public class MiStepHost {
  void closeSwapPreview(){}void closeCellMovePreview(){}void publishDesktopSideTasks(){}void hideIme(){}
  void suspendSession(String reason){suspends++;scene=SUSPENDED;}
  void resumeSession(){}void updateTopBarState(){}void reapplyScale(Slot s){repairs++;}
+ void confirmRetainedResume(long epoch,int attempt){throw new AssertionError("ordinary hidden resume in lock fixture");}
  void scheduleSideVisibilityRepair(Slot s){}void setMirrorLayerVisible(boolean value){mirror=value;}
  void setZoomState(boolean value){zoomed=value;}
  void writeZoom(boolean value){writeZoomLine(value?".75 620 0":"1 0 0",100);}
