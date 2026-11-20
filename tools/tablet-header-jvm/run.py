@@ -90,7 +90,7 @@ class View {
  static final int IMPORTANT_FOR_ACCESSIBILITY_NO=2,IMPORTANT_FOR_ACCESSIBILITY_YES=1;
  interface OnClickListener {void onClick(View view);}
  final Context context;int visibility=VISIBLE,left,top,right,bottom,width,height,raises,requests;
- boolean enabled=true,attached;float alpha=1f;OnClickListener click;Object params;Rect clip;int dispatches;
+ boolean enabled=true,attached;float alpha=1f,scaleY=1f,translationY;OnClickListener click;Object params;Rect clip;int dispatches;
  final Animator animator=new Animator(this);
  View(Context context){this.context=context;}
  Context getContext(){return context;}Resources getResources(){return context.resources;}
@@ -99,7 +99,8 @@ class View {
  void performClick(){if(enabled&&visibility==VISIBLE&&click!=null)click.onClick(this);}
  void setContentDescription(String value){}void setTooltipText(String value){}
  void setImportantForAccessibility(int value){}void setEnabled(boolean value){enabled=value;}
- void setAlpha(float value){alpha=value;}void setScaleX(float value){}void setScaleY(float value){}
+ void setAlpha(float value){alpha=value;}void setScaleX(float value){}void setScaleY(float value){scaleY=value;}
+ void setTranslationY(float value){translationY=value;}
  void requestLayout(){requests++;}void bringToFront(){raises++;}
  boolean isAttachedToWindow(){return attached;}boolean isLaidOut(){return true;}
  int getWidth(){return width;}int getHeight(){return height;}void setClipBounds(Rect value){clip=value;}
@@ -266,7 +267,9 @@ public class TabletHeaderRegression {
     check(bar.tabletHeader==null&&bar.header.getVisibility()==View.VISIBLE,"portrait header restored");
    }
   Context c=new Context();TestBar bar=new TestBar(c);
+  bar.setScaleY(.0001f);bar.setTranslationY(606f);
   var animated=(TestBar.ControlsHeader)bar.createTabletHeader(90,()->{});
+  check(bar.scaleY==1f&&bar.translationY==0f,"portrait TOP face cannot collapse the landscape tool drawer");
   layout(bar,animated,3048,90);animated.attached=true;
   int originalExit=animated.exit.left,originalTools=animated.tools.left;
   bar.setMainOnRight(true);

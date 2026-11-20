@@ -1,11 +1,36 @@
 package com.jiusis.mistep;
 
+import java.util.Arrays;
+
 public final class TabletSixWindowTest {
     private static int checks;
     private static void check(boolean value, String reason) {
         checks++;
         if (!value) throw new AssertionError(reason);
     }
+
+    private static void scrollingGeometry(MiStepLayout layout) {
+        int count = layout.cellCount;
+        int axis = layout.tabletLandscape ? 0 : 1;
+        int start = layout.tabletLandscape ? layout.sideViewportLeft : layout.sideViewportTop;
+        int end = layout.tabletLandscape ? layout.sideViewportRight : layout.sideViewportBottom;
+        check(Math.abs(layout.sideScrollPitch() * count - (end - start + layout.gap)) < .01f,
+                "scrolling pitch covers each group and one gutter");
+        for (int i = 0; i < count; i++) {
+            check(Arrays.equals(layout.sideScrollBounds(i + 2, 2), layout.cellBounds(i)),
+                    "settled scroll seats each task at the same position used by swap");
+        }
+        int[] leaving = layout.sideScrollBounds(0, .5f);
+        int[] entering = layout.sideScrollBounds(count, .5f);
+        check(leaving[axis] < start && leaving[axis + 2] > start,
+                "first task moves partially past the leading edge");
+        check(entering[axis] < end && entering[axis + 2] > end,
+                "next task enters the trailing edge");
+        int[] before = layout.sideScrollBounds(count, .9999f);
+        int[] after = layout.sideScrollBounds(count, 1f);
+        check(Math.abs(before[axis] - after[axis]) <= 1, "snap preserves continuous placement");
+    }
+
     public static void main(String[] args) {
         for (int h : new int[]{800,1200,1600,2032,2400})
             for (float ratio : new float[]{1.2f,1.5f,1.6f,1.8f,2f})
@@ -57,6 +82,7 @@ public final class TabletSixWindowTest {
                             "main task retains display aspect without exposed backing");
                     check(l.mainOffsetX==(right?l.sideWidth:0) && l.mainOffsetY==l.mainY,
                             "main surface and input use the same origin");
+                    scrollingGeometry(l);
                 }
         MiStepLayout pad=MiStepLayout.of(3048,2032,false,2.5f,true);
         check(pad.topStrip==606 && pad.mainWidth==2139 && pad.mainHeight==1426,
@@ -69,6 +95,19 @@ public final class TabletSixWindowTest {
                 "left corner opens the portrait task at left and real main at right");
         for(int i=0;i<4;i++)check(java.util.Arrays.equals(pad.cellBounds(i),leftEntry.cellBounds(i)),
                 "entry edge leaves the four top cells in place");
+        for (boolean right : new boolean[]{false, true}) {
+            MiStepLayout portrait = MiStepLayout.of(2032, 3048, right, 2.5f, true);
+            scrollingGeometry(portrait);
+            check(portrait.sideViewportContains(portrait.cellX, portrait.topStrip)
+                            && !portrait.sideViewportContains(portrait.cellX, portrait.topStrip - 1),
+                    "portrait scroll starts below the toolbar");
+        }
+        check(pad.sideViewportContains(0, pad.toolHeight + pad.gap)
+                        && !pad.sideViewportContains(0, pad.toolHeight)
+                        && !pad.sideViewportContains(0, pad.topStrip - pad.gap),
+                "landscape scroll excludes the toolbar and bottom gutter");
+        check(!pad.sideViewportContains(pad.cellX, pad.topStrip),
+                "independent interactive task is outside the scrolling strip");
         check(!MiStepLayout.of(1200,2608,false,2.75f,true).tabletLandscape,"portrait keeps legacy layout");
         check(!MiStepLayout.of(4000,1200,false,2,true).tabletLandscape,"ultrawide outside supported geometry");
         System.out.println("TabletSixWindow: "+checks+" checks passed");

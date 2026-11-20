@@ -50,6 +50,7 @@ public class LiveLayoutRegression {
  void log(String value){}void applyWallpaperBackdrops(){wallpapers++;}
  void writeZoom(boolean on){check(on,"side change requests workspace zoom only");zoomWrites++;}
  void updateTopTaskGeometry(){topGeometryChanges++;}
+ void updateSideInputViewportBounds(){}
  MiStepLayout makeAdaptiveLayout(boolean right){return MiStepLayout.of(screenW,screenH,right,2.5f,layout.tabletLandscape);}
  MiStepLayout swapTarget(WorkspaceOptions options){
   MiStepLayout geometry=layout;

@@ -10,20 +10,29 @@ import java.util.function.Consumer;
 /** Slide the real SurfaceView and its hole together; hold outside until native handback. */
 final class MiStepSideDismiss {
     private final View root, view;
-    private final float baseX, distance;
+    private final boolean vertical;
+    private final float base, distance;
     private final BooleanSupplier current;
     private final Consumer<Boolean> complete;
     private final Consumer<String> log;
     private final View.OnAttachStateChangeListener detach;
     private ValueAnimator animator;
     private boolean delivered, closed, written;
-    private float writtenX;
+    private float writtenPosition;
     private float offset;
     private boolean settling;
 
     MiStepSideDismiss(View root, View view, float distance, BooleanSupplier current,
             Consumer<Boolean> complete, Consumer<String> log) {
-        this.root = root; this.view = view; this.baseX = view.getTranslationX();
+        this(root, view, distance, false, current, complete, log);
+    }
+
+    MiStepSideDismiss(View root, View view, float distance, boolean vertical, BooleanSupplier current,
+            Consumer<Boolean> complete, Consumer<String> log) {
+        this.root = root;
+        this.view = view;
+        this.vertical = vertical;
+        this.base = translation();
         this.distance = distance; this.current = current; this.complete = complete; this.log = log;
         detach = new View.OnAttachStateChangeListener() {
             @Override public void onViewAttachedToWindow(View v) {}
@@ -34,16 +43,27 @@ final class MiStepSideDismiss {
 
     boolean isTracking() { return !settling && !delivered && !closed; }
 
-    void follow(float dx) {
-        if (!isTracking() || !Float.isFinite(dx)) return;
+    void follow(float displacement) {
+        if (!isTracking() || !Float.isFinite(displacement)) return;
         if (!current.getAsBoolean() || !root.isAttachedToWindow()) { finish(false); return; }
-        offset = Math.copySign(Math.max(0f, Math.min(Math.abs(distance), dx * Math.signum(distance))), distance);
+        offset = Math.copySign(Math.max(0f, Math.min(Math.abs(distance),
+                displacement * Math.signum(distance))), distance);
         position(offset);
     }
 
+    private float translation() {
+        return vertical ? view.getTranslationY() : view.getTranslationX();
+    }
+
+    private void setTranslation(float value) {
+        if (vertical) view.setTranslationY(value);
+        else view.setTranslationX(value);
+    }
+
     private void position(float value) {
-        writtenX = baseX + value;
-        view.setTranslationX(writtenX); written = true;
+        writtenPosition = base + value;
+        setTranslation(writtenPosition);
+        written = true;
         root.invalidate();
     }
 
@@ -93,7 +113,7 @@ final class MiStepSideDismiss {
     }
 
     private void restore() {
-        if (written && view.getTranslationX() == writtenX) view.setTranslationX(baseX);
+        if (written && translation() == writtenPosition) setTranslation(base);
         written = false;
     }
 }

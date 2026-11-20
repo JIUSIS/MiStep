@@ -13,7 +13,8 @@ def method(signature):
         depth += (host[end] == '{') - (host[end] == '}'); end += 1
     return host[start:end]
 methods = '\n'.join(method(s) for s in ['    private boolean onSlotTouch(',
-    '    private void recycleBuffered(', '    private boolean followSideDismiss(', '    private void dismissSideToBackground(']).replace('MiStepHost::log','SideDismissRegression::log')
+    '    private void recycleBuffered(', '    private boolean followSideDismiss(',
+    '    private boolean acceptsSideDismiss(', '    private void dismissSideToBackground(']).replace('MiStepHost::log','SideDismissRegression::log')
 body = r'''
 package com.jiusis.mistep;
 import java.util.function.Consumer;
@@ -21,18 +22,19 @@ public class SideDismissRegression {
  static int checks; static void check(boolean b,String why){checks++;if(!b)throw new AssertionError(why);}
  static final int SLOT_MAIN=0,SLOT_COUNT=4,CELL_SLOT_COUNT=4,ACTIVE=1;
  int scene=ACTIVE,taps,compactions,returns,clears;long sceneEpoch=1;
- boolean screenOn=true,keyguardLocked,transferBusy,taskCellsCovered,mainOnRight,compactPending,front;
+ boolean screenOn=true,keyguardLocked,transferBusy,taskCellsCovered,mainOnRight,compactPending,front,sideScrolling;
  Object promotion,cellMotion; Context ctx=new Context(); Slot[] slots={new Slot(),new Slot(),new Slot(),new Slot()};
  View root=new View();MiStepSideDismiss sideDismiss; Slot sideDismissSlot;MiStepLayout layout=new MiStepLayout();Object wallpaperBackdrop=new Object();int screenW=1080,screenH=2460;
  Object[] sideBackingViews=new Object[4];static class LiveSwapVisualLease{LiveSwapVisualLease(Object b,Object h){}void restore(){}}
- static class View{void invalidate(){}}static class Rect{}static class MiStepLayout{}
+ static class View{void invalidate(){}}static class Rect{}static class MiStepLayout{boolean tabletLandscape;}
  static class HyperOsStyle{static float dp(Context c,float f){return f*2.75f;}}
  static class MiStepLiveBackdrop{
   static MiStepLiveBackdrop create(Object p,Object w,int sw,int sh,Rect a,Rect b,Consumer<Object> painter,Consumer<String> log){return new MiStepLiveBackdrop();}
   void closeAfterFrame(View v){}
  }
  static class MiStepSideDismiss{
-  boolean tracking=true;float dx;final Consumer<Boolean> cb;MiStepSideDismiss(View r,Object v,float distance,java.util.function.BooleanSupplier c,Consumer<Boolean>b,Consumer<String>l){cb=b;}
+  boolean tracking=true,vertical;float dx,distance;final Consumer<Boolean> cb;
+  MiStepSideDismiss(View r,Object v,float distance,boolean vertical,java.util.function.BooleanSupplier c,Consumer<Boolean>b,Consumer<String>l){this.distance=distance;this.vertical=vertical;cb=b;}
   boolean isTracking(){return tracking;}void follow(float x){dx=x;}void settle(boolean commit){tracking=false;cb.accept(commit);}void close(){}
  }
  Rect liveSideStrip(MiStepLayout g){return new Rect();}Object liveHostRootSurface(){return new Object();}
@@ -77,6 +79,15 @@ public class SideDismissRegression {
   h.event(2,1020,902,1000);check(h.sideDismiss.dx==80&&h.returns==0,"own MOVE still routes while transfer busy");
   h.event(3,1020,902,1200);check(h.sideDismiss==null&&h.returns==0&&!h.transferBusy,"CANCEL releases tracking without handback");
   h=new SideDismissRegression();h.swipe(110,140,400);check(h.returns==0&&h.taps==0,"vertical drag rejected");
+  h=new SideDismissRegression();h.layout.tabletLandscape=true;h.sideScrolling=true;
+  h.swipe(200,4,400);check(h.returns==0&&h.taps==0,"horizontal scroll cannot dismiss a task");
+  h.swipe(4,200,400);check(h.returns==0&&h.sideDismiss==null,"downward drag does not dismiss a task");
+  h.event(0,940,900,0);h.event(2,944,720,200);
+  check(h.sideDismiss!=null&&h.sideDismiss.vertical&&h.sideDismiss.dx==-180&&h.sideDismiss.distance<0,
+        "tablet upper swipe tracks the Y coordinate and exits toward the toolbar");
+  h.event(1,944,720,400);check(h.returns==1&&!h.front,"tablet upper swipe returns the same task to the system");
+  h=new SideDismissRegression();h.layout.tabletLandscape=true;h.swipe(200,4,400);
+  check(h.returns==1,"tablet fixed mode keeps outward swipe");
   h=new SideDismissRegression();h.swipe(65,0,400);check(h.returns==0&&h.taps==0,"short drag rejected");
   h=new SideDismissRegression();h.swipe(110,0,1500);check(h.returns==1,"slow deliberate outward gesture accepted");
   h=new SideDismissRegression();h.event(0,940,900,0);h.event(1,944,903,100);check(h.taps==1&&h.returns==0,"tap still swaps");

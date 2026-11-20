@@ -22,6 +22,7 @@ final class MiStepTopTaskTransition {
     private final WindowManager.LayoutParams params;
     private final Face face;
     private final int width, height;
+    private final TopTaskReturnPolicy.RevealFrame revealStart;
     private final BooleanSupplier current;
     private final Runnable handoff;
     private final Consumer<MiStepTopTaskTransition> finished;
@@ -35,7 +36,8 @@ final class MiStepTopTaskTransition {
     private Runnable nativeRestore;
     private boolean liveSurfaceAtEnd;
     private ValueAnimator animator;
-    private boolean attached, closed, firstDraw, collapsed, revealing;
+    private volatile boolean closed;
+    private boolean attached, firstDraw, collapsed, revealing;
     private boolean collectionPrepared, collectionStarted;
     private final Runnable timeout=this::close;
     private final View.OnAttachStateChangeListener attachment=new View.OnAttachStateChangeListener() {
@@ -45,9 +47,11 @@ final class MiStepTopTaskTransition {
 
     MiStepTopTaskTransition(FrameLayout host,int width,int height,
             BooleanSupplier current,Runnable handoff,
-            Consumer<MiStepTopTaskTransition> finished,Consumer<String> log) throws Throwable {
+            Consumer<MiStepTopTaskTransition> finished,Consumer<String> log,
+            TopTaskReturnPolicy.RevealFrame revealStart) throws Throwable {
         this.host=host;this.width=width;this.height=height;
         this.current=current;this.handoff=handoff;this.finished=finished;this.log=log;
+        this.revealStart=revealStart!=null ? revealStart : TopTaskReturnPolicy.centeredFrame(width,height);
         face=new Face();
         windows=(WindowManager)host.getContext().getSystemService(android.content.Context.WINDOW_SERVICE);
         params=new WindowManager.LayoutParams(-1,-1,
@@ -69,14 +73,23 @@ final class MiStepTopTaskTransition {
         if(closed || attached)return;
         if(!current.getAsBoolean()) {close();return;}
         windows.addView(face,params);attached=true;
-        log.accept("upper live center start");
+        log.accept("upper live transition start");
         host.addOnAttachStateChangeListener(attachment);
         // A failed/late native handoff must never leave an input-blocking overlay behind.
         host.postDelayed(timeout,5000L);
     }
 
-    void setLiveSurface(Object surface) {
+    TopTaskReturnPolicy.RevealFrame initialRevealFrame() {
+        return closed ? null : revealStart;
+    }
+
+    synchronized void setLiveSurface(Object surface) {
         liveSurface=surface;
+        // Shell may finish the reparent after the overlay has already closed.
+        if(closed) {
+            applyLiveFrame(1f);
+            liveSurface=null;
+        }
     }
 
     void collect(Object surface,BooleanSupplier sourceCurrent,View destination) {
@@ -127,7 +140,7 @@ final class MiStepTopTaskTransition {
         log.accept("upper roll finished; live main reveal handoff");
         if(!current.getAsBoolean()) {close();return;}
         try {handoff.run();}
-        catch(Throwable error) {log.accept("upper center handoff: "+error);close();}
+        catch(Throwable error) {log.accept("upper transition handoff: "+error);close();}
     }
 
     /** Called after the existing adoption/return callback confirms task ownership. */
@@ -143,11 +156,11 @@ final class MiStepTopTaskTransition {
             return;
         }
         if(!validLiveSurface()) {
-            log.accept("upper live main surface unavailable; skip center animation");
+            log.accept("upper live main surface unavailable; skip reveal");
             close();return;
         }
         animate(0f,1f,180L,()->{
-            applyLiveScale(1f);
+            applyLiveFrame(1f);
             log.accept("upper live main surface expanded");
             close();
         });
@@ -166,8 +179,8 @@ final class MiStepTopTaskTransition {
                 // Zero until admission, then start moving immediately. A .14 hold
                 // exposed a miniature task during the asynchronous native handoff.
                 applyCollectionScale(fraction);
-            } else if(!applyLiveScale(TopTaskReturnPolicy.revealScale(fraction))) {
-                    log.accept("upper live main surface transform failed; restoring full frame");
+            } else if(!applyLiveFrame(fraction)) {
+                log.accept("upper live main surface transform failed; restoring full frame");
                 close();return;
             }
             face.invalidate();
@@ -182,9 +195,11 @@ final class MiStepTopTaskTransition {
     }
 
     void close() {
-        if(closed)return;
-        closed=true;
-        if(!liveSurfaceAtEnd)applyLiveScale(1f);
+        synchronized(this) {
+            if(closed)return;
+            closed=true;
+            if(!liveSurfaceAtEnd)applyLiveFrame(1f);
+        }
         if(collectionView!=null) {
             collectionView.setPivotX(collectionPivotX);collectionView.setPivotY(collectionPivotY);
             collectionView.setScaleX(collectionScaleX);collectionView.setScaleY(collectionScaleY);
@@ -218,19 +233,18 @@ final class MiStepTopTaskTransition {
         collectionView.setScaleX(scale);collectionView.setScaleY(scale);
     }
 
-    private boolean applyLiveScale(float scale) {
+    private boolean applyLiveFrame(float progress) {
         if(!validLiveSurface())return false;
         Object transaction=null;
         try {
             transaction=Class.forName("android.view.SurfaceControl$Transaction")
                     .getDeclaredConstructor().newInstance();
-            float x=TopTaskReturnPolicy.centeredOffset(width,scale);
-            float y=TopTaskReturnPolicy.centeredOffset(height,scale);
-            XposedHelpers.callMethod(transaction,"setPosition",liveSurface,x,y);
-            XposedHelpers.callMethod(transaction,"setMatrix",liveSurface,scale,0f,0f,scale);
+            TopTaskReturnPolicy.RevealFrame frame=revealStart.at(progress);
+            XposedHelpers.callMethod(transaction,"setPosition",liveSurface,frame.x,frame.y);
+            XposedHelpers.callMethod(transaction,"setMatrix",liveSurface,frame.scaleX,0f,0f,frame.scaleY);
             XposedHelpers.callMethod(transaction,"setWindowCrop",liveSurface,new Rect(0,0,width,height));
             XposedHelpers.callMethod(transaction,"apply");
-            liveSurfaceAtEnd=scale>=1f;
+            liveSurfaceAtEnd=frame==TopTaskReturnPolicy.RevealFrame.FULL;
             return true;
         } catch(Throwable error) {
             log.accept("upper live main surface transaction: "+error);

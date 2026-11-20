@@ -97,7 +97,7 @@ for sig,anchor in [('    private void startLiveCollect(','statusBar.runAfterHidd
     assert 'prepareCellSurface(slot);' in source
     assert source.index('prepareCellSurface(slot);')<source.index(anchor)
 assert 'for (Slot cell : slots)' in method('    private void restoreLiveSwapVisual(')
-created=method('    private void onTaskViewCreated(')
+created=method('    private boolean onTaskViewCreated(')
 assert 'slot.hint.setOnClickListener(v -> { if (!taskCellsCovered)' in created
 assert 'view.setOnClickListener(v -> { if (!taskCellsCovered)' in created
 # Explicit shortcut/settings commands must still reuse the existing task dispatcher.

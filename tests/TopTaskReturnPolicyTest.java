@@ -8,18 +8,35 @@ public final class TopTaskReturnPolicyTest {
         check(!TopTaskReturnPolicy.liveCenterReveal(false, false, true));
         check(!TopTaskReturnPolicy.liveCenterReveal(false, true, false));
         check(TopTaskReturnPolicy.liveCenterReveal(false, true, true));
-        check(Math.abs(TopTaskReturnPolicy.revealScale(0f)
-                - TopTaskReturnPolicy.CENTER_START_SCALE) < .0001f);
-        check(TopTaskReturnPolicy.revealScale(1f) == 1f);
-        check(TopTaskReturnPolicy.revealScale(-1f)
-                == TopTaskReturnPolicy.CENTER_START_SCALE);
-        check(TopTaskReturnPolicy.revealScale(2f) == 1f);
-        for (float scale : new float[]{.14f, .5f, .9f, 1f}) {
-            float center = TopTaskReturnPolicy.centeredOffset(1080, scale)
-                    + 1080 * scale / 2f;
-            check(Math.abs(center - 540f) < .001f);
+        var centered = TopTaskReturnPolicy.centeredFrame(1080, 2460);
+        check(centered.scaleX == .14f && centered.scaleY == .14f);
+        check(centered.at(-1f) == centered && centered.at(2f) == TopTaskReturnPolicy.RevealFrame.FULL);
+        for (float progress : new float[]{0f, .25f, .5f, 1f}) {
+            var frame = centered.at(progress);
+            near(frame.x + 1080 * frame.scaleX / 2f, 540f);
+            near(frame.y + 2460 * frame.scaleY / 2f, 1230f);
         }
-        System.out.println("TopTaskReturnPolicy: 14 checks passed");
+        for (boolean mainOnRight : new boolean[]{false, true}) {
+            int mainWidth = 2139, mainX = mainOnRight ? 909 : 0, mainY = 606;
+            float mainScale = mainWidth / 3048f;
+            float left = mainOnRight ? 924f : 1224f;
+            var start = TopTaskReturnPolicy.tabletPushFrame(left, mainY, 904, 1426,
+                    mainX, mainY, mainScale, 3048, 2032);
+            for (float progress : new float[]{0f, .25f, .5f, 1f}) {
+                var frame = start.at(progress);
+                float x = mainX + frame.x * mainScale;
+                float width = 3048 * frame.scaleX * mainScale;
+                near(x, left + (mainX - left) * progress);
+                near(x + width, left + 904 + (mainX + mainWidth - left - 904) * progress);
+                near(frame.y, 0f);
+                near(2032 * frame.scaleY * mainScale, 1426f);
+            }
+        }
+        System.out.println("TopTaskReturnPolicy: 48 checks passed");
+    }
+
+    private static void near(float actual, float expected) {
+        check(Math.abs(actual - expected) < .002f);
     }
 
     private static void check(boolean condition) {

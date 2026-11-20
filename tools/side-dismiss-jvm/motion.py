@@ -33,6 +33,16 @@ public class SideDismissMotionRegression {
   trackingDone=new ArrayList<>();drag=new MiStepSideDismiss(trackingRoot,trackingView,280,()->true,trackingDone::add,s->{});
   drag.follow(100);drag.settle(true);ValueAnimator.latest.frame(.5f);check(trackingView.tx==190,"finish continues from finger without jumping to zero");
   ValueAnimator.latest.end();check(trackingView.tx==280&&trackingDone.equals(List.of(true)),"finish waits for native acknowledgement offscreen");drag.close();
+  View tabletRoot=new View(),tabletView=new View();tabletRoot.children.add(tabletView);
+  tabletView.y=95;tabletView.ty=4;tabletView.tx=13;
+  List<Boolean> tabletDone=new ArrayList<>();
+  var upward=new MiStepSideDismiss(tabletRoot,tabletView,-506,true,()->true,tabletDone::add,s->{});
+  upward.follow(-180);tabletRoot.draw();
+  check(tabletView.tx==13&&tabletView.surfaceY==95+4-180&&tabletView.holeY==tabletView.surfaceY,
+        "upward drag moves the real surface and hole together without touching X");
+  upward.settle(true);ValueAnimator.latest.end();
+  check(tabletView.ty==4-506&&tabletDone.equals(List.of(true)),"tablet commits while outside the strip");
+  upward.close();check(tabletView.ty==4&&tabletView.tx==13,"native acknowledgement restores only the owned axis");
   View root=new View(),view=new View();boolean[] current={true};List<Boolean> done=new ArrayList<>();
   var m=new MiStepSideDismiss(root,view,280,()->current[0],done::add,s->{});m.start();ValueAnimator.latest.frame(.4f);current[0]=false;ValueAnimator.latest.frame(.6f);
   check(done.equals(List.of(false))&&view.tx==0,"replacement binding cancels and restores");m.close();

@@ -15,8 +15,8 @@ import java.util.function.*;
 public class TopDismissRegression {
  static final int ACTIVE=1,SLOT_TOP=4;static TopDismissRegression sInstance;
  static int checks;static void check(boolean b,String m){checks++;if(!b)throw new AssertionError(m);}
- static class View {void invalidate(){}}
- static class Layout {int topStrip=622;boolean tabletLandscape,mainOnRight;}
+ static class View {float x,y;float getX(){return x;}float getY(){return y;}void invalidate(){}}
+ static class Layout {int topStrip=622,mainOffsetX,mainOffsetY=606;float mainScale=1426f/2032;boolean tabletLandscape,mainOnRight;}
  static class Roll {boolean rolling;boolean rolling(){return rolling;}}
  static class Pane {}
  static class Info {int id,user;Object token;boolean ordinary=true,side;}
@@ -31,16 +31,16 @@ public class TopDismissRegression {
  static class MiStepClipboard {static MiStepClipboard get(Object c){return new MiStepClipboard();}void close(){}}
  static class MiStepScanner {static void closeImmediately(){}}
  static class MiStepSideDismiss {
-  final BooleanSupplier current;final Consumer<Boolean> complete;float distance,dx;boolean tracking=true,closed;
-  MiStepSideDismiss(View r,View v,float d,BooleanSupplier c,Consumer<Boolean> done,Consumer<String> log){distance=d;current=c;complete=done;}
+  final BooleanSupplier current;final Consumer<Boolean> complete;final View view;float distance,dx;boolean tracking=true,closed;
+  MiStepSideDismiss(View r,View v,float d,BooleanSupplier c,Consumer<Boolean> done,Consumer<String> log){view=v;distance=d;current=c;complete=done;}
   boolean isTracking(){return tracking;}void follow(float d){dx=d;if(!current.getAsBoolean())settle(false);}
-  void settle(boolean commit){if(!tracking)return;tracking=false;complete.accept(commit&&current.getAsBoolean());}
+  void settle(boolean commit){if(!tracking)return;tracking=false;if(commit)view.x+=distance;complete.accept(commit&&current.getAsBoolean());}
   void close(){closed=true;}
  }
- int scene=ACTIVE,screenW=1080,returns,clears,finished,focused,hints;long sceneEpoch=1;
+ int scene=ACTIVE,screenW=1080,screenH=2032,returns,clears,finished,focused,hints;long sceneEpoch=1;
  boolean screenOn=true,keyguardLocked,suspendRequested,transferBusy,workspaceEntering,topFace=true,topFromMain=true;
  boolean controller=true,front,liveMainReveal,transitionAvailable=true;float topDismissDx,topDismissDirection;
- Runnable pendingHandback;int reveals,cancelled;
+ Runnable pendingHandback;TopTaskReturnPolicy.RevealFrame revealStart;int reveals,cancelled;
  Object ctx=new Object(),promotion,cellMotion,topTransition,topOriginalSlot=new Object();
  View root=new View();Layout layout=new Layout();Roll topRoll=new Roll();
  Slot[] slots={new Slot(),new Slot(),new Slot(),new Slot(),new Slot()};
@@ -62,7 +62,7 @@ public class TopDismissRegression {
  void clearSlot(Slot s){s.occupied=false;s.taskToken=null;s.taskId=-1;s.taskEpoch++;s.promoting=false;clears++;}
  void returnToSystem(Slot s,boolean front,Runnable ok,Consumer<String> bad){returns++;this.front=front;success=ok;failure=bad;}
  void returnToSystem(Slot s,boolean front,boolean live,Runnable ok,Consumer<String> bad){liveMainReveal=live;returnToSystem(s,front,ok,bad);}
- boolean startLiveMainRevealTransition(Runnable r){if(!transitionAvailable)return false;topTransition=new Object();pendingHandback=r;return true;}
+ boolean startLiveMainRevealTransition(Runnable r,TopTaskReturnPolicy.RevealFrame start){if(!transitionAvailable)return false;topTransition=new Object();pendingHandback=r;revealStart=start;return true;}
  void revealTopTaskTransition(){if(topTransition!=null)reveals++;}
  void cancelTopTaskTransition(){if(topTransition!=null)cancelled++;topTransition=null;}
  void nativeSuccess(){transferBusy=false;slots[4].promoting=false;success.run();}
@@ -110,9 +110,12 @@ public class TopDismissRegression {
    h.nativeSuccess();check(h.clears==1&&h.topTaskState.owner()==null,"portrait push returns original real task on ack");
    h=fresh();h.layout.tabletLandscape=true;h.layout.mainOnRight=right;h.screenW=3048;
    h.slots[4].rect=right?new int[]{0,606,904,2032}:new int[]{2144,606,3048,2032};
+   h.layout.mainOffsetX=right?909:0;h.slots[4].view.x=h.slots[4].rect[0];h.slots[4].view.y=606;
    var original=new TopCandidate(new TopTaskState.Key(91,0,new Object()));h.covered=original;
    var returned=h.topTaskState.owner();begin(h,-sign*80);moveTopDismiss(-sign*300);endTopDismiss(false);
    check(h.returns==0&&h.pendingHandback!=null&&h.topTransition!=null,"inward release prepares live reveal before native handoff");
+   check(Math.abs(h.layout.mainOffsetX+h.revealStart.x*h.layout.mainScale-h.slots[4].view.x)<.001f
+      && h.revealStart.y==0&&h.revealStart.scaleY==1f,"inward reveal starts at the settled live window without collapsing vertically");
    h.pendingHandback.run();
    check(h.returns==1&&h.front&&h.liveMainReveal&&h.clears==0,"inward native handoff retains real canonical surface at initial scale");
    h.nativeSuccess();check(h.tabletCoveredMain==original&&h.tabletReturnedTop.equals(returned)
@@ -157,5 +160,6 @@ p=out/'com/jiusis/mistep/TopDismissRegression.java';p.parent.mkdir(parents=True,
 jdk=Path(os.environ['MISTEP_JAVA_BIN'])
 wct=out/'android/window/WindowContainerTransaction.java';wct.parent.mkdir(parents=True,exist_ok=True)
 wct.write_text('package android.window; public class WindowContainerTransaction {public Object token;public boolean front;}',encoding='utf8')
-subprocess.run([str(jdk/'javac.exe'),'-encoding','UTF-8','--release','17','-d',str(out),str(p),str(wct),str(src/'TopTaskState.java')],check=True)
+subprocess.run([str(jdk/'javac.exe'),'-encoding','UTF-8','--release','17','-d',str(out),str(p),str(wct),
+    str(src/'TopTaskState.java'),str(src/'TopTaskReturnPolicy.java')],check=True)
 subprocess.run([str(jdk/'java.exe'),'-cp',str(out),'com.jiusis.mistep.TopDismissRegression'],check=True)

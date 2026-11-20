@@ -96,6 +96,11 @@ public final class WorkspaceRetentionTest {
         void postDelayed(Runnable task,long delay){pending.add(task);}
     }
     final Handler main=new Handler();
+    Object ctx=this;
+    boolean tablet;
+    int geometryRefreshes;
+    static class DeviceProfile{static boolean isTablet(Object c){return ((WorkspaceRetentionTest)c).tablet;}}
+    void scheduleDisplayGeometryRefresh(){geometryRefreshes++;}
     boolean mayWriteSideSurface(Slot slot){return true;}
     boolean sideRowInPlace(Slot slot){return true;}
     void revealSideTaskForDesktop(Slot slot,android.os.Bundle binding){throw new AssertionError("unexpected scrolling row");}

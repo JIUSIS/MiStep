@@ -23,13 +23,16 @@ public class DisplayRefreshRegression {
  static int checks;
  static void check(boolean value,String message){checks++;if(!value)throw new AssertionError(message);}
  static class View {
-  static final int VISIBLE=0,GONE=8;void setVisibility(int v){}
+  static final int VISIBLE=0,INVISIBLE=4,GONE=8;
+  int visibility=VISIBLE,frontCalls;
+  void setVisibility(int v){visibility=v;}void bringToFront(){frontCalls++;}
   void setLayoutParams(Object p){} void setClipBounds(Rect r){} void requestLayout(){} void invalidate(){}
-  int getVisibility(){return VISIBLE;}
+  int getVisibility(){return visibility;}
  }
  static class Rect {Rect(int a,int b,int c,int d){}}
  static class FrameLayout {static class LayoutParams {int leftMargin,topMargin;LayoutParams(int w,int h){}}}
  static class Bar extends View {void setStatusBarInset(int value){}}
+ static class Roll {int resets;boolean task;void reset(boolean task){resets++;this.task=task;}}
  static class Promotion {boolean nativeSwap=true;}
  static class CellMotion {int finishes;void finish(){finishes++;}}
  CellMotion cellMotion;
@@ -44,22 +47,33 @@ public class DisplayRefreshRegression {
  static class DeviceProfile {static boolean tablet;static boolean isTablet(Object c){return tablet;}static int statusBarHeightPx(Object c){return 0;}}
  static class ZoomLifecyclePolicy {static boolean shouldReassertGeometry(boolean a,boolean b,boolean c){return a&&b&&c;}}
   static class NativeLandscapePolicy {static boolean shouldRestoreFromDisplay(boolean landscape,boolean suspended,int rotation){return landscape&&suspended&&(rotation==0||rotation==2);}}
-  static final int SLOT_COUNT=4,SLOT_MAIN=0,SLOT_TOP=5,ACTIVE=0,SUSPENDED=4;
+ static final int SLOT_COUNT=6,SLOT_MAIN=0,SLOT_TOP=5,ACTIVE=0,SUSPENDING=3,SUSPENDED=4;
  int CELL_SLOT_COUNT=4,suspends;void suspendSession(String s){suspends++;scene=SUSPENDED;}
  void clearSlot(Slot s){s.parked=false;s.occupied=false;}void configureTabletTools(){}void updateTopTaskGeometry(){}
- final java.util.List<Slot> sideOrder=java.util.List.of();boolean ensureSideViewport(){return true;}
+ final java.util.List<Slot> sideOrder=new java.util.ArrayList<>();boolean ensureSideViewport(){return true;}
+ static class MiStepLayout {static final int MAX_CELL_COUNT=4;}
+ boolean sideScrolling;float sideOffset;int mapped=-1;
+ int maxSideOffset(){return Math.max(0,sideOrder.size()-layout.cellCount);}
+ void mapSideSlots(int row){mapped=row;}
+ void updateSideInputViewportBounds(){}
  int screenW=1200,screenH=2608,displayRotation=0;
  int sampleW=screenW,sampleH=screenH,sampleRotation=displayRotation,reads,cancels,rebuilds,writes;
   int geometryRefreshDeferrals,scene,carrierSlotIndex=-1,resumes;boolean geometryRefreshAfterLive,landscapeSuspended,transferBusy,mainOnRight,keyguardLocked,screenOn=true;
- View root=new View(),topStripBacking,carrierBackdrop,topLiveClip;Object displayManager=new Object(),swapPreview,cellMovePreview,ctx,lp;
- Bar topBar;Manager wm;Layout layout=new Layout();Queue main=new Queue();
- Slot[] slots={new Slot(),new Slot(),new Slot(),new Slot()};View[] sideBackingViews=new View[SLOT_COUNT];
+ View root=new View(),topStripBacking,carrierBackdrop,topLiveClip,topTaskPane;Object displayManager=new Object(),swapPreview,cellMovePreview,ctx,lp;
+ boolean topFace;Roll topRoll;Bar topBar;Manager wm;Layout layout=new Layout();Queue main=new Queue();
+ Slot[] slots={new Slot(),new Slot(),new Slot(),new Slot(),new Slot(),new Slot()};View[] sideBackingViews=new View[SLOT_COUNT];
  Promotion promotion=new Promotion();String cancelReason;
  void readDisplayGeometry(){reads++;screenW=sampleW;screenH=sampleH;displayRotation=sampleRotation;}
  void failPromotion(Promotion p,String reason){cancels++;cancelReason=reason;}
   void resumeSession(){resumes++;}
  void scheduleDisplayGeometryRefresh(){}void log(String value){}
- Layout makeAdaptiveLayout(boolean right){rebuilds++;return new Layout();}
+ Layout makeAdaptiveLayout(boolean right){
+  rebuilds++;
+  Layout result=new Layout();
+  result.tabletLandscape=DeviceProfile.tablet&&screenW>screenH;
+  if(result.tabletLandscape)result.cellCount=4;
+  return result;
+ }
  void applyRect(Slot s){}void updateTouchRegion(Slot s){}void updateHint(Slot s){}
  int sideSegmentTop(int i){return 0;}int sideSegmentHeight(int i){return 0;}
  void applyWallpaperBackdrops(){}void reassertCarrier(){}void writeZoom(boolean value){writes++;}
@@ -97,6 +111,28 @@ public class DisplayRefreshRegression {
   DisplayRefreshRegression tablet=live();tablet.promotion=null;tablet.sampleW=3048;tablet.sampleH=2032;tablet.sampleRotation=1;tablet.refreshDisplayGeometry();
   check(tablet.screenW==1200&&tablet.screenH==2608&&tablet.suspends==1,"tablet direction change exits before changing capacity");
   tablet.refreshDisplayGeometry();check(tablet.screenW==3048&&tablet.screenH==2032&&tablet.rebuilds==1&&tablet.writes==0,"tablet suspended geometry can be rebuilt before explicit entry");
+  tablet.sideOrder.addAll(java.util.List.of(tablet.slots[1],tablet.slots[2],tablet.slots[3],tablet.slots[4]));
+  tablet.sideScrolling=true;tablet.sideOffset=3;tablet.scene=SUSPENDING;
+  tablet.topFace=true;tablet.topRoll=new Roll();tablet.topBar=new Bar();tablet.topTaskPane=new View();
+  tablet.sampleW=2032;tablet.sampleH=3048;tablet.sampleRotation=0;
+  tablet.refreshDisplayGeometry();
+  check(tablet.rebuilds==1&&tablet.mapped==-1,"array traversal must finish handback before rotation remaps owners");
+  tablet.scene=SUSPENDED;tablet.refreshDisplayGeometry();
+  check(tablet.CELL_SLOT_COUNT==4&&tablet.sideOffset==1&&tablet.mapped==1,
+        "new portrait capacity clamps the existing offset before mapping");
+  check(!tablet.topFace&&tablet.topRoll.resets==1&&!tablet.topRoll.task
+        &&tablet.topTaskPane.visibility==View.INVISIBLE&&tablet.topBar.frontCalls==1,
+        "landscape empty TOP yields to the controls and their touch target in portrait");
+  tablet.sampleH=3040;tablet.refreshDisplayGeometry();
+  check(tablet.topRoll.resets==1,"a portrait-only resize leaves the selected top face alone");
+  DisplayRefreshRegression occupied=live();occupied.promotion=null;occupied.scene=SUSPENDED;
+  occupied.layout.tabletLandscape=true;occupied.screenW=3048;occupied.screenH=2032;occupied.displayRotation=1;
+  occupied.sampleW=2032;occupied.sampleH=3048;occupied.sampleRotation=0;
+  occupied.slots[SLOT_TOP].occupied=true;occupied.topRoll=new Roll();occupied.topBar=new Bar();occupied.topTaskPane=new View();
+  occupied.refreshDisplayGeometry();
+  check(occupied.topFace&&occupied.topRoll.resets==1&&occupied.topRoll.task
+        &&occupied.topTaskPane.visibility==View.VISIBLE&&occupied.topBar.frontCalls==0,
+        "a live TOP task remains the visible face when rotating to portrait");
   DeviceProfile.tablet=false;
   System.out.println("actual Host display refresh checks="+checks+" passed");
  }

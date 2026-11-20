@@ -14,6 +14,11 @@ exec(compile(animation.read_text(encoding='utf-8').split('sources=[]')[0],
              str(animation), 'exec'), animation_ns)
 files.update(animation_ns['ANIMATION_FILES'])
 files['android/content/res/Configuration.java'] = animation_ns['FILES']['android/content/res/Configuration.java']
+files['com/android/server/wm/WindowState.java'] = files['com/android/server/wm/WindowState.java'].replace(
+ 'public boolean visible=true;', '''public boolean visible=true,drawn=true;
+ public final WindowAnimator mWinAnimator=new WindowAnimator();
+ public boolean isDrawn(){return drawn;}
+ public static class WindowAnimator{public boolean shown;public boolean getShown(){return shown;}}''')
 tree = ast.parse((ROOT/'tools/desktop-route-jvm/run.py').read_text(encoding='utf-8-sig'))
 desktop = next(ast.literal_eval(n.value) for n in tree.body if isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id == 'files' for t in n.targets))
 for name in ['android/os/IBinder.java', 'android/os/Binder.java', 'android/os/Bundle.java', 'android/os/SystemClock.java', 'android/content/Intent.java', 'com/android/server/wm/WindowContainer.java']:
@@ -60,8 +65,10 @@ public class PhoneWorkspaceTest {
  Task(Display d,int id,int mode){display=d;mTaskId=id;this.mode=mode;info=new Info(id);bounds=mode==6?new Rect(0,0,3000,1725):new Rect(0,0,1080,2460);WindowContainer.tasks.put(info.token.binder,this);}
  Display getDisplayContent(){return display;}int getWindowingMode(){return mode;}boolean isForceTranslucent(){return mode==6;}Activity topRunningActivity(){return top;}Info getTaskInfo(){queries++;return info;}public Rect getBounds(){return bounds;}public Configuration getConfiguration(){return config;}void forAllActivities(java.util.function.Consumer<Object> visitor,boolean topToBottom){for(Activity a:new ArrayList<>(children))visitor.accept(a);}}
  static class LocalState extends FakeRotationActivity.State{Configuration mRotatedOverrideConfiguration;}
- static class Activity extends FakeRotationActivity{Display mDisplayContent;PhoneWorkspaceTest.Task task;int request=2,starts,leashes;boolean finishing,mRemovingFromDisplay,entryKept,returnKept,scopeConfig,attached=true,closing;Controller mTransitionController=new Controller();Configuration config=new Configuration();
+ static class Activity extends FakeRotationActivity{Display mDisplayContent;PhoneWorkspaceTest.Task task;int request=2,starts,leashes;boolean finishing,mRemovingFromDisplay,entryKept,returnKept,scopeConfig,attached=true,closing;boolean visible,startingOnly;Controller mTransitionController=new Controller();Configuration config=new Configuration();
  public boolean inTransition(){return closing;}
+ boolean isVisible(){return visible;}
+ Object findMainWindow(boolean includeStarting){return includeStarting||!startingOnly?window:null;}
  Activity(PhoneWorkspaceTest.Task t){task=t;t.top=this;t.children.add(this);mDisplayContent=t.display;}public PhoneWorkspaceTest.Task getTask(){return task;}Display getDisplayContent(){return mDisplayContent;}int getRootTaskId(){return task.mTaskId;}boolean isActivityTypeHome(){return false;}boolean inMultiWindowMode(){return task.mode==6||task.mode==5;}int getOverrideOrientation(){return request;}Configuration getConfiguration(){return config;}public PhoneWorkspaceTest.Task getParent(){return attached?task:null;}boolean hasFixedRotationTransform(){return mFixedRotationTransformState!=null;}
  void install(){LocalState s=new LocalState();s.mRotatedOverrideConfiguration=new Configuration(config);s.mAssociatedTokens.add(this);mFixedRotationTransformState=s;}
  void finishFixedRotationTransform(){finishFixedRotationTransform(null);}
@@ -157,6 +164,38 @@ public class PhoneWorkspaceTest {
   call(@installFixedMainRotationHooks@,new Class[]{ClassLoader.class},PhoneWorkspaceTest.class.getClassLoader());
   var hooks=de.robv.android.xposed.XposedBridge.hooks;var update=hooks.get(@updateReportedConfigurationAndSend@);var decide=hooks.get(@shouldRelaunchLocked@);var relaunch=hooks.get(@relaunchActivityLocked@);var freeze=hooks.get(@startFreezingScreenLocked@);
   check(update!=null&&decide!=null&&relaunch!=null&&freeze!=null,@actual production hooks installed@);
+  var prepare=hooks.get(@prepareSurfaces@);
+  check(prepare!=null,@native Activity surface preparation is hooked@);
+  var preparingBottom=param(bottom,null);var carrier=bottom.fixed;
+  carrier.shown=false;bottom.visible=true;
+  prepare.after(preparingBottom);
+  check(!carrier.shown,@native window surface still hidden: leave its carrier hidden@);
+  bottom.window.mWinAnimator.shown=true;bottom.window.drawn=false;
+  prepare.after(preparingBottom);
+  check(!carrier.shown,@an undrawn real window cannot reveal the carrier@);
+  bottom.window.drawn=true;bottom.startingOnly=true;
+  prepare.after(preparingBottom);
+  check(!carrier.shown,@a starting window is not live page content@);
+  bottom.startingOnly=false;bottom.visible=false;
+  prepare.after(preparingBottom);
+  check(!carrier.shown,@animation-only showing cannot expose an invisible Activity@);
+  bottom.visible=true;bottom.closing=true;
+  prepare.after(preparingBottom);
+  check(!carrier.shown,@Shell transition still owns the hidden carrier@);
+  bottom.closing=false;bottom.mFixedRotationTransformState=new LocalState();
+  prepare.after(preparingBottom);
+  check(!carrier.shown,@replaced native state cannot reuse the previous lease@);
+  bottom.mFixedRotationTransformState=(FakeRotationActivity.State)bottomState;
+  prepare.after(preparingBottom);
+  check(carrier.shown&&bottom.fixed==carrier&&bottom.task.top==foreground,
+        @Back preview reveals the same carrier while the old page is still on top@);
+  carrier.shown=false;bottom.finishing=true;
+  prepare.after(preparingBottom);
+  check(!carrier.shown,@finishing page cannot be shown by the local visibility repair@);
+  bottom.finishing=false;carrier.valid=false;
+  prepare.after(preparingBottom);
+  check(!carrier.shown,@invalid rotation carrier is left to the native lifecycle@);
+  carrier.valid=true;bottom.visible=false;bottom.window.mWinAnimator.shown=false;
   var outside=param(bottom,null,false,0x1580);relaunch.before(outside);check(Boolean.FALSE.equals(outside.args[0]),@no preservation outside native configuration scope@);
   Configuration oldLayout=new Configuration(bottom.task.config);
   var outer=param(bottom,null);update.before(outer);

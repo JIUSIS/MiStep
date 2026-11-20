@@ -24,9 +24,11 @@ actual = '\n'.join(extract(s) for s in (
     '    private void appendHiddenKeyguardSurfaces(',
     '    private void restoreRetainedWorkspaceSurfaces(',
     '    private void reassertSideTaskViews(',
-    '    private boolean ensureSideViewport('))
+    '    private boolean ensureSideViewport(',
+    '    private Rect sideViewportBounds('))
 if '    private void stageSideViewport(' in source:
     actual += '\n' + extract('    private void stageSideViewport(')
+actual += '\n' + extract('    private boolean retainedResumeStaging(')
 actual += '\n' + extract('    private void syncSideViewportFocus(')
 focus_stub = r'''package android.window;
 public class WindowContainerTransaction {
@@ -60,8 +62,8 @@ body = r'''package com.jiusis.mistep;
 import java.util.*;import android.graphics.Rect;import android.view.SurfaceControl.Leash;import android.view.SurfaceControl.Transaction;
 public class SideParentRegression {
  static final int SLOT_MAIN=0,SLOT_TOP=4,ACTIVE=2,RESUMING=1;int scene=ACTIVE;long sceneEpoch=7;boolean screenOn=true,topFace,keyguardLocked,retainedForLock,keyguardWindowHidden;Object root=new Object();
- static class MiStepLayout {int cellX=813,cellWidth=267,topStrip=622;}
- final MiStepLayout layout=new MiStepLayout();
+ boolean retainedOnExit;float workspaceAlpha=1f;
+ MiStepLayout layout=MiStepLayout.of(1080,2460,false,2.75f);
  final int screenH=2460;
  final Rect sideViewportCrop=new Rect();
  Object sideViewport,sideViewportHost,hostSurface=new Leash();
@@ -106,6 +108,12 @@ public class SideParentRegression {
  static void excluded(java.util.function.Consumer<SideParentRegression> mutate,String label){var h=fresh();for(var s:h.slots)s.render=false;h.slots[3].render=true;mutate.accept(h);h.reassertSideTaskViews(label);h.drain();check(Transaction.all.isEmpty(),label);}
  static void stale(java.util.function.Consumer<SideParentRegression> mutate,String label){var h=fresh();var s=h.slots[3];var frame=new RenderBinding(s,h.sceneEpoch,s.controller.mTaskLeash,s.controller.mSurfaceControl);mutate.accept(h);var tx=new Transaction();h.appendRetainedSurfaces(tx,List.of(frame));check(tx.ops.isEmpty(),label);}
  public static void main(String[] args){
+  var staged=fresh();staged.scene=RESUMING;staged.retainedOnExit=true;staged.workspaceAlpha=0f;
+  check(staged.ensureSideViewport()&&((Leash)staged.sideViewport).alpha==0f,"replacement viewport stays hidden during retained staging");
+  var returning=staged.slots[3];var stagedFinish=new Transaction();
+  staged.appendRetainedSurfaces(stagedFinish,List.of(new RenderBinding(returning,staged.sceneEpoch,
+    returning.controller.mTaskLeash,returning.controller.mSurfaceControl)));stagedFinish.apply();
+  check(((Leash)returning.controller.mSurfaceControl).alpha==0f,"native finish keeps a returning task parent transparent");
   var h=fresh();Object dta=new Object();var file=h.slots[3];var leash=(Leash)file.controller.mTaskLeash;leash.parent=dta;h.reassertSideTaskViews("resume complete");check(leash.parent==dta,"repair waits for Shell queue");h.drain();
   check(leash.parent==file.controller.mSurfaceControl,"already-visible canonical task returns to exact slot parent");
   check(leash.x==0&&leash.y==0&&leash.k==file.scale&&leash.crop==file.crop,"parent and local geometry restored together");
@@ -185,7 +193,8 @@ public class SideParentRegression {
   }
   h=fresh();check(h.ensureSideViewport(),"initial side viewport is available");
   var viewport=(Leash)h.sideViewport;
-  check(viewport.parent==h.hostSurface&&viewport.shown&&viewport.crop.equals(new Rect(813,622,1080,2460)),
+  check(viewport.parent==h.hostSurface&&viewport.shown&&viewport.crop.equals(
+          new Rect(h.layout.cellX,h.layout.topStrip,1080,2460)),
         "initial viewport clips to the physical side column");
   var child=(Leash)h.slots[1].controller.mSurfaceControl;child.parent=viewport;
   viewport.parent=null;viewport.shown=false;
@@ -194,6 +203,9 @@ public class SideParentRegression {
   h.hostSurface=new Leash();
   check(h.ensureSideViewport()&&h.sideViewport==viewport&&viewport.parent==h.hostSurface&&child.parent==viewport,
         "different Host handle keeps the same viewport and real TaskView children");
+  h.layout=MiStepLayout.of(3048,2032,false,2.5f,true);
+  check(h.ensureSideViewport()&&viewport.crop.equals(new Rect(0,95,3048,601))
+         &&child.parent==viewport,"tablet horizontal viewport crops the same real task containers");
   h=fresh();
   h.slots[1].sideRow=0;h.slots[1].sideShown=false;
   h.slots[2].sideRow=1;h.slots[2].sideShown=true;
@@ -214,5 +226,5 @@ public class SideParentRegression {
 (out/'WindowContainerTransaction.java').write_text(focus_stub, encoding='utf8')
 (out/'SideParentRegression.java').write_text(body, encoding='utf8')
 jdk = Path(os.environ['MISTEP_JAVA_BIN'])
-subprocess.run([str(jdk/'javac.exe'), '-encoding', 'UTF-8', '--release', '17', '-d', str(out), str(out/'SurfaceControl.java'), str(out/'WindowContainerTransaction.java'), str(out/'SideParentRegression.java'), str(root/'tools/test-stubs/android/graphics/Rect.java'), str(src/'FinishTransactions.java')], check=True)
+subprocess.run([str(jdk/'javac.exe'), '-encoding', 'UTF-8', '--release', '17', '-d', str(out), str(out/'SurfaceControl.java'), str(out/'WindowContainerTransaction.java'), str(out/'SideParentRegression.java'), str(root/'tools/test-stubs/android/graphics/Rect.java'), str(src/'FinishTransactions.java'), str(src/'MiStepLayout.java')], check=True)
 subprocess.run([str(jdk/'java.exe'), '-cp', str(out), 'com.jiusis.mistep.SideParentRegression'], check=True)

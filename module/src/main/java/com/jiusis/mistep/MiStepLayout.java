@@ -55,6 +55,7 @@ public final class MiStepLayout {
     /** 窗口间隔（px）。 */
     public final int gap;
     public final int cellWidth;
+    final int sideViewportLeft, sideViewportTop, sideViewportRight, sideViewportBottom;
     public final int[] cellHeight = new int[MAX_CELL_COUNT];
     private final int[] cellLeft = new int[MAX_CELL_COUNT];
     private final int[] cellWidths = new int[MAX_CELL_COUNT];
@@ -148,6 +149,10 @@ public final class MiStepLayout {
                 x += cellWidths[i] + gap;
             }
         }
+        sideViewportLeft = tabletLandscape ? 0 : cellX;
+        sideViewportTop = tabletLandscape ? toolHeight + gap : topStrip;
+        sideViewportRight = tabletLandscape ? width : cellX + cellWidth;
+        sideViewportBottom = tabletLandscape ? topStrip - gap : height;
     }
 
     public static MiStepLayout of(int width, int height) {
@@ -190,6 +195,31 @@ public final class MiStepLayout {
             throw new IllegalArgumentException("cell index " + i);
         }
         return new int[]{cellLeft[i], cellY[i], cellLeft[i] + cellWidths[i], cellY[i] + cellHeight[i]};
+    }
+
+    boolean sideViewportContains(float x, float y) {
+        return x >= sideViewportLeft && x < sideViewportRight
+                && y >= sideViewportTop && y < sideViewportBottom;
+    }
+
+    private int sideScrollStride() {
+        return (tabletLandscape ? width : mainHeight) + gap;
+    }
+
+    float sideScrollPitch() {
+        return sideScrollStride() / (float) cellCount;
+    }
+
+    int[] sideScrollBounds(int row, float offset) {
+        int first = (int) Math.floor(offset);
+        int relative = row - first;
+        int[] bounds = cellBounds(Math.floorMod(relative, cellCount));
+        int shift = Math.floorDiv(relative, cellCount) * sideScrollStride()
+                - Math.round((offset - first) * sideScrollPitch());
+        int axis = tabletLandscape ? 0 : 1;
+        bounds[axis] += shift;
+        bounds[axis + 2] += shift;
+        return bounds;
     }
 
     public int[] interactiveBounds() {

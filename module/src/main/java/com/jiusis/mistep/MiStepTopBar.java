@@ -105,6 +105,8 @@ final class MiStepTopBar extends FrameLayout {
 
     FrameLayout createTabletHeader(int height, Runnable tools) {
         clearTabletHeader();
+        setScaleY(1f);
+        setTranslationY(0f);
         tabletHeaderHeight = Math.max(0, height);
         setBackground(null);
         header.setVisibility(View.GONE);

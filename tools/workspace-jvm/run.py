@@ -13,7 +13,7 @@ def member(signature):
   elif host[i]=='}':d-=1
   i+=1
  return host[a:i]
-methods='\n'.join(member(s) for s in ['    private void beginWorkspaceEntry(', '    private void awaitWorkspaceFrame(', '    private void setWorkspaceAlpha(', '    private android.graphics.RectF workspaceMainHole(', '    private void updateWorkspaceBacking(', '    private void updateWorkspaceBackdropVisibility(', '    private void playWorkspaceFade(', '    private void suspendSession(', '    private void finishPendingSuspend(', '    private boolean ownsCellPresentation(', '    private boolean cellPresentationVisible(', '    private void updateCellSurfaceVisibility('])
+methods='\n'.join(member(s) for s in ['    private void beginWorkspaceEntry(', '    private void awaitWorkspaceFrame(', '    private void finishRetainedResumeCheck(', '    private void hideReturningTaskSurface(', '    private boolean retainedResumeStaging(', '    private void setWorkspaceAlpha(', '    private android.graphics.RectF workspaceMainHole(', '    private void updateWorkspaceBacking(', '    private void updateWorkspaceBackdropVisibility(', '    private void playWorkspaceFade(', '    private void suspendSession(', '    private void finishPendingSuspend(', '    private boolean ownsCellPresentation(', '    private boolean cellPresentationVisible(', '    private void updateCellSurfaceVisibility('])
 files={
 'android/animation/Animator.java':'package android.animation;public class Animator {}',
 'android/animation/AnimatorListenerAdapter.java':'package android.animation;public class AnimatorListenerAdapter {public void onAnimationEnd(Animator a){}}',
@@ -77,6 +77,10 @@ public class WorkspaceRegression {
  void writeZoomAnimated(boolean on){zoomWrites++;}void writeZoom(boolean on){zoomWrites++;}void setZoomState(boolean on){zoomed=on;}void scheduleMainCropClear(long d){}void publishDesktopSideTasks(){}
  void resetTopForSuspend(){}
  boolean retentionAllowed,retainedOnExit;long retainedExitSourceEpoch=-1;int retainedHides;
+ boolean retainedForLock;int keyguardResumeIndex;Runnable pendingReveal;SurfaceControl sideViewport;
+ void confirmRetainedResume(long epoch,int attempt,boolean restored,Runnable reveal){
+  check(epoch==sceneEpoch&&zoomWrites==0,"retained group checked before zoom");pendingReveal=reveal;
+ }
  boolean canRetainBoundTasks(){return retentionAllowed;}
  void finishRetainedSuspend(long epoch){retainedHides++;}
  void closeSwapPreview(){}void closeCellMovePreview(){}void restoreCarrierToMain(){}void hideIme(){}void log(String s){}void failPromotion(Promotion p,String s){}
@@ -131,6 +135,24 @@ public class WorkspaceRegression {
   check(h.sideLayouts==0,"wait for the newly visible Host surface");
   h.root.draw();h.main.flush();
   check(h.sideLayouts==1&&h.zoomWrites==1,"retained entry reconnects its viewport before zoom");
+  h=new WorkspaceRegression();h.scene=RESUMING;h.retainedOnExit=true;h.sideOrder.add(h.slots[1]);
+  h.sideViewport=new SurfaceControl();
+  h.beginWorkspaceEntry(null);h.root.draw();h.main.flush();
+  check(h.sideLayouts==1&&h.zoomWrites==0&&h.pendingReveal!=null,"retained entry waits for the visible task group");
+  var renewed=new SurfaceControl();h.slots[2].controller.surface=renewed;
+  h.hideReturningTaskSurface(renewed);
+  check(renewed.alpha==0,"a recreated task parent stays transparent during staging");
+  h.finishRetainedResumeCheck(h.sceneEpoch,0,true,"hidden",h.pendingReveal);h.main.flush();
+  check(h.zoomWrites==0&&h.workspaceAlpha==0&&h.sideViewport.alpha==0,"an incomplete group cannot start zoom or expose the viewport");
+  h.finishRetainedResumeCheck(h.sceneEpoch,1,true,null,h.pendingReveal);
+  check(h.zoomWrites==1&&h.workspaceAnimator!=null,"confirmed retained group starts one workspace animation");
+  h.workspaceAnimator.tick(.5f);
+  check(h.slots[1].controller.surface.alpha==.5f&&renewed.alpha==.5f&&h.sideViewport.alpha==1,"retained parents fade together when the viewport is revealed");
+  h=new WorkspaceRegression();h.scene=RESUMING;h.retainedOnExit=true;
+  h.beginWorkspaceEntry(null);h.root.draw();h.main.flush();
+  long staleEpoch=h.sceneEpoch;h.suspendSession("homekey");
+  h.finishRetainedResumeCheck(staleEpoch,1,true,null,h.pendingReveal);
+  check(h.scene==SUSPENDING&&h.zoomWrites==1,"late group readiness cannot restart zoom after Home");
   h=new WorkspaceRegression();h.scene=RESUMING;h.beginWorkspaceEntry(null);h.suspendSession("exit-before-first-frame");
   check(h.scene==SUSPENDING&&!h.workspaceEntering,"exit during pending resume frame cannot strand RESUMING");h.root.draw();h.main.flush();check(h.zoomWrites==1,"late entry frame cannot restart zoom after exit");h.workspaceAnimator.end();check(h.parks==1,"pending-entry exit returns tasks");
   h=new WorkspaceRegression();h.scene=RESUMING;h.beginWorkspaceEntry(null);h.screenOn=false;h.suspendSession("screen-lock");

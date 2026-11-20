@@ -101,7 +101,7 @@ public class TopTransitionRegression {
   handoffs=finishes=restores=0;Canvas.colorDraws=Canvas.bitmapDraws=0;android.view.SurfaceControl.Transaction.last=null;
   valid=new AtomicBoolean(true);ctx=new android.content.Context();host=new FrameLayout(ctx);}
  static MiStepTopTaskTransition make(Runnable transfer)throws Throwable {
-  return new MiStepTopTaskTransition(host,1080,2460,valid::get,transfer,v->finishes++,s->{});}
+  return new MiStepTopTaskTransition(host,1080,2460,valid::get,transfer,v->finishes++,s->{},null);}
  static void handoff(MiStepTopTaskTransition run){run.start();check(ValueAnimator.all.isEmpty(),"no transform before native handoff");
   ctx.windows.view.draw(new Canvas());View.drain();}
  public static void main(String[]args)throws Throwable {
@@ -116,7 +116,7 @@ public class TopTransitionRegression {
   reset();run=make(()->handoffs++);run.start();host.attachment.onViewDetachedFromWindow(host);View.drain();
   check(finishes==1&&handoffs==0&&ctx.windows.removes==1,"Host detach retires live bridge");
   reset();run=new MiStepTopTaskTransition(host,1080,2460,valid::get,
-   ()->handoffs++,v->finishes++,s->{});run.start();ctx.windows.view.draw(new Canvas());View.drain();
+   ()->handoffs++,v->finishes++,s->{},null);run.start();ctx.windows.view.draw(new Canvas());View.drain();
   check(handoffs==1&&SwapPreview.captures==0&&Canvas.colorDraws==0&&Canvas.bitmapDraws==0,
    "live center handoff draws neither wallpaper nor a bitmap snapshot");
   Object liveSurface=new Object();run.setLiveSurface(liveSurface);run.reveal();run.reveal();
@@ -133,16 +133,30 @@ public class TopTransitionRegression {
   check(tx.sx==1f&&tx.x==0f&&tx.y==0f&&ctx.windows.removes==1&&finishes==1,
    "completed live reveal restores identity transform and removes the touch blocker");
   reset();run=new MiStepTopTaskTransition(host,1080,2460,valid::get,
-   ()->handoffs++,v->finishes++,s->{});run.start();ctx.windows.view.draw(new Canvas());View.drain();
+   ()->handoffs++,v->finishes++,s->{},null);run.start();ctx.windows.view.draw(new Canvas());View.drain();
   run.setLiveSurface(new Object());run.reveal();var cancelExpand=ValueAnimator.all.get(0);cancelExpand.step(.4f);run.close();
   check(android.view.SurfaceControl.Transaction.last.sx==1f&&ctx.windows.removes==1&&finishes==1,
    "cancelled live reveal restores the application surface before retiring the overlay");
+  reset();var start=new TopTaskReturnPolicy.RevealFrame(1224f,0f,.42f,1f);
+  run=new MiStepTopTaskTransition(host,3048,2032,valid::get,()->handoffs++,v->finishes++,s->{},start);
+  handoff(run);check(run.initialRevealFrame()==start,"native reparent can read tablet release geometry before animation");
+  run.setLiveSurface(new Object());run.reveal();
+  tx=android.view.SurfaceControl.Transaction.last;
+  check(tx.x==1224f&&tx.y==0f&&tx.sx==.42f&&tx.sy==1f,"first tablet frame matches the native handoff frame");
+  var tabletExpand=ValueAnimator.all.get(0);tabletExpand.step(.5f);tx=android.view.SurfaceControl.Transaction.last;
+  check(tx.x==612f&&tx.y==0f&&tx.sy==1f&&Math.abs(tx.sx-.71f)<.001f,"tablet task stretches toward the main edge at full height");
+  tabletExpand.end();tx=android.view.SurfaceControl.Transaction.last;
+  check(tx.x==0f&&tx.y==0f&&tx.sy==1f&&tx.sx==1f&&finishes==1,"tablet return reaches the normal main geometry");
+  reset();run=new MiStepTopTaskTransition(host,3048,2032,valid::get,()->handoffs++,v->finishes++,s->{},start);
+  handoff(run);run.close();check(run.initialRevealFrame()==null,"closed transition no longer stages a partial native task");
+  run.setLiveSurface(new Object());tx=android.view.SurfaceControl.Transaction.last;
+  check(tx.x==0f&&tx.y==0f&&tx.sy==1f&&tx.sx==1f&&finishes==1,"late native reparent restores full geometry after overlay closure");
   reset();run=new MiStepTopTaskTransition(host,1080,2460,valid::get,
-   ()->handoffs++,v->finishes++,s->{});run.start();ctx.windows.view.draw(new Canvas());View.drain();run.reveal();
+   ()->handoffs++,v->finishes++,s->{},null);run.start();ctx.windows.view.draw(new Canvas());View.drain();run.reveal();
   check(ctx.windows.removes==1&&finishes==1&&ValueAnimator.all.isEmpty(),"missing live surface skips animation and releases the blocker");
   for(int reason=0;reason<4;reason++) {
    reset();run=new MiStepTopTaskTransition(host,1080,2460,valid::get,
-    ()->handoffs++,v->finishes++,s->{});
+    ()->handoffs++,v->finishes++,s->{},null);
    run.setNativeRestore(()->restores++);run.start();ctx.windows.view.draw(new Canvas());View.drain();
    if(reason==0) {run.setLiveSurface(new Object());run.reveal();ValueAnimator.all.get(0).end();}
    else if(reason==1) {run.setLiveSurface(new Object());run.reveal();ValueAnimator.all.get(0).step(.4f);run.close();}
