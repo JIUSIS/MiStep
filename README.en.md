@@ -24,28 +24,30 @@
 
 ---
 
-**Version 1.0.4 is now available.** It adds scrollable side tasks, task retention across ordinary workspace exits, and an online donor acknowledgments list. See the [release notes](docs/发行说明-1.0.4.md).
+**Version 1.0.4 brings scrollable side windows to phones and tablets.** Reopen the workspace to pick up where you left off, including your side windows and scroll position. The app rail now keeps scrolling after a flick, and Settings includes an online donor acknowledgments list. See the [release notes](docs/发行说明-1.0.4.md).
 
-Most hands-on testing for 1.0.4 used a HyperOS 2 / Android 15 phone. See the [validation notes](docs/验证说明-1.0.4.md).
+We tested individual features in 1.0.4 development builds on the Redmi Note 11T Pro, Xiaomi 17 Pro Max and Xiaomi Pad 6S Pro. See the [validation notes](docs/验证说明-1.0.4.md) for device, system and test details.
 
 ## Multitasking that feels natural again
 
 Keep notes beside your research. Reply to a message while watching a video. Move between several apps while working on the same thing. I wanted a workspace where I could see these tasks and switch between them easily.
 
-**Mi Step takes inspiration from Smartisan's One Step and brings that approach to foreground multitasking on Xiaomi HyperOS 4.** Your current desktop or app stays in the main area, with three side task slots alongside it. Frequent apps, controls, music and tools sit above. Tap the task you want to use to bring it into the main area.
+**Mi Step takes inspiration from Smartisan's One Step and brings that approach to foreground multitasking on Xiaomi phones and tablets running HyperOS.** Your current desktop or app stays in the main area. Keep other apps in side windows, then tap the one you want to use to bring it into the main area. Frequent apps, controls, music and tools are all within the workspace.
 
 <p align="center">
   <img src="docs/assets/workspace-layout.en.svg" width="900" alt="Layout diagram: controls, music and frequent apps above one main area and three side tasks. Tap an empty slot to collect the current app, tap a side task to swap, or swipe it outward to return it to the background.">
-  <br><sub>This is a layout and gesture diagram, not a screenshot. The side tasks can also sit on the left.</sub>
+  <br><sub>Portrait phone layout and gestures. The side tasks can also sit on the left.</sub>
 </p>
 
 ## Features
 
-### 01 · One main area, three real side tasks
+### 01 · One main area, multiple live side windows
 
-The main area keeps your current desktop or app usable. Three task slots sit beside it, so you can keep several apps in view.
+The main area keeps your current desktop or app usable. Side windows keep other apps in view. The fixed layout on a portrait phone has three slots.
 
 **The ＋ in an empty slot collects the current main app.** Open the app in the main area, then tap an empty slot to place it there. Open another app and repeat to build your workspace. If the main area shows the desktop, you will be prompted to open an app first.
+
+Enable **Unlimited side windows (无限小窗)** in **System settings → Mi Step** to add more windows after filling the visible slots. Scroll vertically along the side on phones and portrait tablets, or horizontally along the top on landscape tablets. Turn the setting off to return to the fixed layout.
 
 Side tasks are real system app tasks. Swapping uses the existing tasks and preserves their current pages. Refreshing, process reclamation and playback still depend on the app and Android.
 
@@ -56,14 +58,17 @@ Tap a side task to bring it into the main area. The previous main app moves into
 - **Use the main area for full interaction:** tapping, scrolling, typing and the keyboard.
 - **Use side tasks to choose and manage tasks:** tap to swap or swipe outward.
 - Tapping a frequent app that is already a side task also brings that existing task into the main area.
+- Opening an app from the home screen can bring its existing side task back into the main area.
 
 The main area keeps input focus. Input is briefly protected during a handoff and restored after the final frame, helping prevent accidental touches or the keyboard following a side task.
 
 ### 03 · Swipe outward to make room
 
-Swipe a side task toward its nearest screen edge: left for tasks on the left, right for tasks on the right.
+To send a side task to the background, swipe it toward its nearest screen edge. Swipe left for tasks on the left and right for tasks on the right.
 
-The slot becomes empty, and **the task returns to the system background without being deliberately closed**. You can reopen it through the desktop, recent apps or the frequent app rail.
+On landscape tablets with **Unlimited side windows** enabled, swipe up on a window in the top row to send it to the background. Reopen background tasks from the home screen, Recents or the frequent app rail.
+
+When you exit the workspace with the exit button, your collected side windows and scroll position are kept for the next time you open it. Visible windows fade in together. Enable **Keep MiStep on lock (锁屏时保留 MiStep)** to resume the workspace after unlocking.
 
 ### 04 · Frequent apps, within reach
 
@@ -72,7 +77,7 @@ The top rail shows your pinned apps first, followed by apps ordered by foregroun
 | Gesture | Action |
 | --- | --- |
 | Tap an app icon | Open it in the main area, or swap its existing side task into the main area |
-| Swipe the rail horizontally | Browse icons outside the visible portion |
+| Swipe the rail horizontally | Browse more icons. The rail keeps scrolling briefly after a flick |
 | Long press an app icon | Choose custom apps, then tap Done to pin them at the front |
 | Tap the previous or next toolbar arrow | Move to the previous or next frequent app |
 
@@ -125,13 +130,19 @@ Common tools stay inside the workspace. Button placement adapts to the left or r
 
 The workspace uses a blurred version of the desktop wallpaper, rounded corners and a glass effect. Changing the wallpaper updates the background. The blurred image comes from the wallpaper, not the current app's screen.
 
-### 09 · Left or right layouts and landscape inside Mi Step
+### 09 · Left and right layouts in portrait and landscape
 
-Test build 1000021 allows corner entry in portrait while the status bar is normally visible. In immersive fullscreen, first reveal the native status bar without expanding notifications or quick settings, then start a new corner gesture. Entry remains blocked while the status bar is hidden. This rule also applies in landscape; actual landscape game behavior still needs validation. Swipe **right from the upper left corner** for side tasks on the left, or **left from the upper right corner** for side tasks on the right.
+Swipe **right from the upper left corner** for side tasks on the left, or **left from the upper right corner** for side tasks on the right. In immersive fullscreen, first reveal the native status bar, keep the notification and quick settings panels closed, then start a new corner swipe. If you hide the system gesture bar, you can also choose a bottom-edge swipe in Mi Step settings.
 
-When an app enters landscape inside the main area, Mi Step coordinates its orientation, touch mapping, task swaps and floating keyboard position. Version 1.0.0 includes fixes for landscape drag direction, keyboard movement limits, rotation ownership during swaps and status bar animations leaving the main area.
+Swipe up or down with two fingers in the top area to switch between the controls and the top app window. You can tap, scroll and go back directly inside that window.
 
-This means **an app in landscape inside the Mi Step workspace**. App policies, keyboards and ROM versions can still differ. See the [release notes](docs/发行说明-1.0.0.md) for the actual validation scope.
+When you rotate a tablet, the workspace rearranges and keeps its existing side windows. The landscape layout also has a separate portrait window. Push it toward the main area with two fingers, then release. It expands horizontally from where you let go.
+
+When an app enters landscape inside the main area, Mi Step adapts the app's orientation, touch input and floating keyboard position. Behavior can vary by app, keyboard and ROM. See the [validation notes](docs/验证说明-1.0.4.md).
+
+### 10 · Donor acknowledgments
+
+Open **System settings → Mi Step → About MiStep (关于 MiStep) → Donor acknowledgments (捐赠致谢)**. Mi Step fetches the online list when you open the page and refreshes it periodically while you stay there. The page shows only nicknames, side by side and in no ranked order.
 
 ## Installation and first steps
 
@@ -142,7 +153,7 @@ This means **an app in landscape inside the Mi Step workspace**. App policies, k
 | System | Requires **Android 14 / API 34** or later and targets HyperOS 2 / 3 / 4. See the 1.0.4 validation notes for device coverage. |
 | Architecture | **ARM64** |
 | Framework | Working **Root + LSPosed** |
-| Development and validation devices | Xiaomi 17 Pro Max, Redmi Note 11T Pro |
+| Development and validation devices | Xiaomi 17 Pro Max, Redmi Note 11T Pro, Xiaomi Pad 6S Pro |
 
 Different ROMs on the same model may expose different interfaces. These targets are not a guarantee of compatibility with every device.
 
@@ -204,9 +215,12 @@ Mi Step is a personal project, not an official Xiaomi, Smartisan or community pr
 | Topic | Start here |
 | --- | --- |
 | Installation, gestures, upgrades and recovery | [Usage guide](docs/使用说明.md) |
+| Changes and upgrades in 1.0.4 | [Release notes](docs/发行说明-1.0.4.md) |
+| Device testing for 1.0.4 | [Validation notes](docs/验证说明-1.0.4.md) |
+| Earlier additions and tablet support in 1.0.3 | [Release notes](docs/发行说明-1.0.3.md) |
 | Changes and validation scope in 1.0.0 | [Release notes](docs/发行说明-1.0.0.md) |
 | Building and running tests | [Build guide](docs/构建说明.md) |
-| Lyrics queries, clipboard and data | [Data and security](docs/数据与安全说明.md) |
+| Lyrics queries, donor acknowledgments and clipboard data | [Data and security](docs/数据与安全说明.md) |
 | Release content checks | [Release checks](docs/安全检查-1.0.0.md) |
 | Third-party components and licenses | [Third-party notices](THIRD_PARTY_NOTICES.md) |
 | Noncommercial use and modified releases | [License guide](docs/许可说明.md) · [Full license](LICENSE) |
